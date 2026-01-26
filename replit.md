@@ -4,6 +4,8 @@
 
 PTZ Command is a professional PTZ (Pan-Tilt-Zoom) camera controller designed for use with OBS, ATEM, and other broadcast software. The application enables control of up to 4 PTZ cameras via VISCA over IP protocol, featuring a virtual joystick for pan/tilt control, preset management with 16 presets per camera, and a standard broadcast-style program/preview workflow.
 
+The application also includes integrated control for Behringer X32 digital audio mixers via OSC protocol, providing basic channel control (faders, mute) from the same interface.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -24,6 +26,7 @@ The frontend is a single-page application with a dashboard layout containing:
 - Virtual joystick component for real-time PTZ control
 - Preset grid (16 presets per camera) with recall/store modes
 - Lens controls for zoom, focus, and speed adjustments
+- Audio mixer panel with 16 channel strips and main fader
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5
@@ -37,11 +40,13 @@ The server handles:
 - Preset storage and retrieval
 - WebSocket connections for real-time joystick/control commands
 - VISCA command translation and TCP socket management to cameras
+- X32 mixer connection and OSC command handling
+- Real-time state synchronization between mixer and UI
 
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema**: Two tables - `cameras` (connection info, status, program/preview flags) and `presets` (camera positions with pan/tilt/zoom/focus values)
+- **Schema**: Three tables - `cameras` (connection info, status, program/preview flags), `presets` (camera positions with pan/tilt/zoom/focus values), and `mixers` (audio mixer connection info)
 - **Migrations**: Managed via `drizzle-kit push`
 
 ### Project Structure
@@ -49,13 +54,15 @@ The server handles:
 ├── client/          # React frontend
 │   ├── src/
 │   │   ├── components/ptz/   # PTZ-specific components
+│   │   ├── components/mixer/ # Audio mixer components
 │   │   ├── components/ui/    # shadcn/ui components
 │   │   ├── pages/            # Route pages
 │   │   └── lib/              # API clients, utilities
 ├── server/          # Express backend
 │   ├── routes.ts    # API endpoints + WebSocket setup
 │   ├── storage.ts   # Database operations
-│   └── visca.ts     # VISCA protocol implementation
+│   ├── visca.ts     # VISCA protocol implementation
+│   └── x32.ts       # X32 OSC protocol implementation
 ├── shared/          # Shared TypeScript types and schemas
 │   └── schema.ts    # Drizzle schema definitions
 ```
@@ -71,9 +78,16 @@ The server handles:
 - Default port: 52381 (configurable per camera)
 - TCP socket connections managed by `VISCAClient` class
 
+### Audio Mixer Protocol
+- **OSC over UDP**: Open Sound Control protocol for Behringer X32/M32 mixers
+- Default port: 10023 (standard X32 OSC port)
+- UDP socket connections managed by `X32Client` class
+- Requires `/xremote` keep-alive every 9 seconds
+
 ### Key NPM Packages
 - `drizzle-orm` / `drizzle-kit`: Database ORM and migrations
 - `ws`: WebSocket server for real-time control
+- `osc`: OSC protocol library for X32 mixer communication
 - `framer-motion`: Joystick animation and gestures
 - `@tanstack/react-query`: Server state management
 - `zod` / `drizzle-zod`: Runtime schema validation
