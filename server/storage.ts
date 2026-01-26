@@ -1,4 +1,5 @@
-import { cameras, presets, mixers, switchers, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher } from "@shared/schema";
+import { cameras, presets, mixers, switchers, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type AuditLog, type InsertAuditLog } from "@shared/schema";
+import { desc } from "drizzle-orm";
 import { db } from "./db";
 import { pool } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -36,6 +37,10 @@ export interface IStorage {
   updateSwitcher(id: number, updates: Partial<Switcher>): Promise<Switcher | undefined>;
   deleteSwitcher(id: number): Promise<void>;
   updateSwitcherStatus(id: number, status: string): Promise<void>;
+
+  // Audit log operations
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(limit?: number, category?: string): Promise<AuditLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -206,6 +211,28 @@ export class DatabaseStorage implements IStorage {
 
   async updateSwitcherStatus(id: number, status: string): Promise<void> {
     await db.update(switchers).set({ status }).where(eq(switchers.id, id));
+  }
+
+  // Audit log operations
+  async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {
+    const [log] = await db.insert(auditLogs).values(insertLog).returning();
+    return log;
+  }
+
+  async getAuditLogs(limit: number = 100, category?: string): Promise<AuditLog[]> {
+    if (category) {
+      return await db
+        .select()
+        .from(auditLogs)
+        .where(eq(auditLogs.category, category))
+        .orderBy(desc(auditLogs.timestamp))
+        .limit(limit);
+    }
+    return await db
+      .select()
+      .from(auditLogs)
+      .orderBy(desc(auditLogs.timestamp))
+      .limit(limit);
   }
 }
 
