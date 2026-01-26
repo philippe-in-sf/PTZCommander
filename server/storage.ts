@@ -1,38 +1,113 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { cameras, presets, type Camera, type InsertCamera, type Preset, type InsertPreset } from "@shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Camera operations
+  getAllCameras(): Promise<Camera[]>;
+  getCamera(id: number): Promise<Camera | undefined>;
+  getCameraByIp(ip: string): Promise<Camera | undefined>;
+  createCamera(camera: InsertCamera): Promise<Camera>;
+  updateCamera(id: number, updates: Partial<Camera>): Promise<Camera | undefined>;
+  deleteCamera(id: number): Promise<void>;
+  updateCameraStatus(id: number, status: string): Promise<void>;
+  setProgramCamera(id: number): Promise<void>;
+  setPreviewCamera(id: number): Promise<void>;
+
+  // Preset operations
+  getPresetsForCamera(cameraId: number): Promise<Preset[]>;
+  getPreset(cameraId: number, presetNumber: number): Promise<Preset | undefined>;
+  savePreset(preset: InsertPreset): Promise<Preset>;
+  deletePreset(id: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  // Camera operations
+  async getAllCameras(): Promise<Camera[]> {
+    return await db.select().from(cameras);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getCamera(id: number): Promise<Camera | undefined> {
+    const [camera] = await db.select().from(cameras).where(eq(cameras.id, id));
+    return camera || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async getCameraByIp(ip: string): Promise<Camera | undefined> {
+    const [camera] = await db.select().from(cameras).where(eq(cameras.ip, ip));
+    return camera || undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createCamera(insertCamera: InsertCamera): Promise<Camera> {
+    const [camera] = await db.insert(cameras).values(insertCamera).returning();
+    return camera;
+  }
+
+  async updateCamera(id: number, updates: Partial<Camera>): Promise<Camera | undefined> {
+    const [camera] = await db
+      .update(cameras)
+      .set(updates)
+      .where(eq(cameras.id, id))
+      .returning();
+    return camera || undefined;
+  }
+
+  async deleteCamera(id: number): Promise<void> {
+    await db.delete(cameras).where(eq(cameras.id, id));
+  }
+
+  async updateCameraStatus(id: number, status: string): Promise<void> {
+    await db.update(cameras).set({ status }).where(eq(cameras.id, id));
+  }
+
+  async setProgramCamera(id: number): Promise<void> {
+    // Clear all other program flags
+    await db.update(cameras).set({ isProgramOutput: false });
+    // Set this camera as program
+    await db.update(cameras).set({ isProgramOutput: true }).where(eq(cameras.id, id));
+  }
+
+  async setPreviewCamera(id: number): Promise<void> {
+    // Clear all other preview flags
+    await db.update(cameras).set({ isPreviewOutput: false });
+    // Set this camera as preview
+    await db.update(cameras).set({ isPreviewOutput: true }).where(eq(cameras.id, id));
+  }
+
+  // Preset operations
+  async getPresetsForCamera(cameraId: number): Promise<Preset[]> {
+    return await db.select().from(presets).where(eq(presets.cameraId, cameraId));
+  }
+
+  async getPreset(cameraId: number, presetNumber: number): Promise<Preset | undefined> {
+    const [preset] = await db
+      .select()
+      .from(presets)
+      .where(and(eq(presets.cameraId, cameraId), eq(presets.presetNumber, presetNumber)));
+    return preset || undefined;
+  }
+
+  async savePreset(insertPreset: InsertPreset): Promise<Preset> {
+    // Check if preset already exists
+    const existing = await this.getPreset(insertPreset.cameraId, insertPreset.presetNumber);
+    
+    if (existing) {
+      // Update existing preset
+      const [updated] = await db
+        .update(presets)
+        .set({ ...insertPreset, updatedAt: new Date() })
+        .where(eq(presets.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new preset
+      const [preset] = await db.insert(presets).values(insertPreset).returning();
+      return preset;
+    }
+  }
+
+  async deletePreset(id: number): Promise<void> {
+    await db.delete(presets).where(eq(presets.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
