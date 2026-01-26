@@ -1,9 +1,19 @@
 import { useEffect, useRef, useCallback } from "react";
 
+export type MixerChannelState = {
+  channel: number;
+  fader: number;
+  muted: boolean;
+  name: string;
+};
+
+export type WebSocketMessageHandler = (message: any) => void;
+
 export class PTZWebSocket {
   private ws: WebSocket | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private reconnectDelay = 2000;
+  private messageHandlers: Set<WebSocketMessageHandler> = new Set();
 
   constructor(private url: string) {}
 
@@ -32,6 +42,23 @@ export class PTZWebSocket {
     this.ws.onerror = (error) => {
       console.error("[WebSocket] Error:", error);
     };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        this.messageHandlers.forEach(handler => handler(message));
+      } catch (error) {
+        console.error("[WebSocket] Error parsing message:", error);
+      }
+    };
+  }
+
+  addMessageHandler(handler: WebSocketMessageHandler): void {
+    this.messageHandlers.add(handler);
+  }
+
+  removeMessageHandler(handler: WebSocketMessageHandler): void {
+    this.messageHandlers.delete(handler);
   }
 
   disconnect(): void {

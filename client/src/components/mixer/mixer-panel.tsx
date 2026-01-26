@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { mixerApi } from "@/lib/api";
-import { useWebSocket } from "@/lib/websocket";
+import { useWebSocket, type MixerChannelState } from "@/lib/websocket";
 import { ChannelStrip } from "./channel-strip";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -36,6 +36,51 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   });
 
   const mixer = mixers[0];
+
+  const handleMixerState = useCallback((message: any) => {
+    if (message.type === "mixer_state" && Array.isArray(message.channels)) {
+      setChannelStates(prev => {
+        const newMap = new Map(prev);
+        (message.channels as MixerChannelState[]).forEach((ch) => {
+          newMap.set(ch.channel, {
+            fader: ch.fader,
+            muted: ch.muted,
+            name: ch.name || `Ch ${ch.channel}`
+          });
+        });
+        return newMap;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (ws) {
+      ws.addMessageHandler(handleMixerState);
+      return () => {
+        ws.removeMessageHandler(handleMixerState);
+      };
+    }
+  }, [ws, handleMixerState]);
+
+  useEffect(() => {
+    if (mixer && mixer.status === "online") {
+      mixerApi.getStatus(mixer.id).then((status) => {
+        if (status.channels && status.channels.length > 0) {
+          setChannelStates(prev => {
+            const newMap = new Map(prev);
+            status.channels.forEach((ch: MixerChannelState) => {
+              newMap.set(ch.channel, {
+                fader: ch.fader,
+                muted: ch.muted,
+                name: ch.name || `Ch ${ch.channel}`
+              });
+            });
+            return newMap;
+          });
+        }
+      }).catch(console.error);
+    }
+  }, [mixer]);
 
   const createMixerMutation = useMutation({
     mutationFn: mixerApi.create,
