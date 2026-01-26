@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { cameraManager } from "./visca";
 import { x32Manager } from "./x32";
 import { atemManager } from "./atem";
+import { logger, setupAuditLogging } from "./logger";
 import { insertCameraSchema, insertPresetSchema, insertMixerSchema, insertSwitcherSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 
@@ -13,6 +14,9 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  setupAuditLogging();
+  logger.info("system", "Application started");
+
   // ========== Camera Routes ==========
   
   // Get all cameras
@@ -53,6 +57,7 @@ export async function registerRoutes(
       }
 
       const camera = await storage.createCamera(result.data);
+      logger.info("camera", `Camera created: ${camera.name}`, { action: "camera:create", details: { cameraId: camera.id, name: camera.name, ip: camera.ip } });
       
       // Try to connect to camera
       const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
@@ -86,6 +91,7 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       cameraManager.disconnectCamera(id);
       await storage.deleteCamera(id);
+      logger.info("camera", `Camera deleted`, { action: "camera:delete", details: { cameraId: id } });
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete camera" });
@@ -97,6 +103,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       await storage.setProgramCamera(id);
+      logger.info("camera", `Camera set to program`, { action: "camera:program", details: { cameraId: id } });
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to set program camera" });
@@ -108,6 +115,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       await storage.setPreviewCamera(id);
+      logger.info("camera", `Camera set to preview`, { action: "camera:preview", details: { cameraId: id } });
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to set preview camera" });
