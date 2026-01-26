@@ -22,8 +22,8 @@ export default function Dashboard() {
   const [addCameraOpen, setAddCameraOpen] = useState(false);
   const [newCamera, setNewCamera] = useState({ name: "", ip: "", port: 52381 });
 
-  // WebSocket connection
-  const ws = useWebSocket(`ws://${window.location.host}/ws`);
+  // WebSocket connection (auto-detects protocol)
+  const ws = useWebSocket();
 
   // Fetch cameras
   const { data: cameras = [], isLoading } = useQuery({

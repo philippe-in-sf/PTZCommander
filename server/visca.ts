@@ -64,42 +64,45 @@ export class VISCAClient {
     this.socket.write(command);
   }
 
-  // Pan/Tilt control with speed
+  // Pan/Tilt velocity control for joystick
   // pan: -1.0 (left) to 1.0 (right)
   // tilt: -1.0 (down) to 1.0 (up)
   panTilt(pan: number, tilt: number, speed: number = 0.5): void {
-    // VISCA Pan/Tilt command format:
-    // 8x 01 06 01 VV WW 0Y 0Y 0Y 0Y 0Z 0Z 0Z 0Z FF
-    // VV = pan speed (01-18 hex)
-    // WW = tilt speed (01-14 hex)
-    // YYYY = pan position
-    // ZZZZ = tilt position
+    // VISCA PanTilt Drive command: 8x 01 06 01 VV WW XX YY FF
+    // VV = pan speed (01-18 hex, 0x18 = 24 max)
+    // WW = tilt speed (01-14 hex, 0x14 = 20 max)
+    // XX = pan direction: 01 = left, 02 = right, 03 = stop
+    // YY = tilt direction: 01 = up, 02 = down, 03 = stop
     
-    const panSpeed = Math.floor(Math.abs(pan) * 24 * speed);
-    const tiltSpeed = Math.floor(Math.abs(tilt) * 20 * speed);
+    // Calculate speeds based on joystick magnitude
+    const panSpeed = Math.max(1, Math.min(24, Math.floor(Math.abs(pan) * 24 * speed)));
+    const tiltSpeed = Math.max(1, Math.min(20, Math.floor(Math.abs(tilt) * 20 * speed)));
     
-    // Map normalized values to VISCA position range
-    // VISCA pan range is typically -880 to +880 (0xFC90 to 0x0370)
-    // VISCA tilt range is typically -300 to +300 (0xFED4 to 0x012C)
-    const panPos = Math.floor(pan * 880);
-    const tiltPos = Math.floor(tilt * 300);
+    // Determine direction bytes
+    let panDirection: number;
+    if (Math.abs(pan) < 0.05) {
+      panDirection = 0x03; // Stop
+    } else if (pan < 0) {
+      panDirection = 0x01; // Left
+    } else {
+      panDirection = 0x02; // Right
+    }
     
-    // Clamp to valid ranges
-    const clampedPanSpeed = Math.max(1, Math.min(24, panSpeed));
-    const clampedTiltSpeed = Math.max(1, Math.min(20, tiltSpeed));
+    let tiltDirection: number;
+    if (Math.abs(tilt) < 0.05) {
+      tiltDirection = 0x03; // Stop
+    } else if (tilt > 0) {
+      tiltDirection = 0x01; // Up
+    } else {
+      tiltDirection = 0x02; // Down
+    }
     
     const cmd = Buffer.from([
-      0x81, 0x01, 0x06, 0x02,
-      clampedPanSpeed,
-      clampedTiltSpeed,
-      (panPos >> 12) & 0x0F,
-      (panPos >> 8) & 0x0F,
-      (panPos >> 4) & 0x0F,
-      panPos & 0x0F,
-      (tiltPos >> 12) & 0x0F,
-      (tiltPos >> 8) & 0x0F,
-      (tiltPos >> 4) & 0x0F,
-      tiltPos & 0x0F,
+      0x81, 0x01, 0x06, 0x01,
+      panSpeed,
+      tiltSpeed,
+      panDirection,
+      tiltDirection,
       0xFF
     ]);
 

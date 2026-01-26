@@ -95,12 +95,19 @@ export class PTZWebSocket {
   }
 }
 
+// Build WebSocket URL based on current protocol (ws:// or wss://)
+export function buildWebSocketUrl(path: string = "/ws"): string {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}${path}`;
+}
+
 // Hook for using WebSocket in components
-export function useWebSocket(url: string): PTZWebSocket | null {
+export function useWebSocket(): PTZWebSocket | null {
   const wsRef = useRef<PTZWebSocket | null>(null);
 
   useEffect(() => {
     if (!wsRef.current) {
+      const url = buildWebSocketUrl("/ws");
       wsRef.current = new PTZWebSocket(url);
       wsRef.current.connect();
     }
@@ -109,7 +116,7 @@ export function useWebSocket(url: string): PTZWebSocket | null {
       wsRef.current?.disconnect();
       wsRef.current = null;
     };
-  }, [url]);
+  }, []);
 
   return wsRef.current;
 }

@@ -245,12 +245,20 @@ export async function registerRoutes(
     });
   });
 
-  // Initialize camera connections on startup
-  const cameras = await storage.getAllCameras();
-  for (const camera of cameras) {
-    const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
-    await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
-  }
+  // Initialize camera connections on startup (non-blocking)
+  // This runs asynchronously after server starts
+  setTimeout(async () => {
+    try {
+      const cameras = await storage.getAllCameras();
+      for (const camera of cameras) {
+        const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
+        await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
+      }
+      console.log(`[VISCA] Initialized ${cameras.length} camera connection(s)`);
+    } catch (error) {
+      console.error("[VISCA] Error initializing camera connections:", error);
+    }
+  }, 1000);
 
   return httpServer;
 }
