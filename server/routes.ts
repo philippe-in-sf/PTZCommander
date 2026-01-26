@@ -243,7 +243,15 @@ export async function registerRoutes(
   app.patch("/api/mixers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const mixer = await storage.updateMixer(id, req.body);
+      const result = insertMixerSchema.partial().safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: fromError(result.error).toString() 
+        });
+      }
+      
+      const mixer = await storage.updateMixer(id, result.data);
       
       if (!mixer) {
         return res.status(404).json({ message: "Mixer not found" });
@@ -302,8 +310,33 @@ export async function registerRoutes(
   
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
+  // Helper to broadcast to all connected clients
+  function broadcast(message: any) {
+    const data = JSON.stringify(message);
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(data);
+      }
+    });
+  }
+
+  // Wire X32 state changes to broadcast to all clients
+  // This is set on the manager so it persists across connect/disconnect cycles
+  x32Manager.setStateChangeCallback((states) => {
+    broadcast({ type: "mixer_state", channels: states });
+  });
+
   wss.on("connection", (ws: WebSocket) => {
     console.log("[WebSocket] Client connected");
+    
+    // Send current mixer state to newly connected client
+    const client = x32Manager.getClient();
+    if (client && client.isConnected()) {
+      ws.send(JSON.stringify({
+        type: "mixer_state",
+        channels: client.getChannelStates()
+      }));
+    }
 
     ws.on("message", async (data: Buffer) => {
       try {

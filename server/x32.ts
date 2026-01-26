@@ -182,6 +182,14 @@ export class X32Client {
 
 class X32Manager {
   private client: X32Client | null = null;
+  private stateCallback: ((states: ChannelState[]) => void) | null = null;
+
+  setStateChangeCallback(callback: (states: ChannelState[]) => void) {
+    this.stateCallback = callback;
+    if (this.client) {
+      this.client.setStateChangeCallback(callback);
+    }
+  }
 
   async connect(ip: string, port: number = 10023): Promise<boolean> {
     if (this.client) {
@@ -189,6 +197,11 @@ class X32Manager {
     }
     
     this.client = new X32Client({ ip, port });
+    
+    if (this.stateCallback) {
+      this.client.setStateChangeCallback(this.stateCallback);
+    }
+    
     return await this.client.connect();
   }
 
