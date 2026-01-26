@@ -1,27 +1,29 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Save, Play } from "lucide-react";
+import type { Preset } from "@shared/schema";
 
 interface PresetGridProps {
+  presets: Preset[];
   onRecall: (index: number) => void;
   onStore: (index: number) => void;
 }
 
-export function PresetGrid({ onRecall, onStore }: PresetGridProps) {
+export function PresetGrid({ presets, onRecall, onStore }: PresetGridProps) {
   const [mode, setMode] = useState<'recall' | 'store'>('recall');
-  // Mock preset state (just boolean for "has preset")
-  const [presets, setPresets] = useState<boolean[]>(Array(16).fill(false));
 
   const handlePress = (index: number) => {
     if (mode === 'store') {
-      const newPresets = [...presets];
-      newPresets[index] = true;
-      setPresets(newPresets);
       onStore(index);
-      setMode('recall'); // Switch back to recall after storing usually
+      setMode('recall');
     } else {
       onRecall(index);
     }
+  };
+
+  // Check if preset exists for index
+  const hasPreset = (index: number) => {
+    return presets.some(p => p.presetNumber === index);
   };
 
   return (
@@ -37,6 +39,7 @@ export function PresetGrid({ onRecall, onStore }: PresetGridProps) {
                 ? "bg-slate-800 text-cyan-400 shadow-sm" 
                 : "text-slate-500 hover:text-slate-300"
             )}
+            data-testid="button-preset-recall"
           >
             <Play className="w-3 h-3" /> RECALL
           </button>
@@ -48,6 +51,7 @@ export function PresetGrid({ onRecall, onStore }: PresetGridProps) {
                 ? "bg-red-900/30 text-red-400 border border-red-900/50" 
                 : "text-slate-500 hover:text-slate-300"
             )}
+            data-testid="button-preset-store"
           >
             <Save className="w-3 h-3" /> STORE
           </button>
@@ -55,25 +59,36 @@ export function PresetGrid({ onRecall, onStore }: PresetGridProps) {
       </div>
 
       <div className="grid grid-cols-4 gap-2 flex-1">
-        {presets.map((hasPreset, i) => (
-          <button
-            key={i}
-            onClick={() => handlePress(i)}
-            className={cn(
-              "relative group rounded-md border text-sm font-mono font-bold transition-all duration-100 flex flex-col items-center justify-center",
-              mode === 'store'
-                ? "border-red-900/30 bg-red-950/10 text-red-500 hover:bg-red-900/20 hover:border-red-500/50"
-                : hasPreset
-                  ? "border-cyan-900/30 bg-cyan-950/20 text-cyan-400 hover:bg-cyan-900/30 hover:border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.05)]"
-                  : "border-slate-800 bg-slate-900/30 text-slate-600 hover:bg-slate-800 hover:text-slate-400"
-            )}
-          >
-            <span className="text-lg">{i + 1}</span>
-            {hasPreset && (
-              <div className="absolute bottom-1 w-1 h-1 rounded-full bg-cyan-500" />
-            )}
-          </button>
-        ))}
+        {Array.from({ length: 16 }, (_, i) => {
+          const hasData = hasPreset(i);
+          const preset = presets.find(p => p.presetNumber === i);
+          
+          return (
+            <button
+              key={i}
+              onClick={() => handlePress(i)}
+              className={cn(
+                "relative group rounded-md border text-sm font-mono font-bold transition-all duration-100 flex flex-col items-center justify-center",
+                mode === 'store'
+                  ? "border-red-900/30 bg-red-950/10 text-red-500 hover:bg-red-900/20 hover:border-red-500/50"
+                  : hasData
+                    ? "border-cyan-900/30 bg-cyan-950/20 text-cyan-400 hover:bg-cyan-900/30 hover:border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.05)]"
+                    : "border-slate-800 bg-slate-900/30 text-slate-600 hover:bg-slate-800 hover:text-slate-400"
+              )}
+              data-testid={`button-preset-${i}`}
+            >
+              <span className="text-lg">{i + 1}</span>
+              {preset?.name && (
+                <span className="text-[8px] text-slate-500 mt-0.5 truncate max-w-full px-1">
+                  {preset.name}
+                </span>
+              )}
+              {hasData && (
+                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-cyan-500" />
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

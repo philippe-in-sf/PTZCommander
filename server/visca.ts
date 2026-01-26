@@ -221,9 +221,9 @@ export class CameraConnectionManager {
   }
 
   disconnectAll(): void {
-    for (const [id, client] of this.connections) {
+    Array.from(this.connections.entries()).forEach(([id, client]) => {
       client.disconnect();
-    }
+    });
     this.connections.clear();
   }
 }
