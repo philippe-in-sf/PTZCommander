@@ -1,5 +1,6 @@
 import { cameras, presets, type Camera, type InsertCamera, type Preset, type InsertPreset } from "@shared/schema";
 import { db } from "./db";
+import { pool } from "./db";
 import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
@@ -60,17 +61,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setProgramCamera(id: number): Promise<void> {
-    // Clear all other program flags
-    await db.update(cameras).set({ isProgramOutput: false });
-    // Set this camera as program
-    await db.update(cameras).set({ isProgramOutput: true }).where(eq(cameras.id, id));
+    // Use transaction to atomically clear and set program flag
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE cameras SET is_program_output = false');
+      await client.query('UPDATE cameras SET is_program_output = true WHERE id = $1', [id]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async setPreviewCamera(id: number): Promise<void> {
-    // Clear all other preview flags
-    await db.update(cameras).set({ isPreviewOutput: false });
-    // Set this camera as preview
-    await db.update(cameras).set({ isPreviewOutput: true }).where(eq(cameras.id, id));
+    // Use transaction to atomically clear and set preview flag
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('UPDATE cameras SET is_preview_output = false');
+      await client.query('UPDATE cameras SET is_preview_output = true WHERE id = $1', [id]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   // Preset operations
