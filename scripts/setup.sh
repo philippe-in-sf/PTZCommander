@@ -1,10 +1,16 @@
 #!/bin/bash
 
 # PTZ Command - Setup Script for Mac/Linux
+# Controls PTZ cameras via VISCA and Behringer X32 mixers via OSC
 
 echo "=========================================="
 echo "  PTZ Command - Local Setup Script"
 echo "=========================================="
+echo ""
+echo "This application provides:"
+echo "  - PTZ camera control via VISCA over IP"
+echo "  - Behringer X32 mixer control via OSC"
+echo "  - Program/Preview switching workflow"
 echo ""
 
 # Check for Node.js
@@ -60,4 +66,8 @@ echo "To start the application:"
 echo "  npm run dev"
 echo ""
 echo "Then open http://localhost:5000 in your browser."
+echo ""
+echo "Network Requirements:"
+echo "  - PTZ cameras: TCP port 52381 (VISCA)"
+echo "  - X32 mixer: UDP port 10023 (OSC)"
 echo ""
