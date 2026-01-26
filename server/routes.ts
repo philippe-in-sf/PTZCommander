@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { cameraManager } from "./visca";
-import { insertCameraSchema, insertPresetSchema } from "@shared/schema";
+import { x32Manager } from "./x32";
+import { insertCameraSchema, insertPresetSchema, insertMixerSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 
 export async function registerRoutes(
@@ -187,6 +188,116 @@ export async function registerRoutes(
     }
   });
 
+  // ========== Mixer Routes ==========
+
+  // Get all mixers
+  app.get("/api/mixers", async (_req, res) => {
+    try {
+      const mixers = await storage.getAllMixers();
+      res.json(mixers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get mixers" });
+    }
+  });
+
+  // Get single mixer
+  app.get("/api/mixers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const mixer = await storage.getMixer(id);
+      
+      if (!mixer) {
+        return res.status(404).json({ message: "Mixer not found" });
+      }
+      
+      res.json(mixer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get mixer" });
+    }
+  });
+
+  // Create mixer
+  app.post("/api/mixers", async (req, res) => {
+    try {
+      const result = insertMixerSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: fromError(result.error).toString() 
+        });
+      }
+
+      const mixer = await storage.createMixer(result.data);
+      
+      // Try to connect to mixer
+      const connected = await x32Manager.connect(mixer.ip, mixer.port);
+      await storage.updateMixerStatus(mixer.id, connected ? "online" : "offline");
+      
+      res.json(mixer);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create mixer" });
+    }
+  });
+
+  // Update mixer
+  app.patch("/api/mixers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const mixer = await storage.updateMixer(id, req.body);
+      
+      if (!mixer) {
+        return res.status(404).json({ message: "Mixer not found" });
+      }
+      
+      res.json(mixer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update mixer" });
+    }
+  });
+
+  // Delete mixer
+  app.delete("/api/mixers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      x32Manager.disconnect();
+      await storage.deleteMixer(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete mixer" });
+    }
+  });
+
+  // Connect to mixer
+  app.post("/api/mixers/:id/connect", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const mixer = await storage.getMixer(id);
+      
+      if (!mixer) {
+        return res.status(404).json({ message: "Mixer not found" });
+      }
+      
+      const connected = await x32Manager.connect(mixer.ip, mixer.port);
+      await storage.updateMixerStatus(id, connected ? "online" : "offline");
+      
+      res.json({ success: connected, status: connected ? "online" : "offline" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to connect to mixer" });
+    }
+  });
+
+  // Get mixer status
+  app.get("/api/mixers/:id/status", async (req, res) => {
+    try {
+      res.json({ 
+        connected: x32Manager.isConnected(),
+        channels: x32Manager.getClient()?.getChannelStates() || []
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get mixer status" });
+    }
+  });
+
   // ========== WebSocket Server for Real-time Control ==========
   
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -232,6 +343,35 @@ export async function registerRoutes(
             const recallClient = cameraManager.getClient(message.cameraId);
             if (recallClient && recallClient.isConnected()) {
               recallClient.recallPreset(message.presetNumber);
+            }
+            break;
+
+          // Mixer control messages
+          case "mixer_fader":
+            const mixerClient = x32Manager.getClient();
+            if (mixerClient && mixerClient.isConnected()) {
+              mixerClient.setChannelFader(message.channel, message.value);
+            }
+            break;
+
+          case "mixer_mute":
+            const muteClient = x32Manager.getClient();
+            if (muteClient && muteClient.isConnected()) {
+              muteClient.setChannelMute(message.channel, message.muted);
+            }
+            break;
+
+          case "mixer_main_fader":
+            const mainClient = x32Manager.getClient();
+            if (mainClient && mainClient.isConnected()) {
+              mainClient.setMainFader(message.value);
+            }
+            break;
+
+          case "mixer_main_mute":
+            const mainMuteClient = x32Manager.getClient();
+            if (mainMuteClient && mainMuteClient.isConnected()) {
+              mainMuteClient.setMainMute(message.muted);
             }
             break;
         }

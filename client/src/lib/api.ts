@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -88,5 +88,61 @@ export const presetApi = {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete preset");
+  },
+};
+
+// Mixer API
+export const mixerApi = {
+  getAll: async (): Promise<Mixer[]> => {
+    const res = await fetch(`${API_BASE}/mixers`);
+    if (!res.ok) throw new Error("Failed to fetch mixers");
+    return res.json();
+  },
+
+  getOne: async (id: number): Promise<Mixer> => {
+    const res = await fetch(`${API_BASE}/mixers/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch mixer");
+    return res.json();
+  },
+
+  create: async (mixer: InsertMixer): Promise<Mixer> => {
+    const res = await fetch(`${API_BASE}/mixers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(mixer),
+    });
+    if (!res.ok) throw new Error("Failed to create mixer");
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<Mixer>): Promise<Mixer> => {
+    const res = await fetch(`${API_BASE}/mixers/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update mixer");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/mixers/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete mixer");
+  },
+
+  connect: async (id: number): Promise<{ success: boolean; status: string }> => {
+    const res = await fetch(`${API_BASE}/mixers/${id}/connect`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to connect to mixer");
+    return res.json();
+  },
+
+  getStatus: async (id: number): Promise<{ connected: boolean; channels: any[] }> => {
+    const res = await fetch(`${API_BASE}/mixers/${id}/status`);
+    if (!res.ok) throw new Error("Failed to get mixer status");
+    return res.json();
   },
 };

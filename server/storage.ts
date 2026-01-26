@@ -1,4 +1,4 @@
-import { cameras, presets, type Camera, type InsertCamera, type Preset, type InsertPreset } from "@shared/schema";
+import { cameras, presets, mixers, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer } from "@shared/schema";
 import { db } from "./db";
 import { pool } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -20,6 +20,14 @@ export interface IStorage {
   getPreset(cameraId: number, presetNumber: number): Promise<Preset | undefined>;
   savePreset(preset: InsertPreset): Promise<Preset>;
   deletePreset(id: number): Promise<void>;
+
+  // Mixer operations
+  getAllMixers(): Promise<Mixer[]>;
+  getMixer(id: number): Promise<Mixer | undefined>;
+  createMixer(mixer: InsertMixer): Promise<Mixer>;
+  updateMixer(id: number, updates: Partial<Mixer>): Promise<Mixer | undefined>;
+  deleteMixer(id: number): Promise<void>;
+  updateMixerStatus(id: number, status: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -126,6 +134,38 @@ export class DatabaseStorage implements IStorage {
 
   async deletePreset(id: number): Promise<void> {
     await db.delete(presets).where(eq(presets.id, id));
+  }
+
+  // Mixer operations
+  async getAllMixers(): Promise<Mixer[]> {
+    return await db.select().from(mixers);
+  }
+
+  async getMixer(id: number): Promise<Mixer | undefined> {
+    const [mixer] = await db.select().from(mixers).where(eq(mixers.id, id));
+    return mixer || undefined;
+  }
+
+  async createMixer(insertMixer: InsertMixer): Promise<Mixer> {
+    const [mixer] = await db.insert(mixers).values(insertMixer).returning();
+    return mixer;
+  }
+
+  async updateMixer(id: number, updates: Partial<Mixer>): Promise<Mixer | undefined> {
+    const [mixer] = await db
+      .update(mixers)
+      .set(updates)
+      .where(eq(mixers.id, id))
+      .returning();
+    return mixer || undefined;
+  }
+
+  async deleteMixer(id: number): Promise<void> {
+    await db.delete(mixers).where(eq(mixers.id, id));
+  }
+
+  async updateMixerStatus(id: number, status: string): Promise<void> {
+    await db.update(mixers).set({ status }).where(eq(mixers.id, id));
   }
 }
 
