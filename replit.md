@@ -4,7 +4,7 @@
 
 PTZ Command is a professional PTZ (Pan-Tilt-Zoom) camera controller designed for use with OBS, ATEM, and other broadcast software. The application enables control of up to 4 PTZ cameras via VISCA over IP protocol, featuring a virtual joystick for pan/tilt control, preset management with 16 presets per camera, and a standard broadcast-style program/preview workflow.
 
-The application also includes integrated control for Behringer X32 digital audio mixers via OSC protocol, providing basic channel control (faders, mute) from the same interface.
+The application also includes integrated control for Behringer X32 digital audio mixers via OSC protocol, providing basic channel control (faders, mute) from the same interface. Additionally, it supports Blackmagic ATEM video switchers for program/preview input selection and cut/auto transitions.
 
 ## User Preferences
 
@@ -27,6 +27,7 @@ The frontend is a single-page application with a dashboard layout containing:
 - Preset grid (16 presets per camera) with recall/store modes
 - Lens controls for zoom, focus, and speed adjustments
 - Audio mixer panel with 16 channel strips and main fader
+- Video switcher panel with 8 input buttons for program/preview and transition controls
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5
@@ -41,20 +42,22 @@ The server handles:
 - WebSocket connections for real-time joystick/control commands
 - VISCA command translation and TCP socket management to cameras
 - X32 mixer connection and OSC command handling
-- Real-time state synchronization between mixer and UI
+- ATEM switcher connection and control via atem-connection library
+- Real-time state synchronization between hardware and UI
 
 ### Data Storage
 - **Database**: PostgreSQL
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema**: Three tables - `cameras` (connection info, status, program/preview flags), `presets` (camera positions with pan/tilt/zoom/focus values), and `mixers` (audio mixer connection info)
+- **Schema**: Four tables - `cameras` (connection info, status, program/preview flags), `presets` (camera positions with pan/tilt/zoom/focus values), `mixers` (audio mixer connection info), and `switchers` (ATEM switcher connection info)
 - **Migrations**: Managed via `drizzle-kit push`
 
 ### Project Structure
 ```
 ├── client/          # React frontend
 │   ├── src/
-│   │   ├── components/ptz/   # PTZ-specific components
-│   │   ├── components/mixer/ # Audio mixer components
+│   │   ├── components/ptz/     # PTZ-specific components
+│   │   ├── components/mixer/   # Audio mixer components
+│   │   ├── components/switcher/ # Video switcher components
 │   │   ├── components/ui/    # shadcn/ui components
 │   │   ├── pages/            # Route pages
 │   │   └── lib/              # API clients, utilities
@@ -62,7 +65,8 @@ The server handles:
 │   ├── routes.ts    # API endpoints + WebSocket setup
 │   ├── storage.ts   # Database operations
 │   ├── visca.ts     # VISCA protocol implementation
-│   └── x32.ts       # X32 OSC protocol implementation
+│   ├── x32.ts       # X32 OSC protocol implementation
+│   └── atem.ts      # ATEM switcher protocol implementation
 ├── shared/          # Shared TypeScript types and schemas
 │   └── schema.ts    # Drizzle schema definitions
 ```
@@ -84,10 +88,17 @@ The server handles:
 - UDP socket connections managed by `X32Client` class
 - Requires `/xremote` keep-alive every 9 seconds
 
+### Video Switcher Protocol
+- **ATEM Protocol**: Blackmagic ATEM switcher control via atem-connection library
+- Network control only (USB not supported by Node.js libraries)
+- Managed by `ATEMClient` class with connection state tracking
+- Real-time state synchronization via WebSocket broadcast
+
 ### Key NPM Packages
 - `drizzle-orm` / `drizzle-kit`: Database ORM and migrations
 - `ws`: WebSocket server for real-time control
 - `osc`: OSC protocol library for X32 mixer communication
+- `atem-connection`: Blackmagic ATEM switcher control library
 - `framer-motion`: Joystick animation and gestures
 - `@tanstack/react-query`: Server state management
 - `zod` / `drizzle-zod`: Runtime schema validation

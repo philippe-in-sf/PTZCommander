@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer } from "@shared/schema";
+import { cameras, presets, mixers, switchers, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher } from "@shared/schema";
 import { db } from "./db";
 import { pool } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -28,6 +28,14 @@ export interface IStorage {
   updateMixer(id: number, updates: Partial<Mixer>): Promise<Mixer | undefined>;
   deleteMixer(id: number): Promise<void>;
   updateMixerStatus(id: number, status: string): Promise<void>;
+
+  // Switcher operations
+  getAllSwitchers(): Promise<Switcher[]>;
+  getSwitcher(id: number): Promise<Switcher | undefined>;
+  createSwitcher(switcher: InsertSwitcher): Promise<Switcher>;
+  updateSwitcher(id: number, updates: Partial<Switcher>): Promise<Switcher | undefined>;
+  deleteSwitcher(id: number): Promise<void>;
+  updateSwitcherStatus(id: number, status: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -166,6 +174,38 @@ export class DatabaseStorage implements IStorage {
 
   async updateMixerStatus(id: number, status: string): Promise<void> {
     await db.update(mixers).set({ status }).where(eq(mixers.id, id));
+  }
+
+  // Switcher operations
+  async getAllSwitchers(): Promise<Switcher[]> {
+    return await db.select().from(switchers);
+  }
+
+  async getSwitcher(id: number): Promise<Switcher | undefined> {
+    const [switcher] = await db.select().from(switchers).where(eq(switchers.id, id));
+    return switcher || undefined;
+  }
+
+  async createSwitcher(insertSwitcher: InsertSwitcher): Promise<Switcher> {
+    const [switcher] = await db.insert(switchers).values(insertSwitcher).returning();
+    return switcher;
+  }
+
+  async updateSwitcher(id: number, updates: Partial<Switcher>): Promise<Switcher | undefined> {
+    const [switcher] = await db
+      .update(switchers)
+      .set(updates)
+      .where(eq(switchers.id, id))
+      .returning();
+    return switcher || undefined;
+  }
+
+  async deleteSwitcher(id: number): Promise<void> {
+    await db.delete(switchers).where(eq(switchers.id, id));
+  }
+
+  async updateSwitcherStatus(id: number, status: string): Promise<void> {
+    await db.update(switchers).set({ status }).where(eq(switchers.id, id));
   }
 }
 

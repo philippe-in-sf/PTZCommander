@@ -4,7 +4,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { cameraManager } from "./visca";
 import { x32Manager } from "./x32";
-import { insertCameraSchema, insertPresetSchema, insertMixerSchema } from "@shared/schema";
+import { atemManager } from "./atem";
+import { insertCameraSchema, insertPresetSchema, insertMixerSchema, insertSwitcherSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 
 export async function registerRoutes(
@@ -306,6 +307,180 @@ export async function registerRoutes(
     }
   });
 
+  // ========== Switcher (ATEM) Routes ==========
+
+  // Get all switchers
+  app.get("/api/switchers", async (_req, res) => {
+    try {
+      const switchers = await storage.getAllSwitchers();
+      res.json(switchers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get switchers" });
+    }
+  });
+
+  // Get single switcher
+  app.get("/api/switchers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const switcher = await storage.getSwitcher(id);
+      
+      if (!switcher) {
+        return res.status(404).json({ message: "Switcher not found" });
+      }
+      
+      res.json(switcher);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get switcher" });
+    }
+  });
+
+  // Create switcher
+  app.post("/api/switchers", async (req, res) => {
+    try {
+      const result = insertSwitcherSchema.safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: fromError(result.error).toString() 
+        });
+      }
+
+      const switcher = await storage.createSwitcher(result.data);
+      
+      // Try to connect to switcher
+      const connected = await atemManager.connect(switcher.ip);
+      await storage.updateSwitcherStatus(switcher.id, connected ? "online" : "offline");
+      
+      res.json(switcher);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create switcher" });
+    }
+  });
+
+  // Update switcher
+  app.patch("/api/switchers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = insertSwitcherSchema.partial().safeParse(req.body);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: fromError(result.error).toString() 
+        });
+      }
+      
+      const switcher = await storage.updateSwitcher(id, result.data);
+      
+      if (!switcher) {
+        return res.status(404).json({ message: "Switcher not found" });
+      }
+      
+      res.json(switcher);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update switcher" });
+    }
+  });
+
+  // Delete switcher
+  app.delete("/api/switchers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      atemManager.disconnect();
+      await storage.deleteSwitcher(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete switcher" });
+    }
+  });
+
+  // Connect to switcher
+  app.post("/api/switchers/:id/connect", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const switcher = await storage.getSwitcher(id);
+      
+      if (!switcher) {
+        return res.status(404).json({ message: "Switcher not found" });
+      }
+      
+      const connected = await atemManager.connect(switcher.ip);
+      await storage.updateSwitcherStatus(id, connected ? "online" : "offline");
+      
+      res.json({ success: connected, status: connected ? "online" : "offline" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to connect to switcher" });
+    }
+  });
+
+  // Get switcher status/state
+  app.get("/api/switchers/:id/status", async (req, res) => {
+    try {
+      res.json(atemManager.getState() || { connected: false });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get switcher status" });
+    }
+  });
+
+  // ATEM control endpoints
+  app.post("/api/switchers/:id/cut", async (req, res) => {
+    try {
+      const client = atemManager.getClient();
+      if (client && client.isConnected()) {
+        await client.cut();
+        res.json({ success: true });
+      } else {
+        res.status(503).json({ message: "Switcher not connected" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to execute cut" });
+    }
+  });
+
+  app.post("/api/switchers/:id/auto", async (req, res) => {
+    try {
+      const client = atemManager.getClient();
+      if (client && client.isConnected()) {
+        await client.autoTransition();
+        res.json({ success: true });
+      } else {
+        res.status(503).json({ message: "Switcher not connected" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to execute auto transition" });
+    }
+  });
+
+  app.post("/api/switchers/:id/program", async (req, res) => {
+    try {
+      const { inputId } = req.body;
+      const client = atemManager.getClient();
+      if (client && client.isConnected()) {
+        await client.setProgramInput(inputId);
+        res.json({ success: true });
+      } else {
+        res.status(503).json({ message: "Switcher not connected" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to set program input" });
+    }
+  });
+
+  app.post("/api/switchers/:id/preview", async (req, res) => {
+    try {
+      const { inputId } = req.body;
+      const client = atemManager.getClient();
+      if (client && client.isConnected()) {
+        await client.setPreviewInput(inputId);
+        res.json({ success: true });
+      } else {
+        res.status(503).json({ message: "Switcher not connected" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to set preview input" });
+    }
+  });
+
   // ========== WebSocket Server for Real-time Control ==========
   
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
@@ -326,15 +501,29 @@ export async function registerRoutes(
     broadcast({ type: "mixer_state", channels: states });
   });
 
+  // Wire ATEM state changes to broadcast to all clients
+  atemManager.setStateChangeCallback((state) => {
+    broadcast({ type: "atem_state", ...state });
+  });
+
   wss.on("connection", (ws: WebSocket) => {
     console.log("[WebSocket] Client connected");
     
     // Send current mixer state to newly connected client
-    const client = x32Manager.getClient();
-    if (client && client.isConnected()) {
+    const mixerClient = x32Manager.getClient();
+    if (mixerClient && mixerClient.isConnected()) {
       ws.send(JSON.stringify({
         type: "mixer_state",
-        channels: client.getChannelStates()
+        channels: mixerClient.getChannelStates()
+      }));
+    }
+
+    // Send current ATEM state to newly connected client
+    const atemState = atemManager.getState();
+    if (atemState && atemState.connected) {
+      ws.send(JSON.stringify({
+        type: "atem_state",
+        ...atemState
       }));
     }
 
@@ -405,6 +594,35 @@ export async function registerRoutes(
             const mainMuteClient = x32Manager.getClient();
             if (mainMuteClient && mainMuteClient.isConnected()) {
               mainMuteClient.setMainMute(message.muted);
+            }
+            break;
+
+          // ATEM control messages
+          case "atem_cut":
+            const atemCutClient = atemManager.getClient();
+            if (atemCutClient && atemCutClient.isConnected()) {
+              atemCutClient.cut();
+            }
+            break;
+
+          case "atem_auto":
+            const atemAutoClient = atemManager.getClient();
+            if (atemAutoClient && atemAutoClient.isConnected()) {
+              atemAutoClient.autoTransition();
+            }
+            break;
+
+          case "atem_program":
+            const atemPgmClient = atemManager.getClient();
+            if (atemPgmClient && atemPgmClient.isConnected()) {
+              atemPgmClient.setProgramInput(message.inputId);
+            }
+            break;
+
+          case "atem_preview":
+            const atemPvwClient = atemManager.getClient();
+            if (atemPvwClient && atemPvwClient.isConnected()) {
+              atemPvwClient.setPreviewInput(message.inputId);
             }
             break;
         }
