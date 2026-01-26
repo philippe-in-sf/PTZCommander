@@ -39,6 +39,15 @@ export const mixers = pgTable("mixers", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const switchers = pgTable("switchers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  ip: text("ip").notNull().unique(),
+  type: text("type").notNull().default("atem"),
+  status: text("status").notNull().default("offline"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertCameraSchema = createInsertSchema(cameras).omit({
   id: true,
   createdAt: true,
@@ -59,9 +68,17 @@ export const insertMixerSchema = createInsertSchema(mixers).omit({
   status: true,
 });
 
+export const insertSwitcherSchema = createInsertSchema(switchers).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+});
+
 export type Camera = typeof cameras.$inferSelect;
 export type InsertCamera = z.infer<typeof insertCameraSchema>;
 export type Preset = typeof presets.$inferSelect;
 export type InsertPreset = z.infer<typeof insertPresetSchema>;
 export type Mixer = typeof mixers.$inferSelect;
 export type InsertMixer = z.infer<typeof insertMixerSchema>;
+export type Switcher = typeof switchers.$inferSelect;
+export type InsertSwitcher = z.infer<typeof insertSwitcherSchema>;

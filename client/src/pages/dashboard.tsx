@@ -5,6 +5,7 @@ import { CameraSelector } from "@/components/ptz/camera-selector";
 import { PresetGrid } from "@/components/ptz/preset-grid";
 import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
+import { AtemPanel } from "@/components/switcher/atem-panel";
 import { Settings, Power, Video, Wifi, WifiOff, ArrowRightLeft, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi } from "@/lib/api";
@@ -377,8 +378,9 @@ export default function Dashboard() {
           </section>
         )}
 
-        {/* Audio Mixer Section */}
-        <section className="mt-6">
+        {/* External Hardware Section */}
+        <section className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AtemPanel />
           <MixerPanel />
         </section>
       </main>
