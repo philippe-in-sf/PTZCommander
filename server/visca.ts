@@ -106,6 +106,7 @@ export class VISCAClient {
       0xFF
     ]);
 
+    console.log(`[VISCA] Sending pan/tilt to ${this.host}:${this.port}: speed=${panSpeed}/${tiltSpeed}, dir=${panDirection}/${tiltDirection}`);
     this.sendCommand(cmd);
   }
 
