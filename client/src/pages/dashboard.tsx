@@ -136,13 +136,13 @@ export default function Dashboard() {
   const programCam = cameras.find(c => c.id === programId);
 
   const handleJoystickMove = (x: number, y: number) => {
-    if (previewId && ws) {
+    if (previewId) {
       ws.panTilt(previewId, x, y, 0.5);
     }
   };
 
   const handleJoystickStop = () => {
-    if (previewId && ws) {
+    if (previewId) {
       ws.panTiltStop(previewId);
     }
   };

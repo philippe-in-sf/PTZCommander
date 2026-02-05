@@ -14,6 +14,7 @@ export function Joystick({ onMove, onStop, className }: JoystickProps) {
   const y = useMotionValue(0);
   const controls = useAnimation();
   const [active, setActive] = useState(false);
+  const wasActiveRef = useRef(false);
 
   // Loop to constantly send values while active
   useEffect(() => {
@@ -37,8 +38,11 @@ export function Joystick({ onMove, onStop, className }: JoystickProps) {
     };
 
     if (active) {
+      wasActiveRef.current = true;
       updateLoop();
-    } else {
+    } else if (wasActiveRef.current) {
+      // Only call onStop if joystick was previously active
+      wasActiveRef.current = false;
       onStop();
     }
 
