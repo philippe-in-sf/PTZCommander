@@ -1,8 +1,6 @@
 import { cameras, presets, mixers, switchers, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type AuditLog, type InsertAuditLog } from "@shared/schema";
-import { desc } from "drizzle-orm";
-import { db } from "./db";
-import { pool } from "./db";
-import { eq, and } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
+import { db, sqlite, useSqlite } from "./db";
 
 export interface IStorage {
   // Camera operations
@@ -82,34 +80,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setProgramCamera(id: number): Promise<void> {
-    // Use transaction to atomically clear and set program flag
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('UPDATE cameras SET is_program_output = false');
-      await client.query('UPDATE cameras SET is_program_output = true WHERE id = $1', [id]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    if (useSqlite && sqlite) {
+      sqlite.exec('BEGIN TRANSACTION');
+      try {
+        sqlite.exec('UPDATE cameras SET is_program_output = 0');
+        sqlite.prepare('UPDATE cameras SET is_program_output = 1 WHERE id = ?').run(id);
+        sqlite.exec('COMMIT');
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        throw error;
+      }
+    } else {
+      await db.update(cameras).set({ isProgramOutput: false });
+      await db.update(cameras).set({ isProgramOutput: true }).where(eq(cameras.id, id));
     }
   }
 
   async setPreviewCamera(id: number): Promise<void> {
-    // Use transaction to atomically clear and set preview flag
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('UPDATE cameras SET is_preview_output = false');
-      await client.query('UPDATE cameras SET is_preview_output = true WHERE id = $1', [id]);
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    if (useSqlite && sqlite) {
+      sqlite.exec('BEGIN TRANSACTION');
+      try {
+        sqlite.exec('UPDATE cameras SET is_preview_output = 0');
+        sqlite.prepare('UPDATE cameras SET is_preview_output = 1 WHERE id = ?').run(id);
+        sqlite.exec('COMMIT');
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        throw error;
+      }
+    } else {
+      await db.update(cameras).set({ isPreviewOutput: false });
+      await db.update(cameras).set({ isPreviewOutput: true }).where(eq(cameras.id, id));
     }
   }
 
@@ -215,6 +215,34 @@ export class DatabaseStorage implements IStorage {
 
   // Audit log operations
   async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {
+    if (useSqlite && sqlite) {
+      const stmt = sqlite.prepare(`
+        INSERT INTO audit_logs (timestamp, level, category, message, action, details, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      const ts = insertLog.timestamp instanceof Date 
+        ? insertLog.timestamp.toISOString() 
+        : insertLog.timestamp || new Date().toISOString();
+      const result = stmt.run(
+        ts,
+        insertLog.level,
+        insertLog.category,
+        insertLog.message,
+        insertLog.action || null,
+        insertLog.details || null,
+        insertLog.userId || null
+      );
+      return {
+        id: Number(result.lastInsertRowid),
+        timestamp: new Date(ts),
+        level: insertLog.level,
+        category: insertLog.category,
+        message: insertLog.message,
+        action: insertLog.action || null,
+        details: insertLog.details || null,
+        userId: insertLog.userId || null,
+      };
+    }
     const [log] = await db.insert(auditLogs).values(insertLog).returning();
     return log;
   }

@@ -46,10 +46,20 @@ The server handles:
 - Real-time state synchronization between hardware and UI
 
 ### Data Storage
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL (cloud/Replit) or SQLite (local installation)
+  - Automatically detects: Uses PostgreSQL when `DATABASE_URL` is set, otherwise falls back to SQLite
+  - SQLite file stored at `data/ptzcommand.db` for portable local installations
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema**: Four tables - `cameras` (connection info, status, program/preview flags), `presets` (camera positions with pan/tilt/zoom/focus values), `mixers` (audio mixer connection info), and `switchers` (ATEM switcher connection info)
-- **Migrations**: Managed via `drizzle-kit push`
+- **Schema**: Five tables - `cameras`, `presets`, `mixers`, `switchers`, and `audit_logs`
+- **Migrations**: Managed via `drizzle-kit push` (PostgreSQL) or auto-created (SQLite)
+
+### Logging System
+- Centralized logging via `server/logger.ts`
+- Categories: api, websocket, camera, mixer, switcher, database, system
+- Levels: debug, info, warn, error
+- Persistent audit logs stored in database for debugging and auditing
+- In-memory buffer for recent logs (last 1000 entries)
+- Log viewer UI accessible from header
 
 ### Project Structure
 ```
@@ -58,6 +68,7 @@ The server handles:
 │   │   ├── components/ptz/     # PTZ-specific components
 │   │   ├── components/mixer/   # Audio mixer components
 │   │   ├── components/switcher/ # Video switcher components
+│   │   ├── components/logs/    # Log viewer components
 │   │   ├── components/ui/    # shadcn/ui components
 │   │   ├── pages/            # Route pages
 │   │   └── lib/              # API clients, utilities
@@ -66,7 +77,8 @@ The server handles:
 │   ├── storage.ts   # Database operations
 │   ├── visca.ts     # VISCA protocol implementation
 │   ├── x32.ts       # X32 OSC protocol implementation
-│   └── atem.ts      # ATEM switcher protocol implementation
+│   ├── atem.ts      # ATEM switcher protocol implementation
+│   └── logger.ts    # Centralized logging service
 ├── shared/          # Shared TypeScript types and schemas
 │   └── schema.ts    # Drizzle schema definitions
 ```

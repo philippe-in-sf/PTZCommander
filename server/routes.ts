@@ -489,6 +489,30 @@ export async function registerRoutes(
     }
   });
 
+  // ========== Logs API ==========
+
+  // Get recent logs
+  app.get("/api/logs", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const category = req.query.category as string | undefined;
+      const logs = await storage.getAuditLogs(limit, category);
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get logs" });
+    }
+  });
+
+  // Get in-memory logs (recent activity)
+  app.get("/api/logs/recent", async (_req, res) => {
+    try {
+      const recentLogs = logger.getRecentLogs(50);
+      res.json(recentLogs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get recent logs" });
+    }
+  });
+
   // ========== WebSocket Server for Real-time Control ==========
   
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
