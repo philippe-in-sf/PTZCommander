@@ -224,6 +224,10 @@ export class CameraConnectionManager {
     return this.connections.get(id);
   }
 
+  getConnectedCameraIds(): number[] {
+    return Array.from(this.connections.keys());
+  }
+
   disconnectAll(): void {
     Array.from(this.connections.entries()).forEach(([id, client]) => {
       client.disconnect();
