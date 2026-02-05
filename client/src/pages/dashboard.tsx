@@ -87,6 +87,31 @@ export default function Dashboard() {
     },
   });
 
+  // Update camera mutation
+  const updateCameraMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: Partial<Camera> }) => 
+      cameraApi.update(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cameras"] });
+      toast.success("Camera updated");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  // Delete camera mutation
+  const deleteCameraMutation = useMutation({
+    mutationFn: cameraApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cameras"] });
+      toast.success("Camera deleted");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   // Save preset mutation
   const savePresetMutation = useMutation({
     mutationFn: presetApi.save,
@@ -287,12 +312,15 @@ export default function Dashboard() {
                    id: c.id,
                    name: c.name,
                    ip: c.ip,
+                   port: c.port,
                    status: c.status as 'online' | 'offline' | 'tally',
                  }))}
                  previewId={previewId || 0}
                  programId={programId || 0}
                  onSelectPreview={handleSelectPreview}
                  onSelectProgram={handleSelectProgram}
+                 onUpdateCamera={(id, updates) => updateCameraMutation.mutate({ id, updates })}
+                 onDeleteCamera={(id) => deleteCameraMutation.mutate(id)}
                />
              )}
           </div>
