@@ -6,6 +6,7 @@ import { PresetGrid } from "@/components/ptz/preset-grid";
 import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
+import { LogViewer } from "@/components/logs/log-viewer";
 import { Settings, Power, Video, Wifi, WifiOff, ArrowRightLeft, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi } from "@/lib/api";
@@ -212,6 +213,7 @@ export default function Dashboard() {
             {ws ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {ws ? "SYSTEM ONLINE" : "DISCONNECTED"}
           </div>
+          <LogViewer />
           <button className="p-2 hover:bg-slate-800 rounded-full transition-colors">
             <Settings className="w-5 h-5 text-slate-400" />
           </button>
