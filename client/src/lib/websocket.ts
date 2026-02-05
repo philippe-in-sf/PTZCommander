@@ -85,6 +85,7 @@ export class PTZWebSocket {
   }
 
   panTilt(cameraId: number, pan: number, tilt: number, speed: number = 0.5): void {
+    console.log(`[PTZ] Sending pan_tilt: camera=${cameraId}, pan=${pan.toFixed(2)}, tilt=${tilt.toFixed(2)}`);
     this.send({
       type: "pan_tilt",
       cameraId,
