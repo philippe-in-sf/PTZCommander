@@ -566,9 +566,12 @@ export async function registerRoutes(
         switch (message.type) {
           case "pan_tilt":
             const { cameraId, pan, tilt, speed } = message;
+            console.log(`[WebSocket] pan_tilt received: camera=${cameraId}, pan=${pan.toFixed(2)}, tilt=${tilt.toFixed(2)}`);
             const client = cameraManager.getClient(cameraId);
             if (client && client.isConnected()) {
               client.panTilt(pan, tilt, speed || 0.5);
+            } else {
+              console.log(`[WebSocket] Camera ${cameraId} not connected, skipping pan_tilt`);
             }
             break;
 
@@ -576,6 +579,8 @@ export async function registerRoutes(
             const stopClient = cameraManager.getClient(message.cameraId);
             if (stopClient && stopClient.isConnected()) {
               stopClient.panTiltStop();
+            } else {
+              console.log(`[WebSocket] Camera ${message.cameraId} not connected, skipping pan_tilt_stop`);
             }
             break;
 
