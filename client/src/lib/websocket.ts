@@ -132,27 +132,34 @@ export function buildWebSocketUrl(path: string = "/ws"): string {
   return `${protocol}//${window.location.host}${path}`;
 }
 
+// Singleton WebSocket instance
+let globalWsInstance: PTZWebSocket | null = null;
+
+function getWebSocketInstance(): PTZWebSocket {
+  if (!globalWsInstance) {
+    const url = buildWebSocketUrl("/ws");
+    globalWsInstance = new PTZWebSocket(url);
+    globalWsInstance.connect();
+  }
+  return globalWsInstance;
+}
+
 // Hook for using WebSocket in components
-export function useWebSocket(): PTZWebSocket | null {
-  const wsRef = useRef<PTZWebSocket | null>(null);
-  const [connected, setConnected] = useState(false);
+export function useWebSocket(): PTZWebSocket {
+  const [, forceUpdate] = useState(0);
+  
+  // Get or create the singleton instance immediately
+  const ws = getWebSocketInstance();
 
   useEffect(() => {
-    if (!wsRef.current) {
-      const url = buildWebSocketUrl("/ws");
-      wsRef.current = new PTZWebSocket(url);
-      wsRef.current.connect(
-        () => setConnected(true),
-        () => setConnected(false)
-      );
-    }
-
+    // Add a handler to force re-render on connection state changes
+    const handler = () => forceUpdate(n => n + 1);
+    ws.addMessageHandler(handler);
+    
     return () => {
-      wsRef.current?.disconnect();
-      wsRef.current = null;
+      ws.removeMessageHandler(handler);
     };
-  }, []);
+  }, [ws]);
 
-  // Return the WebSocket instance only when connected
-  return connected ? wsRef.current : null;
+  return ws;
 }
