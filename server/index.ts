@@ -90,6 +90,19 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
+  
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`\n[Error] Port ${port} is already in use.`);
+      console.error(`\nPossible solutions:`);
+      console.error(`  1. Use a different port: PORT=3000 npm run dev`);
+      console.error(`  2. Kill the process using port ${port}`);
+      console.error(`  3. On Mac: Disable AirPlay Receiver in System Settings\n`);
+      process.exit(1);
+    }
+    throw err;
+  });
+
   httpServer.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
   });
