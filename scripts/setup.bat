@@ -1,6 +1,6 @@
 @echo off
 REM PTZ Command - Setup Script for Windows
-REM Controls PTZ cameras via VISCA and Behringer X32 mixers via OSC
+REM Controls PTZ cameras via VISCA, Behringer X32 mixers via OSC, and ATEM switchers
 
 echo ==========================================
 echo   PTZ Command - Local Setup Script
@@ -9,6 +9,7 @@ echo.
 echo This application provides:
 echo   - PTZ camera control via VISCA over IP
 echo   - Behringer X32 mixer control via OSC
+echo   - Blackmagic ATEM switcher control
 echo   - Program/Preview switching workflow
 echo.
 
@@ -21,8 +22,6 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-for /f "tokens=1,2,3 delims=." %%a in ('node -v') do set NODE_MAJOR=%%a
-set NODE_MAJOR=%NODE_MAJOR:v=%
 echo Node.js version: 
 node -v
 
@@ -31,22 +30,28 @@ echo.
 echo Installing dependencies...
 call npm install
 
-REM Check for .env file
-if not exist .env (
-    echo.
-    echo Creating .env file...
-    (
-        echo # PTZ Command Configuration
-        echo DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ptz_command
-        echo PORT=5000
-    ) > .env
-    echo .env file created. Please update with your PostgreSQL credentials.
-)
-
-REM Push database schema
+REM Database setup information
 echo.
-echo Initializing database schema...
-call npm run db:push
+echo ==========================================
+echo   Database Configuration
+echo ==========================================
+echo.
+echo PTZ Command supports two database options:
+echo.
+echo 1. SQLite (Default - No setup required)
+echo    - Database file stored at: data\ptzcommand.db
+echo    - Automatically created on first run
+echo    - Perfect for single-user local installations
+echo.
+echo 2. PostgreSQL (Optional)
+echo    - Set DATABASE_URL environment variable
+echo    - Example: set DATABASE_URL=postgresql://user:pass@localhost:5432/ptz_command
+echo    - Then run: npm run db:push
+echo.
+
+REM Create data directory for SQLite
+if not exist data mkdir data
+echo Created data directory for SQLite database.
 
 echo.
 echo ==========================================
@@ -61,5 +66,6 @@ echo.
 echo Network Requirements:
 echo   - PTZ cameras: TCP port 52381 (VISCA)
 echo   - X32 mixer: UDP port 10023 (OSC)
+echo   - ATEM switcher: TCP (auto-discovered)
 echo.
 pause
