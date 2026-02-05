@@ -568,10 +568,12 @@ export async function registerRoutes(
             const { cameraId, pan, tilt, speed } = message;
             console.log(`[WebSocket] pan_tilt received: camera=${cameraId}, pan=${pan.toFixed(2)}, tilt=${tilt.toFixed(2)}`);
             const client = cameraManager.getClient(cameraId);
-            if (client && client.isConnected()) {
-              client.panTilt(pan, tilt, speed || 0.5);
+            if (!client) {
+              console.log(`[WebSocket] Camera ${cameraId} has no VISCA client (not found in cameraManager)`);
+            } else if (!client.isConnected()) {
+              console.log(`[WebSocket] Camera ${cameraId} VISCA client exists but is not connected`);
             } else {
-              console.log(`[WebSocket] Camera ${cameraId} not connected, skipping pan_tilt`);
+              client.panTilt(pan, tilt, speed || 0.5);
             }
             break;
 
