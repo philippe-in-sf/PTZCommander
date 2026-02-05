@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # PTZ Command - Setup Script for Mac/Linux
-# Controls PTZ cameras via VISCA and Behringer X32 mixers via OSC
+# Controls PTZ cameras via VISCA, Behringer X32 mixers via OSC, and ATEM switchers
 
 echo "=========================================="
 echo "  PTZ Command - Local Setup Script"
@@ -10,6 +10,7 @@ echo ""
 echo "This application provides:"
 echo "  - PTZ camera control via VISCA over IP"
 echo "  - Behringer X32 mixer control via OSC"
+echo "  - Blackmagic ATEM switcher control"
 echo "  - Program/Preview switching workflow"
 echo ""
 
@@ -27,35 +28,33 @@ fi
 
 echo "Node.js version: $(node -v)"
 
-# Check for PostgreSQL
-if ! command -v psql &> /dev/null; then
-    echo ""
-    echo "Warning: PostgreSQL is not installed or not in PATH."
-    echo "Please install PostgreSQL 14+ from https://www.postgresql.org/download/"
-    echo ""
-fi
-
 # Install dependencies
 echo ""
 echo "Installing dependencies..."
 npm install
 
-# Check for .env file
-if [ ! -f .env ]; then
-    echo ""
-    echo "Creating .env file..."
-    cat > .env << EOF
-# PTZ Command Configuration
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ptz_command
-PORT=5000
-EOF
-    echo ".env file created. Please update with your PostgreSQL credentials."
-fi
-
-# Push database schema
+# Database setup information
 echo ""
-echo "Initializing database schema..."
-npm run db:push
+echo "=========================================="
+echo "  Database Configuration"
+echo "=========================================="
+echo ""
+echo "PTZ Command supports two database options:"
+echo ""
+echo "1. SQLite (Default - No setup required)"
+echo "   - Database file stored at: data/ptzcommand.db"
+echo "   - Automatically created on first run"
+echo "   - Perfect for single-user local installations"
+echo ""
+echo "2. PostgreSQL (Optional)"
+echo "   - Set DATABASE_URL environment variable"
+echo "   - Example: export DATABASE_URL=postgresql://user:pass@localhost:5432/ptz_command"
+echo "   - Then run: npm run db:push"
+echo ""
+
+# Create data directory for SQLite
+mkdir -p data
+echo "Created data directory for SQLite database."
 
 echo ""
 echo "=========================================="
@@ -70,4 +69,5 @@ echo ""
 echo "Network Requirements:"
 echo "  - PTZ cameras: TCP port 52381 (VISCA)"
 echo "  - X32 mixer: UDP port 10023 (OSC)"
+echo "  - ATEM switcher: TCP (auto-discovered)"
 echo ""
