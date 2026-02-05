@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type MixerChannelState = {
   channel: number;
@@ -135,12 +135,16 @@ export function buildWebSocketUrl(path: string = "/ws"): string {
 // Hook for using WebSocket in components
 export function useWebSocket(): PTZWebSocket | null {
   const wsRef = useRef<PTZWebSocket | null>(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     if (!wsRef.current) {
       const url = buildWebSocketUrl("/ws");
       wsRef.current = new PTZWebSocket(url);
-      wsRef.current.connect();
+      wsRef.current.connect(
+        () => setConnected(true),
+        () => setConnected(false)
+      );
     }
 
     return () => {
@@ -149,5 +153,6 @@ export function useWebSocket(): PTZWebSocket | null {
     };
   }, []);
 
-  return wsRef.current;
+  // Return the WebSocket instance only when connected
+  return connected ? wsRef.current : null;
 }
