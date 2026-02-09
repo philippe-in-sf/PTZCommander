@@ -231,19 +231,28 @@ export async function registerRoutes(
       const result = insertMixerSchema.safeParse(req.body);
       
       if (!result.success) {
+        logger.warn("mixer", `Failed to create mixer: validation error`, { details: { error: fromError(result.error).toString() } });
         return res.status(400).json({ 
           message: fromError(result.error).toString() 
         });
       }
 
       const mixer = await storage.createMixer(result.data);
+      logger.info("mixer", `Mixer created: ${mixer.name}`, { action: "create", details: { mixerId: mixer.id, name: mixer.name, ip: mixer.ip, port: mixer.port } });
       
       // Try to connect to mixer
       const connected = await x32Manager.connect(mixer.ip, mixer.port);
       await storage.updateMixerStatus(mixer.id, connected ? "online" : "offline");
       
+      if (connected) {
+        logger.info("mixer", `Mixer connected after creation: ${mixer.name} at ${mixer.ip}:${mixer.port}`, { action: "connect", details: { mixerId: mixer.id, ip: mixer.ip, port: mixer.port } });
+      } else {
+        logger.warn("mixer", `Mixer created but failed to connect: ${mixer.name} at ${mixer.ip}:${mixer.port}`, { action: "connect_failed", details: { mixerId: mixer.id, ip: mixer.ip, port: mixer.port } });
+      }
+      
       res.json(mixer);
     } catch (error: any) {
+      logger.error("mixer", `Failed to create mixer: ${error.message}`, { action: "create_error", details: { error: error.message } });
       res.status(500).json({ message: error.message || "Failed to create mixer" });
     }
   });
@@ -255,6 +264,7 @@ export async function registerRoutes(
       const result = insertMixerSchema.partial().safeParse(req.body);
       
       if (!result.success) {
+        logger.warn("mixer", `Failed to update mixer ${id}: validation error`, { details: { error: fromError(result.error).toString() } });
         return res.status(400).json({ 
           message: fromError(result.error).toString() 
         });
@@ -263,11 +273,14 @@ export async function registerRoutes(
       const mixer = await storage.updateMixer(id, result.data);
       
       if (!mixer) {
+        logger.warn("mixer", `Mixer ${id} not found for update`, { action: "update_not_found", details: { mixerId: id } });
         return res.status(404).json({ message: "Mixer not found" });
       }
       
+      logger.info("mixer", `Mixer updated: ${mixer.name}`, { action: "update", details: { mixerId: id, updates: result.data } });
       res.json(mixer);
-    } catch (error) {
+    } catch (error: any) {
+      logger.error("mixer", `Failed to update mixer: ${error.message}`, { action: "update_error", details: { error: error.message } });
       res.status(500).json({ message: "Failed to update mixer" });
     }
   });
@@ -276,10 +289,13 @@ export async function registerRoutes(
   app.delete("/api/mixers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      logger.info("mixer", `Deleting mixer ${id} and disconnecting`, { action: "delete", details: { mixerId: id } });
       x32Manager.disconnect();
       await storage.deleteMixer(id);
+      logger.info("mixer", `Mixer ${id} deleted successfully`, { action: "deleted", details: { mixerId: id } });
       res.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
+      logger.error("mixer", `Failed to delete mixer: ${error.message}`, { action: "delete_error", details: { error: error.message } });
       res.status(500).json({ message: "Failed to delete mixer" });
     }
   });
@@ -291,14 +307,23 @@ export async function registerRoutes(
       const mixer = await storage.getMixer(id);
       
       if (!mixer) {
+        logger.warn("mixer", `Mixer ${id} not found for connection`, { action: "connect_not_found", details: { mixerId: id } });
         return res.status(404).json({ message: "Mixer not found" });
       }
       
+      logger.info("mixer", `Connecting to mixer: ${mixer.name} at ${mixer.ip}:${mixer.port}`, { action: "connecting", details: { mixerId: id, ip: mixer.ip, port: mixer.port } });
       const connected = await x32Manager.connect(mixer.ip, mixer.port);
       await storage.updateMixerStatus(id, connected ? "online" : "offline");
       
+      if (connected) {
+        logger.info("mixer", `Connected to mixer: ${mixer.name}`, { action: "connected", details: { mixerId: id, ip: mixer.ip, port: mixer.port } });
+      } else {
+        logger.warn("mixer", `Failed to connect to mixer: ${mixer.name} at ${mixer.ip}:${mixer.port}`, { action: "connect_failed", details: { mixerId: id, ip: mixer.ip, port: mixer.port } });
+      }
+      
       res.json({ success: connected, status: connected ? "online" : "offline" });
-    } catch (error) {
+    } catch (error: any) {
+      logger.error("mixer", `Connection error: ${error.message}`, { action: "connect_error", details: { error: error.message } });
       res.status(500).json({ message: "Failed to connect to mixer" });
     }
   });
@@ -615,6 +640,9 @@ export async function registerRoutes(
             const mixerClient = x32Manager.getClient();
             if (mixerClient && mixerClient.isConnected()) {
               mixerClient.setChannelFader(message.channel, message.value);
+              logger.debug("mixer", `Channel ${message.channel} fader set to ${message.value.toFixed(2)}`, { action: "fader_change", details: { channel: message.channel, value: message.value } });
+            } else {
+              logger.warn("mixer", `Fader change ignored - mixer not connected`, { action: "fader_no_connection", details: { channel: message.channel } });
             }
             break;
 
@@ -622,6 +650,9 @@ export async function registerRoutes(
             const muteClient = x32Manager.getClient();
             if (muteClient && muteClient.isConnected()) {
               muteClient.setChannelMute(message.channel, message.muted);
+              logger.info("mixer", `Channel ${message.channel} ${message.muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { channel: message.channel, muted: message.muted } });
+            } else {
+              logger.warn("mixer", `Mute toggle ignored - mixer not connected`, { action: "mute_no_connection", details: { channel: message.channel } });
             }
             break;
 
@@ -629,6 +660,9 @@ export async function registerRoutes(
             const mainClient = x32Manager.getClient();
             if (mainClient && mainClient.isConnected()) {
               mainClient.setMainFader(message.value);
+              logger.debug("mixer", `Main fader set to ${message.value.toFixed(2)}`, { action: "main_fader_change", details: { value: message.value } });
+            } else {
+              logger.warn("mixer", `Main fader change ignored - mixer not connected`, { action: "main_fader_no_connection" });
             }
             break;
 
@@ -636,6 +670,9 @@ export async function registerRoutes(
             const mainMuteClient = x32Manager.getClient();
             if (mainMuteClient && mainMuteClient.isConnected()) {
               mainMuteClient.setMainMute(message.muted);
+              logger.info("mixer", `Main output ${message.muted ? "muted" : "unmuted"}`, { action: "main_mute_toggle", details: { muted: message.muted } });
+            } else {
+              logger.warn("mixer", `Main mute toggle ignored - mixer not connected`, { action: "main_mute_no_connection" });
             }
             break;
 

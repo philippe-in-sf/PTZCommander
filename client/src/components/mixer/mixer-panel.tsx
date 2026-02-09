@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal } from "lucide-react";
+import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Mixer } from "@shared/schema";
@@ -21,7 +21,10 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   const queryClient = useQueryClient();
   const ws = useWebSocket();
   const [addMixerOpen, setAddMixerOpen] = useState(false);
+  const [editMixerOpen, setEditMixerOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [newMixer, setNewMixer] = useState({ name: "X32 Compact", ip: "", port: 10023 });
+  const [editForm, setEditForm] = useState({ name: "", ip: "", port: 10023 });
   const [mainFader, setMainFader] = useState(0.75);
   const [mainMuted, setMainMuted] = useState(false);
 
@@ -95,6 +98,31 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
     },
   });
 
+  const updateMixerMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: Partial<Mixer> }) => mixerApi.update(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mixers"] });
+      setEditMixerOpen(false);
+      toast.success("Mixer updated successfully");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const deleteMixerMutation = useMutation({
+    mutationFn: mixerApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mixers"] });
+      setEditMixerOpen(false);
+      setConfirmDelete(false);
+      toast.success("Mixer deleted");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const connectMixerMutation = useMutation({
     mutationFn: mixerApi.connect,
     onSuccess: (data) => {
@@ -109,6 +137,30 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
       toast.error(error.message);
     },
   });
+
+  const handleEditClick = () => {
+    if (mixer) {
+      setEditForm({
+        name: mixer.name,
+        ip: mixer.ip,
+        port: mixer.port || 10023,
+      });
+      setConfirmDelete(false);
+      setEditMixerOpen(true);
+    }
+  };
+
+  const handleSave = () => {
+    if (mixer) {
+      updateMixerMutation.mutate({ id: mixer.id, updates: editForm });
+    }
+  };
+
+  const handleDelete = () => {
+    if (mixer) {
+      deleteMixerMutation.mutate(mixer.id);
+    }
+  };
 
   const handleFaderChange = (channel: number, value: number) => {
     setChannelStates(prev => {
@@ -187,11 +239,21 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 size="sm"
                 onClick={() => connectMixerMutation.mutate(mixer.id)}
                 className="text-slate-400 hover:text-white"
+                data-testid="button-connect-mixer"
               >
                 <WifiOff className="h-4 w-4 mr-1" />
                 Connect
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEditClick}
+              className="text-slate-400 hover:text-white p-1.5"
+              data-testid="button-edit-mixer"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
           </div>
         ) : (
           <Dialog open={addMixerOpen} onOpenChange={setAddMixerOpen}>
@@ -252,6 +314,97 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
           </Dialog>
         )}
       </div>
+
+      {/* Edit Mixer Dialog */}
+      <Dialog open={editMixerOpen} onOpenChange={(open) => { setEditMixerOpen(open); if (!open) setConfirmDelete(false); }}>
+        <DialogContent className="bg-slate-900 border-slate-700">
+          <DialogHeader>
+            <DialogTitle>Mixer Settings</DialogTitle>
+          </DialogHeader>
+
+          {!confirmDelete ? (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-mixer-name">Name</Label>
+                <Input
+                  id="edit-mixer-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="bg-slate-800 border-slate-600"
+                  data-testid="input-edit-mixer-name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-mixer-ip">IP Address</Label>
+                <Input
+                  id="edit-mixer-ip"
+                  value={editForm.ip}
+                  onChange={(e) => setEditForm({ ...editForm, ip: e.target.value })}
+                  className="bg-slate-800 border-slate-600"
+                  data-testid="input-edit-mixer-ip"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-mixer-port">Port</Label>
+                <Input
+                  id="edit-mixer-port"
+                  type="number"
+                  value={editForm.port}
+                  onChange={(e) => setEditForm({ ...editForm, port: parseInt(e.target.value) || 10023 })}
+                  className="bg-slate-800 border-slate-600"
+                  data-testid="input-edit-mixer-port"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  onClick={handleSave}
+                  disabled={!editForm.ip || updateMixerMutation.isPending}
+                  data-testid="button-save-mixer-edit"
+                >
+                  {updateMixerMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setConfirmDelete(true)}
+                  data-testid="button-delete-mixer"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-red-500 flex-shrink-0" />
+                <div>
+                  <p className="text-white font-medium">Delete {mixer?.name}?</p>
+                  <p className="text-sm text-slate-400">This will remove the mixer configuration and disconnect it.</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setConfirmDelete(false)}
+                  data-testid="button-cancel-delete-mixer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleDelete}
+                  disabled={deleteMixerMutation.isPending}
+                  data-testid="button-confirm-delete-mixer"
+                >
+                  {deleteMixerMutation.isPending ? "Deleting..." : "Delete Mixer"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {!mixer ? (
         <div className="text-center py-8 text-slate-500">
