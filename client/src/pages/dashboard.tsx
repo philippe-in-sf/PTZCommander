@@ -7,7 +7,7 @@ import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
 import { LogViewer } from "@/components/logs/log-viewer";
-import { Settings, Power, Video, Wifi, WifiOff, ArrowRightLeft, Plus } from "lucide-react";
+import { Settings, Power, Video, Wifi, WifiOff, ArrowRightLeft, Plus, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Link } from "wouter";
 import type { Camera } from "@shared/schema";
 
 export default function Dashboard() {
@@ -225,9 +226,17 @@ export default function Dashboard() {
           <h1 className="font-bold tracking-tight text-lg">
             PTZ<span className="text-cyan-500 font-light">COMMAND</span>
           </h1>
-          <span className="ml-4 px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono text-slate-400 border border-slate-700">
-            v2.4.0
-          </span>
+
+          <nav className="flex items-center gap-1 ml-6">
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700" data-testid="nav-dashboard">
+              Dashboard
+            </button>
+            <Link href="/mixer">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
+                Audio Mixer
+              </button>
+            </Link>
+          </nav>
         </div>
 
         <div className="flex items-center gap-4">
@@ -239,9 +248,6 @@ export default function Dashboard() {
             {ws ? "SYSTEM ONLINE" : "DISCONNECTED"}
           </div>
           <LogViewer />
-          <button className="p-2 hover:bg-slate-800 rounded-full transition-colors">
-            <Settings className="w-5 h-5 text-slate-400" />
-          </button>
         </div>
       </header>
 

@@ -331,9 +331,11 @@ export async function registerRoutes(
   // Get mixer status
   app.get("/api/mixers/:id/status", async (req, res) => {
     try {
+      const client = x32Manager.getClient();
       res.json({ 
         connected: x32Manager.isConnected(),
-        channels: x32Manager.getClient()?.getChannelStates() || []
+        channels: client?.getChannelStates() || [],
+        sections: client?.getAllStates() || {}
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to get mixer status" });
@@ -554,8 +556,8 @@ export async function registerRoutes(
 
   // Wire X32 state changes to broadcast to all clients
   // This is set on the manager so it persists across connect/disconnect cycles
-  x32Manager.setStateChangeCallback((states) => {
-    broadcast({ type: "mixer_state", channels: states });
+  x32Manager.setStateChangeCallback((section, states) => {
+    broadcast({ type: "mixer_state", section, channels: states });
   });
 
   // Wire ATEM state changes to broadcast to all clients
@@ -635,14 +637,33 @@ export async function registerRoutes(
             }
             break;
 
-          // Mixer control messages
+          // Mixer control messages (generic section-based)
+          case "mixer_section_fader":
+            const secFaderClient = x32Manager.getClient();
+            if (secFaderClient && secFaderClient.isConnected()) {
+              secFaderClient.setSectionFader(message.section, message.channel, message.value);
+              logger.debug("mixer", `${message.section}/${message.channel} fader set to ${message.value.toFixed(2)}`, { action: "fader_change", details: { section: message.section, channel: message.channel, value: message.value } });
+            } else {
+              logger.warn("mixer", `Fader change ignored - mixer not connected`, { action: "fader_no_connection", details: { section: message.section, channel: message.channel } });
+            }
+            break;
+
+          case "mixer_section_mute":
+            const secMuteClient = x32Manager.getClient();
+            if (secMuteClient && secMuteClient.isConnected()) {
+              secMuteClient.setSectionMute(message.section, message.channel, message.muted);
+              logger.info("mixer", `${message.section}/${message.channel} ${message.muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { section: message.section, channel: message.channel, muted: message.muted } });
+            } else {
+              logger.warn("mixer", `Mute toggle ignored - mixer not connected`, { action: "mute_no_connection", details: { section: message.section, channel: message.channel } });
+            }
+            break;
+
+          // Legacy mixer messages (backward compatible with summary panel)
           case "mixer_fader":
             const mixerClient = x32Manager.getClient();
             if (mixerClient && mixerClient.isConnected()) {
               mixerClient.setChannelFader(message.channel, message.value);
               logger.debug("mixer", `Channel ${message.channel} fader set to ${message.value.toFixed(2)}`, { action: "fader_change", details: { channel: message.channel, value: message.value } });
-            } else {
-              logger.warn("mixer", `Fader change ignored - mixer not connected`, { action: "fader_no_connection", details: { channel: message.channel } });
             }
             break;
 
@@ -651,8 +672,6 @@ export async function registerRoutes(
             if (muteClient && muteClient.isConnected()) {
               muteClient.setChannelMute(message.channel, message.muted);
               logger.info("mixer", `Channel ${message.channel} ${message.muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { channel: message.channel, muted: message.muted } });
-            } else {
-              logger.warn("mixer", `Mute toggle ignored - mixer not connected`, { action: "mute_no_connection", details: { channel: message.channel } });
             }
             break;
 
@@ -661,8 +680,6 @@ export async function registerRoutes(
             if (mainClient && mainClient.isConnected()) {
               mainClient.setMainFader(message.value);
               logger.debug("mixer", `Main fader set to ${message.value.toFixed(2)}`, { action: "main_fader_change", details: { value: message.value } });
-            } else {
-              logger.warn("mixer", `Main fader change ignored - mixer not connected`, { action: "main_fader_no_connection" });
             }
             break;
 
@@ -671,8 +688,13 @@ export async function registerRoutes(
             if (mainMuteClient && mainMuteClient.isConnected()) {
               mainMuteClient.setMainMute(message.muted);
               logger.info("mixer", `Main output ${message.muted ? "muted" : "unmuted"}`, { action: "main_mute_toggle", details: { muted: message.muted } });
-            } else {
-              logger.warn("mixer", `Main mute toggle ignored - mixer not connected`, { action: "main_mute_no_connection" });
+            }
+            break;
+
+          case "mixer_query_section":
+            const queryClient2 = x32Manager.getClient();
+            if (queryClient2 && queryClient2.isConnected()) {
+              queryClient2.querySectionState(message.section);
             }
             break;
 
