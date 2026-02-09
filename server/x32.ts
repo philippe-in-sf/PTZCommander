@@ -1,4 +1,5 @@
 import osc from "osc";
+import { logger } from "./logger";
 
 export interface X32Config {
   ip: string;
@@ -40,7 +41,7 @@ export class X32Client {
         });
 
         this.udpPort.on("ready", () => {
-          console.log(`[X32] Connected to ${this.config.ip}:${this.config.port}`);
+          logger.info("mixer", `X32 connected to ${this.config.ip}:${this.config.port}`, { action: "x32_connected", details: { ip: this.config.ip, port: this.config.port } });
           this.connected = true;
           this.startKeepAlive();
           this.queryInitialState();
@@ -48,7 +49,7 @@ export class X32Client {
         });
 
         this.udpPort.on("error", (error: Error) => {
-          console.error("[X32] Error:", error.message);
+          logger.error("mixer", `X32 connection error: ${error.message}`, { action: "x32_error", details: { ip: this.config.ip, port: this.config.port, error: error.message } });
           this.connected = false;
           resolve(false);
         });
@@ -64,8 +65,8 @@ export class X32Client {
             resolve(false);
           }
         }, 5000);
-      } catch (error) {
-        console.error("[X32] Connection error:", error);
+      } catch (error: any) {
+        logger.error("mixer", `X32 connection exception: ${error.message}`, { action: "x32_connect_exception", details: { error: error.message } });
         resolve(false);
       }
     });
@@ -80,7 +81,7 @@ export class X32Client {
       this.udpPort.close();
     }
     this.connected = false;
-    console.log("[X32] Disconnected");
+    logger.info("mixer", "X32 disconnected", { action: "x32_disconnected" });
   }
 
   isConnected(): boolean {
@@ -152,8 +153,8 @@ export class X32Client {
     
     try {
       this.udpPort.send({ address, args });
-    } catch (error) {
-      console.error("[X32] Send error:", error);
+    } catch (error: any) {
+      logger.error("mixer", `X32 OSC send error: ${error.message}`, { action: "x32_send_error", details: { address, error: error.message } });
     }
   }
 
