@@ -6,26 +6,39 @@ export interface X32Config {
   port: number;
 }
 
+export type MixerSection = "ch" | "bus" | "auxin" | "fxrtn" | "mtx" | "dca" | "main";
+
 export interface ChannelState {
   channel: number;
+  section: MixerSection;
   fader: number;
   muted: boolean;
   name: string;
 }
+
+const SECTION_CONFIG: Record<MixerSection, { count: number; oscPrefix: string; padDigits: number; faderPath: string; mutePath: string; namePath: string }> = {
+  ch:    { count: 32, oscPrefix: "/ch",    padDigits: 2, faderPath: "mix/fader", mutePath: "mix/on", namePath: "config/name" },
+  bus:   { count: 16, oscPrefix: "/bus",   padDigits: 2, faderPath: "mix/fader", mutePath: "mix/on", namePath: "config/name" },
+  auxin: { count: 8,  oscPrefix: "/auxin", padDigits: 2, faderPath: "mix/fader", mutePath: "mix/on", namePath: "config/name" },
+  fxrtn: { count: 8,  oscPrefix: "/fxrtn", padDigits: 2, faderPath: "mix/fader", mutePath: "mix/on", namePath: "config/name" },
+  mtx:   { count: 6,  oscPrefix: "/mtx",   padDigits: 2, faderPath: "mix/fader", mutePath: "mix/on", namePath: "config/name" },
+  dca:   { count: 8,  oscPrefix: "/dca",   padDigits: 1, faderPath: "fader",     mutePath: "on",     namePath: "" },
+  main:  { count: 1,  oscPrefix: "/main/st", padDigits: 0, faderPath: "mix/fader", mutePath: "mix/on", namePath: "" },
+};
 
 export class X32Client {
   private udpPort: any;
   private connected: boolean = false;
   private keepAliveInterval: NodeJS.Timeout | null = null;
   private config: X32Config;
-  private channelStates: Map<number, ChannelState> = new Map();
-  private onStateChange: ((states: ChannelState[]) => void) | null = null;
+  private sectionStates: Map<string, ChannelState> = new Map();
+  private onStateChange: ((section: MixerSection, states: ChannelState[]) => void) | null = null;
 
   constructor(config: X32Config) {
     this.config = config;
   }
 
-  setStateChangeCallback(callback: (states: ChannelState[]) => void) {
+  setStateChangeCallback(callback: (section: MixerSection, states: ChannelState[]) => void) {
     this.onStateChange = callback;
   }
 
@@ -96,55 +109,116 @@ export class X32Client {
     }, 9000);
   }
 
+  private stateKey(section: MixerSection, channel: number): string {
+    return `${section}:${channel}`;
+  }
+
   private queryInitialState() {
-    for (let ch = 1; ch <= 16; ch++) {
-      const chStr = ch.toString().padStart(2, "0");
-      this.send(`/ch/${chStr}/mix/fader`, []);
-      this.send(`/ch/${chStr}/mix/on`, []);
-      this.send(`/ch/${chStr}/config/name`, []);
+    const sectionsToQuery: MixerSection[] = ["ch", "bus", "auxin", "fxrtn", "mtx", "dca"];
+    for (const section of sectionsToQuery) {
+      this.querySectionState(section);
+    }
+    this.send("/main/st/mix/fader", []);
+    this.send("/main/st/mix/on", []);
+  }
+
+  querySectionState(section: MixerSection) {
+    const cfg = SECTION_CONFIG[section];
+    if (!cfg || section === "main") return;
+
+    for (let ch = 1; ch <= cfg.count; ch++) {
+      const chStr = cfg.padDigits > 0 ? ch.toString().padStart(cfg.padDigits, "0") : ch.toString();
+      this.send(`${cfg.oscPrefix}/${chStr}/${cfg.faderPath}`, []);
+      this.send(`${cfg.oscPrefix}/${chStr}/${cfg.mutePath}`, []);
+      if (cfg.namePath) {
+        this.send(`${cfg.oscPrefix}/${chStr}/${cfg.namePath}`, []);
+      }
     }
   }
 
   private handleMessage(oscMsg: any) {
     const { address, args } = oscMsg;
-    
-    const chMatch = address.match(/^\/ch\/(\d{2})\/mix\/(fader|on)$/);
-    if (chMatch) {
-      const channel = parseInt(chMatch[1]);
-      const param = chMatch[2];
-      const value = args[0]?.value;
+    const value = args[0]?.value;
 
-      let state = this.channelStates.get(channel) || {
-        channel,
-        fader: 0,
-        muted: false,
-        name: `Ch ${channel}`
-      };
-
-      if (param === "fader" && typeof value === "number") {
-        state.fader = value;
-      } else if (param === "on" && typeof value === "number") {
-        state.muted = value === 0;
-      }
-
-      this.channelStates.set(channel, state);
-
-      if (this.onStateChange) {
-        this.onStateChange(Array.from(this.channelStates.values()));
-      }
+    if (address === "/main/st/mix/fader" && typeof value === "number") {
+      const key = this.stateKey("main", 1);
+      const state = this.sectionStates.get(key) || { channel: 1, section: "main" as MixerSection, fader: 0, muted: false, name: "Main LR" };
+      state.fader = value;
+      this.sectionStates.set(key, state);
+      this.notifyStateChange("main");
+      return;
+    }
+    if (address === "/main/st/mix/on" && typeof value === "number") {
+      const key = this.stateKey("main", 1);
+      const state = this.sectionStates.get(key) || { channel: 1, section: "main" as MixerSection, fader: 0, muted: false, name: "Main LR" };
+      state.muted = value === 0;
+      this.sectionStates.set(key, state);
+      this.notifyStateChange("main");
+      return;
     }
 
-    const nameMatch = address.match(/^\/ch\/(\d{2})\/config\/name$/);
-    if (nameMatch && args[0]?.value) {
-      const channel = parseInt(nameMatch[1]);
-      let state = this.channelStates.get(channel) || {
-        channel,
-        fader: 0,
-        muted: false,
-        name: `Ch ${channel}`
-      };
-      state.name = args[0].value;
-      this.channelStates.set(channel, state);
+    for (const [sectionName, cfg] of Object.entries(SECTION_CONFIG)) {
+      if (sectionName === "main") continue;
+      const section = sectionName as MixerSection;
+
+      const chPattern = cfg.padDigits > 0 ? `(\\d{${cfg.padDigits}})` : `(\\d+)`;
+
+      const faderRegex = new RegExp(`^${cfg.oscPrefix.replace(/\//g, "\\/")}\\/${chPattern}\\/${cfg.faderPath.replace(/\//g, "\\/")}$`);
+      const muteRegex = new RegExp(`^${cfg.oscPrefix.replace(/\//g, "\\/")}\\/${chPattern}\\/${cfg.mutePath.replace(/\//g, "\\/")}$`);
+
+      const faderMatch = address.match(faderRegex);
+      if (faderMatch && typeof value === "number") {
+        const ch = parseInt(faderMatch[1]);
+        const key = this.stateKey(section, ch);
+        const state = this.sectionStates.get(key) || this.defaultState(section, ch);
+        state.fader = value;
+        this.sectionStates.set(key, state);
+        this.notifyStateChange(section);
+        return;
+      }
+
+      const muteMatch = address.match(muteRegex);
+      if (muteMatch && typeof value === "number") {
+        const ch = parseInt(muteMatch[1]);
+        const key = this.stateKey(section, ch);
+        const state = this.sectionStates.get(key) || this.defaultState(section, ch);
+        state.muted = value === 0;
+        this.sectionStates.set(key, state);
+        this.notifyStateChange(section);
+        return;
+      }
+
+      if (cfg.namePath) {
+        const nameRegex = new RegExp(`^${cfg.oscPrefix.replace(/\//g, "\\/")}\\/${chPattern}\\/${cfg.namePath.replace(/\//g, "\\/")}$`);
+        const nameMatch = address.match(nameRegex);
+        if (nameMatch && args[0]?.value) {
+          const ch = parseInt(nameMatch[1]);
+          const key = this.stateKey(section, ch);
+          const state = this.sectionStates.get(key) || this.defaultState(section, ch);
+          state.name = args[0].value;
+          this.sectionStates.set(key, state);
+          return;
+        }
+      }
+    }
+  }
+
+  private defaultState(section: MixerSection, channel: number): ChannelState {
+    const labels: Record<MixerSection, string> = {
+      ch: `Ch ${channel}`,
+      bus: `Bus ${channel}`,
+      auxin: `Aux In ${channel}`,
+      fxrtn: `FX Rtn ${channel}`,
+      mtx: `Matrix ${channel}`,
+      dca: `DCA ${channel}`,
+      main: `Main LR`,
+    };
+    return { channel, section, fader: 0, muted: false, name: labels[section] };
+  }
+
+  private notifyStateChange(section: MixerSection) {
+    if (this.onStateChange) {
+      this.onStateChange(section, this.getSectionStates(section));
     }
   }
 
@@ -158,34 +232,72 @@ export class X32Client {
     }
   }
 
+  setSectionFader(section: MixerSection, channel: number, value: number) {
+    const clampedValue = Math.max(0, Math.min(1, value));
+    if (section === "main") {
+      this.send("/main/st/mix/fader", [{ type: "f", value: clampedValue }]);
+      return;
+    }
+    const cfg = SECTION_CONFIG[section];
+    const chStr = cfg.padDigits > 0 ? channel.toString().padStart(cfg.padDigits, "0") : channel.toString();
+    this.send(`${cfg.oscPrefix}/${chStr}/${cfg.faderPath}`, [{ type: "f", value: clampedValue }]);
+  }
+
+  setSectionMute(section: MixerSection, channel: number, muted: boolean) {
+    if (section === "main") {
+      this.send("/main/st/mix/on", [{ type: "i", value: muted ? 0 : 1 }]);
+      return;
+    }
+    const cfg = SECTION_CONFIG[section];
+    const chStr = cfg.padDigits > 0 ? channel.toString().padStart(cfg.padDigits, "0") : channel.toString();
+    this.send(`${cfg.oscPrefix}/${chStr}/${cfg.mutePath}`, [{ type: "i", value: muted ? 0 : 1 }]);
+  }
+
   setChannelFader(channel: number, value: number) {
-    const chStr = channel.toString().padStart(2, "0");
-    this.send(`/ch/${chStr}/mix/fader`, [{ type: "f", value: Math.max(0, Math.min(1, value)) }]);
+    this.setSectionFader("ch", channel, value);
   }
 
   setChannelMute(channel: number, muted: boolean) {
-    const chStr = channel.toString().padStart(2, "0");
-    this.send(`/ch/${chStr}/mix/on`, [{ type: "i", value: muted ? 0 : 1 }]);
+    this.setSectionMute("ch", channel, muted);
   }
 
   setMainFader(value: number) {
-    this.send("/main/st/mix/fader", [{ type: "f", value: Math.max(0, Math.min(1, value)) }]);
+    this.setSectionFader("main", 1, value);
   }
 
   setMainMute(muted: boolean) {
-    this.send("/main/st/mix/on", [{ type: "i", value: muted ? 0 : 1 }]);
+    this.setSectionMute("main", 1, muted);
+  }
+
+  getSectionStates(section: MixerSection): ChannelState[] {
+    const results: ChannelState[] = [];
+    this.sectionStates.forEach((state, key) => {
+      if (key.startsWith(`${section}:`)) {
+        results.push(state);
+      }
+    });
+    return results.sort((a, b) => a.channel - b.channel);
   }
 
   getChannelStates(): ChannelState[] {
-    return Array.from(this.channelStates.values());
+    return this.getSectionStates("ch");
+  }
+
+  getAllStates(): Record<MixerSection, ChannelState[]> {
+    const sections: MixerSection[] = ["ch", "bus", "auxin", "fxrtn", "mtx", "dca", "main"];
+    const result: Record<string, ChannelState[]> = {};
+    for (const s of sections) {
+      result[s] = this.getSectionStates(s);
+    }
+    return result as Record<MixerSection, ChannelState[]>;
   }
 }
 
 class X32Manager {
   private client: X32Client | null = null;
-  private stateCallback: ((states: ChannelState[]) => void) | null = null;
+  private stateCallback: ((section: MixerSection, states: ChannelState[]) => void) | null = null;
 
-  setStateChangeCallback(callback: (states: ChannelState[]) => void) {
+  setStateChangeCallback(callback: (section: MixerSection, states: ChannelState[]) => void) {
     this.stateCallback = callback;
     if (this.client) {
       this.client.setStateChangeCallback(callback);

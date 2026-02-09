@@ -140,7 +140,7 @@ export const mixerApi = {
     return res.json();
   },
 
-  getStatus: async (id: number): Promise<{ connected: boolean; channels: any[] }> => {
+  getStatus: async (id: number): Promise<{ connected: boolean; channels: any[]; sections?: Record<string, any[]> }> => {
     const res = await fetch(`${API_BASE}/mixers/${id}/status`);
     if (!res.ok) throw new Error("Failed to get mixer status");
     return res.json();
