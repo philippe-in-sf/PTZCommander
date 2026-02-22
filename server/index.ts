@@ -86,17 +86,14 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
+  const defaultPort = process.env.REPL_ID ? "5000" : "3478";
+  const port = parseInt(process.env.PORT || defaultPort, 10);
   
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       console.error(`\n[Error] Port ${port} is already in use.`);
       console.error(`\nPossible solutions:`);
-      console.error(`  1. Use a different port: PORT=3000 npm run dev`);
+      console.error(`  1. Use a different port: PORT=4000 npm run dev`);
       console.error(`  2. Kill the process using port ${port}`);
       console.error(`  3. On Mac: Disable AirPlay Receiver in System Settings\n`);
       process.exit(1);
