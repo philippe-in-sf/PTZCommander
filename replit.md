@@ -21,13 +21,10 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS v4 with custom dark theme optimized for broadcast control rooms
 - **Animations**: Framer Motion for joystick interactions
 
-The frontend is a single-page application with a dashboard layout containing:
-- Camera selector grid with program/preview indicators
-- Virtual joystick component for real-time PTZ control
-- Preset grid (16 presets per camera) with recall/store modes
-- Lens controls for zoom, focus, and speed adjustments
-- Audio mixer panel with 16 channel strips and main fader
-- Video switcher panel with 8 input buttons for program/preview and transition controls
+The frontend is a multi-page application with navigation tabs:
+- **Dashboard** (`/`): Camera selector grid, virtual joystick, preset grid, lens controls, summary mixer/switcher panels
+- **Audio Mixer** (`/mixer`): Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
+- **Video Switcher** (`/switcher`): Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5
