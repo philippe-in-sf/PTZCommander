@@ -726,6 +726,111 @@ export async function registerRoutes(
               atemPvwClient.setPreviewInput(message.inputId);
             }
             break;
+
+          case "atem_ftb":
+            const atemFtbClient = atemManager.getClient();
+            if (atemFtbClient && atemFtbClient.isConnected()) {
+              atemFtbClient.fadeToBlack();
+            }
+            break;
+
+          case "atem_transition_style":
+            const atemStyleClient = atemManager.getClient();
+            if (atemStyleClient && atemStyleClient.isConnected()) {
+              atemStyleClient.setTransitionStyle(message.style);
+            }
+            break;
+
+          case "atem_transition_preview":
+            const atemPrevClient = atemManager.getClient();
+            if (atemPrevClient && atemPrevClient.isConnected()) {
+              atemPrevClient.setTransitionPreview(message.enabled);
+            }
+            break;
+
+          case "atem_transition_position":
+            const atemPosClient = atemManager.getClient();
+            if (atemPosClient && atemPosClient.isConnected()) {
+              atemPosClient.setTransitionPosition(message.position);
+            }
+            break;
+
+          case "atem_mix_rate":
+            const atemMixRateClient = atemManager.getClient();
+            if (atemMixRateClient && atemMixRateClient.isConnected()) {
+              atemMixRateClient.setMixRate(message.rate);
+            }
+            break;
+
+          case "atem_ftb_rate":
+            const atemFtbRateClient = atemManager.getClient();
+            if (atemFtbRateClient && atemFtbRateClient.isConnected()) {
+              atemFtbRateClient.setFadeToBlackRate(message.rate);
+            }
+            break;
+
+          case "atem_dsk_on_air":
+            const atemDskAirClient = atemManager.getClient();
+            if (atemDskAirClient && atemDskAirClient.isConnected()) {
+              atemDskAirClient.setDSKOnAir(message.index, message.onAir);
+            }
+            break;
+
+          case "atem_dsk_tie":
+            const atemDskTieClient = atemManager.getClient();
+            if (atemDskTieClient && atemDskTieClient.isConnected()) {
+              atemDskTieClient.setDSKTie(message.index, message.tie);
+            }
+            break;
+
+          case "atem_dsk_auto":
+            const atemDskAutoClient = atemManager.getClient();
+            if (atemDskAutoClient && atemDskAutoClient.isConnected()) {
+              atemDskAutoClient.autoDSK(message.index);
+            }
+            break;
+
+          case "atem_dsk_rate":
+            const atemDskRateClient = atemManager.getClient();
+            if (atemDskRateClient && atemDskRateClient.isConnected()) {
+              atemDskRateClient.setDSKRate(message.index, message.rate);
+            }
+            break;
+
+          case "atem_usk_on_air":
+            const atemUskClient = atemManager.getClient();
+            if (atemUskClient && atemUskClient.isConnected()) {
+              atemUskClient.setUSKOnAir(message.index, message.onAir);
+            }
+            break;
+
+          case "atem_macro_run":
+            const atemMacroRunClient = atemManager.getClient();
+            if (atemMacroRunClient && atemMacroRunClient.isConnected()) {
+              atemMacroRunClient.runMacro(message.index);
+            }
+            break;
+
+          case "atem_macro_stop":
+            const atemMacroStopClient = atemManager.getClient();
+            if (atemMacroStopClient && atemMacroStopClient.isConnected()) {
+              atemMacroStopClient.stopMacro();
+            }
+            break;
+
+          case "atem_macro_continue":
+            const atemMacroContinueClient = atemManager.getClient();
+            if (atemMacroContinueClient && atemMacroContinueClient.isConnected()) {
+              atemMacroContinueClient.continueMacro();
+            }
+            break;
+
+          case "atem_aux_source":
+            const atemAuxClient = atemManager.getClient();
+            if (atemAuxClient && atemAuxClient.isConnected()) {
+              atemAuxClient.setAuxSource(message.auxIndex, message.sourceId);
+            }
+            break;
         }
       } catch (error) {
         console.error("[WebSocket] Error processing message:", error);

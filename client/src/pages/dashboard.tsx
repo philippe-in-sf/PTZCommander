@@ -236,6 +236,11 @@ export default function Dashboard() {
                 Audio Mixer
               </button>
             </Link>
+            <Link href="/switcher">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
+                Video Switcher
+              </button>
+            </Link>
           </nav>
         </div>
 
