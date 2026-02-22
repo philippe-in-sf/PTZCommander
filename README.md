@@ -71,9 +71,9 @@ set PORT=4000 && npx tsx server/index.ts
 $env:PORT=4000; npx tsx server/index.ts
 ```
 
-The application will be available at `http://localhost:4000` (or whatever port you set).
+The application will be available at `http://localhost:3478` (or whatever port you set).
 
-On Mac/Linux the default port is 5000 unless you set the `PORT` environment variable.
+The default port is **3478** unless you set the `PORT` environment variable. Port 3478 was chosen to avoid clashes with common services (e.g. AirPlay on Mac uses port 5000).
 
 ### Optional: PostgreSQL (Cloud/Advanced)
 
