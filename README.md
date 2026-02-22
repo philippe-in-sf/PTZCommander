@@ -6,7 +6,6 @@ A professional PTZ camera, audio mixer, and video switcher controller for use wi
 
 ### Camera Control
 - Virtual joystick for pan/tilt control
-- Program/Preview workflow (standard broadcast switcher style)
 - 16 presets per camera with recall/store modes
 - Zoom and focus control
 - Adjustable pan/tilt speed
@@ -16,17 +15,25 @@ A professional PTZ camera, audio mixer, and video switcher controller for use wi
 
 ### Audio Mixer Control
 - Behringer X32/M32 mixer support via OSC protocol
-- 16 channel faders with mute buttons
-- Main stereo fader control
+- Full mixer section access: Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA
 - Real-time state synchronization with mixer hardware
 - Channel names pulled from mixer
+- Dedicated full-page Audio Mixer view with tabbed sections
 - Edit and delete mixer configuration via settings gear icon
 
 ### Video Switcher Control
 - Blackmagic ATEM switcher support
-- 8 input buttons for program/preview selection
-- Cut and auto transitions
-- Real-time tally state synchronization
+- Program/Preview input selection
+- Transition controls: Mix, Dip, Wipe, Stinger, DVE with adjustable rates
+- Upstream and Downstream Keyer controls (on-air, tie, auto)
+- Fade to Black
+- Macro management (run, stop, continue)
+- Dedicated full-page Video Switcher view with tabbed sections
+
+### Multi-Page Interface
+- **Dashboard**: ATEM/Mixer summary panels at the top, camera selection grid, virtual joystick, preset grid, lens controls
+- **Audio Mixer**: Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
+- **Video Switcher**: Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
 
 ### Logging & Troubleshooting
 - Built-in log viewer accessible from the header
@@ -63,17 +70,30 @@ npm run dev
 
 #### On Windows (Command Prompt):
 ```bash
-set PORT=4000 && npx tsx server/index.ts
+npx tsx server/index.ts
 ```
 
 #### On Windows (PowerShell):
 ```powershell
+npx tsx server/index.ts
+```
+
+The application will be available at `http://localhost:3478`.
+
+The default port is **3478**. You can change it by setting the `PORT` environment variable:
+
+```bash
+# Mac / Linux
+PORT=4000 npm run dev
+
+# Windows Command Prompt
+set PORT=4000 && npx tsx server/index.ts
+
+# Windows PowerShell
 $env:PORT=4000; npx tsx server/index.ts
 ```
 
-The application will be available at `http://localhost:3478` (or whatever port you set).
-
-The default port is **3478** unless you set the `PORT` environment variable. Port 3478 was chosen to avoid clashes with common services (e.g. AirPlay on Mac uses port 5000).
+Port 3478 was chosen to avoid clashes with common services (e.g. AirPlay on Mac uses port 5000).
 
 ### Optional: PostgreSQL (Cloud/Advanced)
 
@@ -111,16 +131,19 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 1. Connect your X32 to the same network as the computer running PTZ Command
 2. On the X32, go to **Setup > Network** and note the IP address
 3. Ensure the X32 is set to use port 10023 (default OSC port)
-4. In PTZ Command, click "Add Mixer" and enter the IP address
+4. In PTZ Command, navigate to the **Audio Mixer** tab and click "Add Mixer"
 
 ### Managing Mixer Settings
 - Click the settings gear icon next to the mixer name to edit IP, port, or name
 - Delete the mixer from the same settings dialog
 
-### Supported Mixer Features
-- Channels 1-16 fader control
-- Channels 1-16 mute control
-- Main stereo bus fader and mute
+### Supported Mixer Sections
+- **Channels**: Channels 1-32 fader and mute control
+- **Mix Bus**: Mix bus fader and mute control
+- **Aux In**: Auxiliary input control
+- **FX Returns**: Effects return control
+- **Matrix**: Matrix output control
+- **DCA**: DCA group fader and mute control
 - Real-time state sync from mixer to UI
 
 ## Video Switcher Setup
@@ -128,28 +151,45 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 ### Blackmagic ATEM
 1. Connect your ATEM switcher to the same network
 2. Note the ATEM's IP address from its network settings
-3. In PTZ Command, click "Add Switcher" and enter the IP address
+3. In PTZ Command, navigate to the **Video Switcher** tab and click "Add Switcher"
 4. Use the program/preview buttons to switch inputs
 5. Use Cut or Auto buttons for transitions
 
+### Supported Switcher Features
+- **Program/Preview**: Input source selection with tally indicators
+- **Transitions**: Mix, Dip, Wipe, Stinger, DVE with rate control and preview toggle
+- **Upstream Keys**: On-air toggle for upstream keyers
+- **Downstream Keys**: On-air, tie, and auto controls for downstream keyers
+- **Macros**: Run, stop, and continue macros
+- **Fade to Black**: Full FTB control
+
 ## Usage
 
-### Camera Control
-1. **Add Cameras**: Click "Add Camera" and enter the camera name, IP address, and port
-2. **Select Preview**: Click on a camera to select it for preview (green border)
-3. **Control Movement**: Use the virtual joystick to pan and tilt
-4. **Set Presets**: Switch to "STORE" mode and click a preset slot to save the current position
-5. **Recall Presets**: In "RECALL" mode, click a preset to move the camera to that position
-6. **Go Live**: Click "TAKE" to swap preview to program (red border = live)
+### Dashboard
+1. **ATEM & Mixer Panels**: Summary panels at the top show connection status and quick controls
+2. **Add Cameras**: Click "Add Camera" and enter the camera name, IP address, and port
+3. **Select Camera**: Click on a camera card to select it for joystick control (cyan border = selected)
+4. **Control Movement**: Use the virtual joystick to pan and tilt the selected camera
+5. **Set Presets**: Switch to "STORE" mode and click a preset slot to save the current position
+6. **Recall Presets**: In "RECALL" mode, click a preset to move the camera to that position
 7. **Edit Camera**: Hover over a camera card and click the gear icon to change settings
 
-### Audio Mixer Control
-1. **Add Mixer**: Click "Add Mixer" in the Audio Mixer panel and enter your X32's IP address
-2. **Connect**: The mixer will connect automatically; green WiFi icon shows "online"
-3. **Channel Faders**: Drag faders up/down to adjust channel levels
-4. **Mute Channels**: Click the mute button below each fader to mute/unmute
-5. **Main Fader**: Use the horizontal main fader at the bottom for master level control
-6. **Edit Mixer**: Click the gear icon next to the mixer name to change settings or delete
+### Audio Mixer (Full Page)
+1. Navigate to the **Audio Mixer** tab
+2. **Add Mixer**: Click "Add Mixer" and enter your X32's IP address
+3. **Connect**: The mixer will connect automatically; green WiFi icon shows "online"
+4. **Sections**: Use the tabs to switch between Channels, Mix Bus, Aux In, FX Returns, Matrix, and DCA
+5. **Faders**: Drag faders up/down to adjust levels
+6. **Mute**: Click the mute button below each fader to mute/unmute
+
+### Video Switcher (Full Page)
+1. Navigate to the **Video Switcher** tab
+2. **Add Switcher**: Click "Add Switcher" and enter your ATEM's IP address
+3. **Connect**: Click the Connect button to establish connection
+4. **ME Control**: Use program/preview rows to switch inputs; Cut and Auto buttons for transitions
+5. **Transitions**: Select transition style (Mix, Dip, Wipe, Stinger, DVE) and adjust rate
+6. **Keyers**: Control upstream and downstream keyers from their respective tabs
+7. **Macros**: Run, stop, or continue macros from the Macros tab
 
 ### Viewing Logs
 1. Click the "Logs" button in the header bar
@@ -163,7 +203,7 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 - **PTZ Cameras**: Firewall must allow TCP connections on the camera's VISCA port
 - **X32 Mixer**: Firewall must allow UDP connections on port 10023 (OSC)
 - **ATEM Switcher**: Firewall must allow TCP connections to the ATEM
-- WebSocket communication uses the same port as the web server
+- WebSocket communication uses the same port as the web server (default 3478)
 
 ## Troubleshooting
 
@@ -191,6 +231,12 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 - If the mixer was offline and reconnected, fader positions will update automatically
 - Check logs for "X32 OSC send error" messages
 
+### ATEM Switcher shows "Offline"
+- Verify the ATEM IP address is correct
+- Ensure the ATEM is powered on and connected to the network
+- Check that no firewall is blocking TCP connections to the ATEM
+- Check the Logs viewer (Switcher category) for connection error details
+
 ### Database issues
 - Local installations use SQLite automatically (stored in `data/ptzcommand.db`)
 - No setup required — the database is created on first run
@@ -199,6 +245,10 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 ### Windows "NODE_ENV is not recognized" error
 - Use `npx tsx server/index.ts` instead of `npm run dev`
 - See the Installation section above for Windows-specific commands
+
+### Port conflicts
+- The default port is 3478. If it's in use, set a different port: `PORT=4000 npm run dev`
+- On Mac, port 5000 is used by AirPlay — this is why the default was changed to 3478
 
 ## Data Storage
 
