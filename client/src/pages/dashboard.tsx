@@ -6,6 +6,7 @@ import { PresetGrid } from "@/components/ptz/preset-grid";
 import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
+import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -207,6 +208,11 @@ export default function Dashboard() {
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AtemPanel />
           <MixerPanel />
+        </section>
+
+        {/* Scene Buttons */}
+        <section>
+          <SceneButtons />
         </section>
 
         {/* Camera Strip */}

@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -232,5 +232,48 @@ export const switcherApi = {
       body: JSON.stringify({ inputId }),
     });
     if (!res.ok) throw new Error("Failed to set preview input");
+  },
+};
+
+export const sceneButtonApi = {
+  getAll: async (): Promise<SceneButton[]> => {
+    const res = await fetch(`${API_BASE}/scene-buttons`);
+    if (!res.ok) throw new Error("Failed to fetch scene buttons");
+    return res.json();
+  },
+
+  create: async (button: InsertSceneButton): Promise<SceneButton> => {
+    const res = await fetch(`${API_BASE}/scene-buttons`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(button),
+    });
+    if (!res.ok) throw new Error("Failed to create scene button");
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<SceneButton>): Promise<SceneButton> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update scene button");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete scene button");
+  },
+
+  execute: async (id: number): Promise<{ success: boolean; results: string[] }> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/${id}/execute`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to execute scene button");
+    return res.json();
   },
 };

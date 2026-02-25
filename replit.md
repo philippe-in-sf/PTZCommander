@@ -22,7 +22,7 @@ Preferred communication style: Simple, everyday language.
 - **Animations**: Framer Motion for joystick interactions
 
 The frontend is a multi-page application with navigation tabs:
-- **Dashboard** (`/`): Camera selector grid, virtual joystick, preset grid, lens controls, summary mixer/switcher panels
+- **Dashboard** (`/`): ATEM/Mixer summary panels, scene buttons, camera selector grid, virtual joystick, preset grid, lens controls
 - **Audio Mixer** (`/mixer`): Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
 - **Video Switcher** (`/switcher`): Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
 
@@ -47,7 +47,7 @@ The server handles:
   - Automatically detects: Uses PostgreSQL when `DATABASE_URL` is set, otherwise falls back to SQLite
   - SQLite file stored at `data/ptzcommand.db` for portable local installations
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema**: Five tables - `cameras`, `presets`, `mixers`, `switchers`, and `audit_logs`
+- **Schema**: Six tables - `cameras`, `presets`, `mixers`, `switchers`, `scene_buttons`, and `audit_logs`
 - **Migrations**: Managed via `drizzle-kit push` (PostgreSQL) or auto-created (SQLite)
 
 ### Logging System

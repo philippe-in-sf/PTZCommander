@@ -70,6 +70,18 @@ if (useSqlite) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     
+    CREATE TABLE IF NOT EXISTS scene_buttons (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      button_number INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT '#06b6d4',
+      atem_input_id INTEGER,
+      atem_transition_type TEXT DEFAULT 'cut',
+      camera_id INTEGER,
+      preset_number INTEGER,
+      mixer_actions TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp TEXT NOT NULL DEFAULT (datetime('now')),
