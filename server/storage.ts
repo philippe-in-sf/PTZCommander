@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, switchers, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type AuditLog, type InsertAuditLog } from "@shared/schema";
+import { cameras, presets, mixers, switchers, sceneButtons, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type AuditLog, type InsertAuditLog } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
@@ -35,6 +35,13 @@ export interface IStorage {
   updateSwitcher(id: number, updates: Partial<Switcher>): Promise<Switcher | undefined>;
   deleteSwitcher(id: number): Promise<void>;
   updateSwitcherStatus(id: number, status: string): Promise<void>;
+
+  // Scene button operations
+  getAllSceneButtons(): Promise<SceneButton[]>;
+  getSceneButton(id: number): Promise<SceneButton | undefined>;
+  createSceneButton(button: InsertSceneButton): Promise<SceneButton>;
+  updateSceneButton(id: number, updates: Partial<SceneButton>): Promise<SceneButton | undefined>;
+  deleteSceneButton(id: number): Promise<void>;
 
   // Audit log operations
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -91,6 +98,20 @@ function sqliteRowToSwitcher(row: any): Switcher {
     type: row.type,
     status: row.status,
     createdAt: new Date(row.created_at),
+  };
+}
+
+function sqliteRowToSceneButton(row: any): SceneButton {
+  return {
+    id: row.id,
+    buttonNumber: row.button_number,
+    name: row.name,
+    color: row.color,
+    atemInputId: row.atem_input_id,
+    atemTransitionType: row.atem_transition_type,
+    cameraId: row.camera_id,
+    presetNumber: row.preset_number,
+    mixerActions: row.mixer_actions,
   };
 }
 
@@ -461,6 +482,81 @@ export class DatabaseStorage implements IStorage {
       return;
     }
     await db.update(switchers).set({ status }).where(eq(switchers.id, id));
+  }
+
+  // Scene button operations
+  async getAllSceneButtons(): Promise<SceneButton[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM scene_buttons ORDER BY button_number').all();
+      return rows.map(sqliteRowToSceneButton);
+    }
+    return await db.select().from(sceneButtons).orderBy(sceneButtons.buttonNumber);
+  }
+
+  async getSceneButton(id: number): Promise<SceneButton | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM scene_buttons WHERE id = ?').get(id);
+      return row ? sqliteRowToSceneButton(row) : undefined;
+    }
+    const [button] = await db.select().from(sceneButtons).where(eq(sceneButtons.id, id));
+    return button || undefined;
+  }
+
+  async createSceneButton(insert: InsertSceneButton): Promise<SceneButton> {
+    if (useSqlite && sqlite) {
+      const result = sqlite.prepare(`
+        INSERT INTO scene_buttons (button_number, name, color, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        insert.buttonNumber,
+        insert.name,
+        insert.color || '#06b6d4',
+        insert.atemInputId || null,
+        insert.atemTransitionType || 'cut',
+        insert.cameraId || null,
+        insert.presetNumber || null,
+        insert.mixerActions || null
+      );
+      return this.getSceneButton(Number(result.lastInsertRowid)) as Promise<SceneButton>;
+    }
+    const [button] = await db.insert(sceneButtons).values(insert).returning();
+    return button;
+  }
+
+  async updateSceneButton(id: number, updates: Partial<SceneButton>): Promise<SceneButton | undefined> {
+    if (useSqlite && sqlite) {
+      const setClauses: string[] = [];
+      const values: any[] = [];
+
+      if (updates.buttonNumber !== undefined) { setClauses.push('button_number = ?'); values.push(updates.buttonNumber); }
+      if (updates.name !== undefined) { setClauses.push('name = ?'); values.push(updates.name); }
+      if (updates.color !== undefined) { setClauses.push('color = ?'); values.push(updates.color); }
+      if (updates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(updates.atemInputId); }
+      if (updates.atemTransitionType !== undefined) { setClauses.push('atem_transition_type = ?'); values.push(updates.atemTransitionType); }
+      if (updates.cameraId !== undefined) { setClauses.push('camera_id = ?'); values.push(updates.cameraId); }
+      if (updates.presetNumber !== undefined) { setClauses.push('preset_number = ?'); values.push(updates.presetNumber); }
+      if (updates.mixerActions !== undefined) { setClauses.push('mixer_actions = ?'); values.push(updates.mixerActions); }
+
+      if (setClauses.length === 0) return this.getSceneButton(id);
+
+      values.push(id);
+      sqlite.prepare(`UPDATE scene_buttons SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+      return this.getSceneButton(id);
+    }
+    const [button] = await db
+      .update(sceneButtons)
+      .set(updates)
+      .where(eq(sceneButtons.id, id))
+      .returning();
+    return button || undefined;
+  }
+
+  async deleteSceneButton(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('DELETE FROM scene_buttons WHERE id = ?').run(id);
+      return;
+    }
+    await db.delete(sceneButtons).where(eq(sceneButtons.id, id));
   }
 
   // Audit log operations
