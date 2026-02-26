@@ -1,0 +1,520 @@
+import { useState, useEffect, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { sceneButtonApi, cameraApi } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Plus, Trash2, Settings, Zap, Play, Video } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { LogViewer } from "@/components/logs/log-viewer";
+import { Link } from "wouter";
+import type { SceneButton, Camera } from "@shared/schema";
+
+interface MixerAction {
+  section: string;
+  channel: number;
+  fader?: number;
+  muted?: boolean;
+}
+
+const COLORS = [
+  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
+  "#ef4444", "#f97316", "#eab308", "#22c55e",
+];
+
+export default function ScenesPage() {
+  const queryClient = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingButton, setEditingButton] = useState<SceneButton | null>(null);
+  const [formData, setFormData] = useState({
+    buttonNumber: 1,
+    name: "",
+    color: "#06b6d4",
+    atemInputId: null as number | null,
+    atemTransitionType: "cut",
+    cameraId: null as number | null,
+    presetNumber: null as number | null,
+    mixerActions: [] as MixerAction[],
+  });
+
+  const { data: sceneButtons = [] } = useQuery({
+    queryKey: ["sceneButtons"],
+    queryFn: sceneButtonApi.getAll,
+  });
+
+  const { data: cameras = [] } = useQuery({
+    queryKey: ["cameras"],
+    queryFn: cameraApi.getAll,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: sceneButtonApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sceneButtons"] });
+      setEditOpen(false);
+      toast.success("Scene button created");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: Partial<SceneButton> }) =>
+      sceneButtonApi.update(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sceneButtons"] });
+      setEditOpen(false);
+      toast.success("Scene button updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: sceneButtonApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sceneButtons"] });
+      toast.success("Scene button deleted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const executeMutation = useMutation({
+    mutationFn: sceneButtonApi.execute,
+    onSuccess: (data) => {
+      toast.success("Scene executed", {
+        description: data.results.join("\n"),
+        duration: 5000,
+      });
+    },
+    onError: (e: Error) => toast.error("Scene failed", { description: e.message, duration: 5000 }),
+  });
+
+  const openCreate = () => {
+    const nextNum = sceneButtons.length > 0
+      ? Math.max(...sceneButtons.map(b => b.buttonNumber)) + 1
+      : 1;
+    setEditingButton(null);
+    setFormData({
+      buttonNumber: nextNum,
+      name: "",
+      color: COLORS[(nextNum - 1) % COLORS.length],
+      atemInputId: null,
+      atemTransitionType: "cut",
+      cameraId: null,
+      presetNumber: null,
+      mixerActions: [],
+    });
+    setEditOpen(true);
+  };
+
+  const openEdit = (btn: SceneButton) => {
+    setEditingButton(btn);
+    let mixerActions: MixerAction[] = [];
+    try {
+      if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions);
+    } catch {}
+    setFormData({
+      buttonNumber: btn.buttonNumber,
+      name: btn.name,
+      color: btn.color,
+      atemInputId: btn.atemInputId,
+      atemTransitionType: btn.atemTransitionType || "cut",
+      cameraId: btn.cameraId,
+      presetNumber: btn.presetNumber,
+      mixerActions,
+    });
+    setEditOpen(true);
+  };
+
+  const handleSave = () => {
+    const payload = {
+      buttonNumber: formData.buttonNumber,
+      name: formData.name || `Scene ${formData.buttonNumber}`,
+      color: formData.color,
+      atemInputId: formData.atemInputId,
+      atemTransitionType: formData.atemTransitionType,
+      cameraId: formData.cameraId,
+      presetNumber: formData.presetNumber,
+      mixerActions: formData.mixerActions.length > 0
+        ? JSON.stringify(formData.mixerActions)
+        : null,
+    };
+
+    if (editingButton) {
+      updateMutation.mutate({ id: editingButton.id, updates: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  const addMixerAction = () => {
+    setFormData(prev => ({
+      ...prev,
+      mixerActions: [...prev.mixerActions, { section: "ch", channel: 1, fader: 0.75, muted: false }],
+    }));
+  };
+
+  const updateMixerAction = (index: number, updates: Partial<MixerAction>) => {
+    setFormData(prev => ({
+      ...prev,
+      mixerActions: prev.mixerActions.map((a, i) => i === index ? { ...a, ...updates } : a),
+    }));
+  };
+
+  const removeMixerAction = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      mixerActions: prev.mixerActions.filter((_, i) => i !== index),
+    }));
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
+      <header className="h-14 border-b border-border bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+              <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
+                <Video className="text-white w-4 h-4" />
+              </div>
+              <h1 className="font-bold tracking-tight text-lg">
+                PTZ<span className="text-cyan-500 font-light">COMMAND</span>
+              </h1>
+            </div>
+          </Link>
+
+          <nav className="flex items-center gap-1 ml-6">
+            <Link href="/">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
+                Dashboard
+              </button>
+            </Link>
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700" data-testid="nav-scenes">
+              Scenes
+            </button>
+            <Link href="/switcher">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
+                Video Switcher
+              </button>
+            </Link>
+            <Link href="/mixer">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
+                Audio Mixer
+              </button>
+            </Link>
+          </nav>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <LogViewer />
+        </div>
+      </header>
+
+      <main className="flex-1 p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Zap className="w-5 h-5 text-cyan-500" /> Scene Buttons
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Programmable buttons that trigger combined ATEM, mixer, and PTZ actions in one press.
+            </p>
+          </div>
+          <Button onClick={openCreate} data-testid="button-add-scene">
+            <Plus className="w-4 h-4 mr-2" /> Add Scene Button
+          </Button>
+        </div>
+
+        {sceneButtons.length === 0 ? (
+          <div className="border-2 border-dashed border-slate-800 rounded-xl p-16 text-center">
+            <Zap className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+            <p className="text-slate-500 mb-2">No scene buttons configured yet</p>
+            <p className="text-sm text-slate-600 mb-6">Create a scene button to trigger combined actions across your ATEM switcher, audio mixer, and PTZ cameras.</p>
+            <Button onClick={openCreate} data-testid="button-add-first-scene">
+              <Plus className="w-4 h-4 mr-2" /> Create Your First Scene
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {sceneButtons.map((btn) => {
+              let mixerActions: MixerAction[] = [];
+              try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
+
+              return (
+                <div key={btn.id} className="relative group">
+                  <button
+                    onClick={() => executeMutation.mutate(btn.id)}
+                    disabled={executeMutation.isPending}
+                    className={cn(
+                      "w-full rounded-xl font-bold text-sm text-white transition-all",
+                      "hover:scale-105 hover:shadow-lg active:scale-95",
+                      "border-2 flex flex-col items-center justify-center gap-1 p-4"
+                    )}
+                    style={{
+                      backgroundColor: `${btn.color}15`,
+                      borderColor: btn.color,
+                      boxShadow: `0 0 20px ${btn.color}20`,
+                    }}
+                    data-testid={`button-scene-execute-${btn.id}`}
+                  >
+                    <Play className="w-5 h-5 mb-1" style={{ color: btn.color }} />
+                    <span className="text-base" style={{ color: btn.color }}>{btn.name}</span>
+                    <div className="flex flex-wrap gap-1 mt-2 justify-center">
+                      {btn.atemInputId !== null && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                          ATEM:{btn.atemInputId}
+                        </span>
+                      )}
+                      {btn.cameraId !== null && btn.presetNumber !== null && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                          CAM:{btn.cameraId} P{(btn.presetNumber ?? 0) + 1}
+                        </span>
+                      )}
+                      {mixerActions.length > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                          MIX:{mixerActions.length}ch
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/80 rounded p-1.5"
+                    data-testid={`button-scene-edit-${btn.id}`}
+                  >
+                    <Settings className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingButton ? "Edit Scene Button" : "Create Scene Button"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Name</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                  placeholder={`Scene ${formData.buttonNumber}`}
+                  data-testid="input-scene-name"
+                />
+              </div>
+              <div>
+                <Label>Button #</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.buttonNumber}
+                  onChange={(e) => setFormData(p => ({ ...p, buttonNumber: parseInt(e.target.value) || 1 }))}
+                  data-testid="input-scene-number"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Color</Label>
+              <div className="flex gap-2 mt-1">
+                {COLORS.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setFormData(p => ({ ...p, color: c }))}
+                    className={cn(
+                      "w-7 h-7 rounded-full border-2 transition-all",
+                      formData.color === c ? "border-white scale-110" : "border-transparent"
+                    )}
+                    style={{ backgroundColor: c }}
+                    data-testid={`button-color-${c}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-slate-800 pt-3">
+              <h4 className="text-xs font-mono uppercase text-slate-400 mb-2">ATEM Switcher Action</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Input Number</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={formData.atemInputId ?? ""}
+                    onChange={(e) => setFormData(p => ({ ...p, atemInputId: e.target.value ? parseInt(e.target.value) : null }))}
+                    placeholder="None"
+                    data-testid="input-scene-atem-input"
+                  />
+                </div>
+                <div>
+                  <Label>Transition</Label>
+                  <Select
+                    value={formData.atemTransitionType}
+                    onValueChange={(v) => setFormData(p => ({ ...p, atemTransitionType: v }))}
+                  >
+                    <SelectTrigger data-testid="select-scene-transition">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cut">Cut</SelectItem>
+                      <SelectItem value="auto">Auto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-800 pt-3">
+              <h4 className="text-xs font-mono uppercase text-slate-400 mb-2">PTZ Camera Action</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Camera</Label>
+                  <Select
+                    value={formData.cameraId?.toString() ?? "none"}
+                    onValueChange={(v) => setFormData(p => ({ ...p, cameraId: v === "none" ? null : parseInt(v) }))}
+                  >
+                    <SelectTrigger data-testid="select-scene-camera">
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {cameras.map(cam => (
+                        <SelectItem key={cam.id} value={cam.id.toString()}>{cam.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Preset #</Label>
+                  <Select
+                    value={formData.presetNumber?.toString() ?? "none"}
+                    onValueChange={(v) => setFormData(p => ({ ...p, presetNumber: v === "none" ? null : parseInt(v) }))}
+                  >
+                    <SelectTrigger data-testid="select-scene-preset">
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {Array.from({ length: 16 }, (_, i) => (
+                        <SelectItem key={i} value={i.toString()}>Preset {i + 1}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-800 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-mono uppercase text-slate-400">Mixer Channel Actions</h4>
+                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addMixerAction} data-testid="button-add-mixer-action">
+                  <Plus className="w-3 h-3 mr-1" /> Add Channel
+                </Button>
+              </div>
+
+              {formData.mixerActions.length === 0 ? (
+                <p className="text-xs text-slate-600">No mixer actions configured.</p>
+              ) : (
+                <div className="space-y-3">
+                  {formData.mixerActions.map((action, idx) => (
+                    <div key={idx} className="bg-slate-800/50 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-slate-400 font-mono">Channel Action {idx + 1}</span>
+                        <button onClick={() => removeMixerAction(idx)} className="text-red-500 hover:text-red-400">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <Label className="text-xs">Section</Label>
+                          <Select
+                            value={action.section}
+                            onValueChange={(v) => updateMixerAction(idx, { section: v })}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ch">Channel</SelectItem>
+                              <SelectItem value="bus">Mix Bus</SelectItem>
+                              <SelectItem value="auxin">Aux In</SelectItem>
+                              <SelectItem value="fxrtn">FX Return</SelectItem>
+                              <SelectItem value="mtx">Matrix</SelectItem>
+                              <SelectItem value="dca">DCA</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Ch #</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={32}
+                            value={action.channel}
+                            onChange={(e) => updateMixerAction(idx, { channel: parseInt(e.target.value) || 1 })}
+                            className="h-8 text-xs"
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <button
+                            onClick={() => updateMixerAction(idx, { muted: !action.muted })}
+                            className={cn(
+                              "h-8 px-3 rounded text-xs font-bold border w-full",
+                              action.muted
+                                ? "bg-red-950/50 border-red-700 text-red-400"
+                                : "bg-green-950/50 border-green-700 text-green-400"
+                            )}
+                          >
+                            {action.muted ? "MUTED" : "ON"}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Fader Level: {Math.round((action.fader ?? 0.75) * 100)}%</Label>
+                        <Slider
+                          value={[action.fader ?? 0.75]}
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          onValueChange={([v]) => updateMixerAction(idx, { fader: v })}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              {editingButton && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => { deleteMutation.mutate(editingButton.id); setEditOpen(false); }}
+                  data-testid="button-delete-scene"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" /> Delete
+                </Button>
+              )}
+              <div className="flex-1" />
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button onClick={handleSave} data-testid="button-save-scene">
+                {editingButton ? "Update" : "Create"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

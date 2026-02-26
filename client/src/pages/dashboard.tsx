@@ -177,6 +177,11 @@ export default function Dashboard() {
             <button className="px-3 py-1.5 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700" data-testid="nav-dashboard">
               Dashboard
             </button>
+            <Link href="/scenes">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
+                Scenes
+              </button>
+            </Link>
             <Link href="/switcher">
               <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
                 Video Switcher
@@ -204,15 +209,15 @@ export default function Dashboard() {
 
       <main className="flex-1 p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
         
-        {/* ATEM & Mixer Summary - at the top */}
+        {/* Scene Buttons - quick access at the top */}
+        <section>
+          <SceneButtons />
+        </section>
+
+        {/* ATEM & Mixer Summary */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AtemPanel />
           <MixerPanel />
-        </section>
-
-        {/* Scene Buttons */}
-        <section>
-          <SceneButtons />
         </section>
 
         {/* Camera Strip */}
