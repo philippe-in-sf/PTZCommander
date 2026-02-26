@@ -28,6 +28,7 @@ const COLORS = [
 
 export default function ScenesPage() {
   const queryClient = useQueryClient();
+  const [activeSceneId, setActiveSceneId] = useState<number | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editingButton, setEditingButton] = useState<SceneButton | null>(null);
   const [formData, setFormData] = useState({
@@ -82,7 +83,10 @@ export default function ScenesPage() {
   });
 
   const executeMutation = useMutation({
-    mutationFn: sceneButtonApi.execute,
+    mutationFn: (id: number) => {
+      setActiveSceneId(id);
+      return sceneButtonApi.execute(id);
+    },
     onSuccess: (data) => {
       toast.success("Scene executed", {
         description: data.results.join("\n"),
@@ -242,6 +246,7 @@ export default function ScenesPage() {
             {sceneButtons.map((btn) => {
               let mixerActions: MixerAction[] = [];
               try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
+              const isActive = activeSceneId === btn.id;
 
               return (
                 <div key={btn.id} className="relative group">
@@ -249,32 +254,33 @@ export default function ScenesPage() {
                     onClick={() => executeMutation.mutate(btn.id)}
                     disabled={executeMutation.isPending}
                     className={cn(
-                      "w-full rounded-xl font-bold text-sm text-white transition-all",
+                      "w-full rounded-xl font-bold text-sm transition-all",
                       "hover:scale-105 hover:shadow-lg active:scale-95",
                       "border-2 flex flex-col items-center justify-center gap-1 p-4"
                     )}
                     style={{
-                      backgroundColor: `${btn.color}15`,
+                      backgroundColor: isActive ? btn.color : `${btn.color}15`,
                       borderColor: btn.color,
-                      boxShadow: `0 0 20px ${btn.color}20`,
+                      color: isActive ? '#000' : btn.color,
+                      boxShadow: isActive ? `0 0 30px ${btn.color}60` : `0 0 20px ${btn.color}20`,
                     }}
                     data-testid={`button-scene-execute-${btn.id}`}
                   >
-                    <Play className="w-5 h-5 mb-1" style={{ color: btn.color }} />
-                    <span className="text-base" style={{ color: btn.color }}>{btn.name}</span>
+                    <Play className="w-5 h-5 mb-1" style={{ color: isActive ? '#000' : btn.color }} />
+                    <span className="text-base">{btn.name}</span>
                     <div className="flex flex-wrap gap-1 mt-2 justify-center">
                       {btn.atemInputId !== null && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-800 text-slate-400")}>
                           ATEM:{btn.atemInputId}
                         </span>
                       )}
                       {btn.cameraId !== null && btn.presetNumber !== null && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-800 text-slate-400")}>
                           CAM:{btn.cameraId} P{(btn.presetNumber ?? 0) + 1}
                         </span>
                       )}
                       {mixerActions.length > 0 && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-800 text-slate-400")}>
                           MIX:{mixerActions.length}ch
                         </span>
                       )}
