@@ -615,12 +615,14 @@ export async function registerRoutes(
       }
 
       if (button.cameraId !== null && button.cameraId !== undefined && button.presetNumber !== null && button.presetNumber !== undefined) {
+        const connectedIds = cameraManager.getConnectedCameraIds();
         const camClient = cameraManager.getClient(button.cameraId);
+        logger.info("system", `Scene PTZ: cameraId=${button.cameraId}, presetNumber=${button.presetNumber}, connectedCameras=[${connectedIds.join(',')}], clientFound=${!!camClient}, connected=${camClient?.isConnected()}`);
         if (camClient && camClient.isConnected()) {
           camClient.recallPreset(button.presetNumber);
-          results.push(`PTZ: camera ${button.cameraId} recalled preset ${button.presetNumber}`);
+          results.push(`PTZ: camera ${button.cameraId} recalled preset ${button.presetNumber + 1}`);
         } else {
-          results.push(`PTZ: camera ${button.cameraId} not connected, skipped`);
+          results.push(`PTZ: camera ${button.cameraId} not connected (connected cameras: ${connectedIds.length > 0 ? connectedIds.join(',') : 'none'})`);
         }
       }
 
