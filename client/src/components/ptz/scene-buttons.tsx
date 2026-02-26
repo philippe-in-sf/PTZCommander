@@ -82,9 +82,12 @@ export function SceneButtons() {
   const executeMutation = useMutation({
     mutationFn: sceneButtonApi.execute,
     onSuccess: (data) => {
-      toast.success("Scene executed", { description: data.results.join(", ") });
+      toast.success("Scene executed", {
+        description: data.results.join("\n"),
+        duration: 5000,
+      });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error("Scene failed", { description: e.message, duration: 5000 }),
   });
 
   const openCreate = () => {
