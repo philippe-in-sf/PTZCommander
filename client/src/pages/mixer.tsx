@@ -251,6 +251,11 @@ export default function MixerPage() {
                 Dashboard
               </button>
             </Link>
+            <Link href="/scenes">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
+                Scenes
+              </button>
+            </Link>
             <Link href="/switcher">
               <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
                 Video Switcher
