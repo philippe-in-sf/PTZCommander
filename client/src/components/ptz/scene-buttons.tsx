@@ -26,6 +26,7 @@ const COLORS = [
 
 export function SceneButtons() {
   const queryClient = useQueryClient();
+  const [activeSceneId, setActiveSceneId] = useState<number | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editingButton, setEditingButton] = useState<SceneButton | null>(null);
   const [formData, setFormData] = useState({
@@ -80,7 +81,10 @@ export function SceneButtons() {
   });
 
   const executeMutation = useMutation({
-    mutationFn: sceneButtonApi.execute,
+    mutationFn: (id: number) => {
+      setActiveSceneId(id);
+      return sceneButtonApi.execute(id);
+    },
     onSuccess: (data) => {
       toast.success("Scene executed", {
         description: data.results.join("\n"),
@@ -186,25 +190,28 @@ export function SceneButtons() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {sceneButtons.map((btn) => (
+          {sceneButtons.map((btn) => {
+            const isActive = activeSceneId === btn.id;
+            return (
             <div key={btn.id} className="relative group">
               <button
                 onClick={() => executeMutation.mutate(btn.id)}
                 disabled={executeMutation.isPending}
                 className={cn(
-                  "w-full h-16 rounded-lg font-bold text-sm text-white transition-all",
+                  "w-full h-16 rounded-lg font-bold text-sm transition-all",
                   "hover:scale-105 hover:shadow-lg active:scale-95",
                   "border-2 flex flex-col items-center justify-center gap-0.5"
                 )}
                 style={{
-                  backgroundColor: `${btn.color}20`,
+                  backgroundColor: isActive ? btn.color : `${btn.color}20`,
                   borderColor: btn.color,
-                  boxShadow: `0 0 12px ${btn.color}30`,
+                  color: isActive ? '#000' : btn.color,
+                  boxShadow: isActive ? `0 0 24px ${btn.color}60` : `0 0 12px ${btn.color}30`,
                 }}
                 data-testid={`button-scene-execute-${btn.id}`}
               >
-                <Play className="w-3 h-3" style={{ color: btn.color }} />
-                <span style={{ color: btn.color }}>{btn.name}</span>
+                <Play className="w-3 h-3" style={{ color: isActive ? '#000' : btn.color }} />
+                <span>{btn.name}</span>
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
@@ -214,7 +221,8 @@ export function SceneButtons() {
                 <Settings className="w-3 h-3 text-slate-400" />
               </button>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 
