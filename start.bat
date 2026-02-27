@@ -14,22 +14,20 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-if not exist node_modules (
-    echo Installing dependencies...
-    echo.
-    call npm install
-    if %errorlevel% neq 0 (
-        echo ERROR: Failed to install dependencies.
-        pause
-        exit /b 1
-    )
-    echo.
+echo Checking for updates...
+call npm install
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to install dependencies.
+    pause
+    exit /b 1
 )
+echo.
 
 echo Starting PTZ Command server...
-echo The app will open at http://localhost:3478
 echo.
 echo Press Ctrl+C to stop the server.
 echo.
+
+start "" "http://localhost:3478"
 npx tsx server/index.ts
 pause
