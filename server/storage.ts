@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, switchers, sceneButtons, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type AuditLog, type InsertAuditLog } from "@shared/schema";
+import { cameras, presets, mixers, switchers, sceneButtons, layouts, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type AuditLog, type InsertAuditLog } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
@@ -42,6 +42,15 @@ export interface IStorage {
   createSceneButton(button: InsertSceneButton): Promise<SceneButton>;
   updateSceneButton(id: number, updates: Partial<SceneButton>): Promise<SceneButton | undefined>;
   deleteSceneButton(id: number): Promise<void>;
+
+  // Layout operations
+  getAllLayouts(): Promise<Layout[]>;
+  getLayout(id: number): Promise<Layout | undefined>;
+  createLayout(layout: InsertLayout): Promise<Layout>;
+  updateLayout(id: number, updates: Partial<Layout>): Promise<Layout | undefined>;
+  deleteLayout(id: number): Promise<void>;
+  setActiveLayout(id: number): Promise<void>;
+  getActiveLayout(): Promise<Layout | undefined>;
 
   // Audit log operations
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -112,6 +121,19 @@ function sqliteRowToSceneButton(row: any): SceneButton {
     cameraId: row.camera_id,
     presetNumber: row.preset_number,
     mixerActions: row.mixer_actions,
+  };
+}
+
+function sqliteRowToLayout(row: any): Layout {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    snapshot: row.snapshot,
+    isActive: Boolean(row.is_active),
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
   };
 }
 
@@ -557,6 +579,95 @@ export class DatabaseStorage implements IStorage {
       return;
     }
     await db.delete(sceneButtons).where(eq(sceneButtons.id, id));
+  }
+
+  // Layout operations
+  async getAllLayouts(): Promise<Layout[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM layouts ORDER BY name').all();
+      return rows.map(sqliteRowToLayout);
+    }
+    return await db.select().from(layouts).orderBy(layouts.name);
+  }
+
+  async getLayout(id: number): Promise<Layout | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM layouts WHERE id = ?').get(id);
+      return row ? sqliteRowToLayout(row) : undefined;
+    }
+    const [layout] = await db.select().from(layouts).where(eq(layouts.id, id));
+    return layout || undefined;
+  }
+
+  async createLayout(insert: InsertLayout): Promise<Layout> {
+    if (useSqlite && sqlite) {
+      const result = sqlite.prepare(`
+        INSERT INTO layouts (name, description, color, snapshot, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+      `).run(
+        insert.name,
+        insert.description || null,
+        insert.color || '#06b6d4',
+        insert.snapshot
+      );
+      return this.getLayout(Number(result.lastInsertRowid)) as Promise<Layout>;
+    }
+    const [layout] = await db.insert(layouts).values(insert).returning();
+    return layout;
+  }
+
+  async updateLayout(id: number, updates: Partial<Layout>): Promise<Layout | undefined> {
+    if (useSqlite && sqlite) {
+      const setClauses: string[] = [];
+      const values: any[] = [];
+
+      if (updates.name !== undefined) { setClauses.push('name = ?'); values.push(updates.name); }
+      if (updates.description !== undefined) { setClauses.push('description = ?'); values.push(updates.description); }
+      if (updates.color !== undefined) { setClauses.push('color = ?'); values.push(updates.color); }
+      if (updates.snapshot !== undefined) { setClauses.push('snapshot = ?'); values.push(updates.snapshot); }
+      if (updates.isActive !== undefined) { setClauses.push('is_active = ?'); values.push(updates.isActive ? 1 : 0); }
+
+      setClauses.push("updated_at = datetime('now')");
+
+      if (setClauses.length === 0) return this.getLayout(id);
+
+      values.push(id);
+      sqlite.prepare(`UPDATE layouts SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+      return this.getLayout(id);
+    }
+    const [layout] = await db
+      .update(layouts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(layouts.id, id))
+      .returning();
+    return layout || undefined;
+  }
+
+  async deleteLayout(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('DELETE FROM layouts WHERE id = ?').run(id);
+      return;
+    }
+    await db.delete(layouts).where(eq(layouts.id, id));
+  }
+
+  async setActiveLayout(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('UPDATE layouts SET is_active = 0').run();
+      sqlite.prepare('UPDATE layouts SET is_active = 1 WHERE id = ?').run(id);
+      return;
+    }
+    await db.update(layouts).set({ isActive: false });
+    await db.update(layouts).set({ isActive: true }).where(eq(layouts.id, id));
+  }
+
+  async getActiveLayout(): Promise<Layout | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM layouts WHERE is_active = 1').get();
+      return row ? sqliteRowToLayout(row) : undefined;
+    }
+    const [layout] = await db.select().from(layouts).where(eq(layouts.isActive, true));
+    return layout || undefined;
   }
 
   // Audit log operations
