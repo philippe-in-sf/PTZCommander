@@ -60,6 +60,17 @@ export const sceneButtons = pgTable("scene_buttons", {
   mixerActions: text("mixer_actions"),
 });
 
+export const layouts = pgTable("layouts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").notNull().default("#06b6d4"),
+  snapshot: text("snapshot").notNull(),
+  isActive: boolean("is_active").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
@@ -101,6 +112,13 @@ export const insertSceneButtonSchema = createInsertSchema(sceneButtons).omit({
   id: true,
 });
 
+export const insertLayoutSchema = createInsertSchema(layouts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  isActive: true,
+});
+
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
 });
@@ -115,5 +133,7 @@ export type Switcher = typeof switchers.$inferSelect;
 export type InsertSwitcher = z.infer<typeof insertSwitcherSchema>;
 export type SceneButton = typeof sceneButtons.$inferSelect;
 export type InsertSceneButton = z.infer<typeof insertSceneButtonSchema>;
+export type Layout = typeof layouts.$inferSelect;
+export type InsertLayout = z.infer<typeof insertLayoutSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
