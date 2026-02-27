@@ -10,20 +10,29 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-if [ ! -d "node_modules" ]; then
-    echo "Installing dependencies..."
-    echo ""
-    npm install
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to install dependencies."
-        exit 1
-    fi
-    echo ""
+echo "Checking for updates..."
+npm install
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to install dependencies."
+    exit 1
 fi
+echo ""
 
 echo "Starting PTZ Command server..."
-echo "The app will open at http://localhost:3478"
 echo ""
 echo "Press Ctrl+C to stop the server."
 echo ""
+
+open_browser() {
+    sleep 2
+    if command -v xdg-open &> /dev/null; then
+        xdg-open "http://localhost:3478"
+    elif command -v open &> /dev/null; then
+        open "http://localhost:3478"
+    else
+        echo "Open http://localhost:3478 in your browser."
+    fi
+}
+
+open_browser &
 npx tsx server/index.ts
