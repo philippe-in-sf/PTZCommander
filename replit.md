@@ -42,14 +42,23 @@ The server handles:
 - X32 mixer connection and OSC command handling
 - ATEM switcher connection and control via atem-connection library
 - Real-time state synchronization between hardware and UI
+- Production layout save/load with full configuration snapshots
 
 ### Data Storage
 - **Database**: PostgreSQL (cloud/Replit) or SQLite (local installation)
   - Automatically detects: Uses PostgreSQL when `DATABASE_URL` is set, otherwise falls back to SQLite
   - SQLite file stored at `data/ptzcommand.db` for portable local installations
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema**: Six tables - `cameras`, `presets`, `mixers`, `switchers`, `scene_buttons`, and `audit_logs`
+- **Schema**: Seven tables - `cameras`, `presets`, `mixers`, `switchers`, `scene_buttons`, `layouts`, and `audit_logs`
 - **Migrations**: Managed via `drizzle-kit push` (PostgreSQL) or auto-created (SQLite)
+
+### Production Layouts
+- Save complete production setups as named layouts (e.g. "Sunday Service", "Concert", "Interview")
+- Each layout stores a JSON snapshot of all cameras, presets, scene buttons, mixer, and switcher configurations
+- Load a layout to restore the entire production configuration in one action
+- Update an active layout's snapshot after making changes
+- Active layout indicator shown in the header across all pages
+- Layout selector component: `client/src/components/layouts/layout-selector.tsx`
 
 ### Logging System
 - Centralized logging via `server/logger.ts`
@@ -59,26 +68,42 @@ The server handles:
 - In-memory buffer for recent logs (last 1000 entries)
 - Log viewer UI accessible from header
 
+### Scene Buttons
+- Programmable macro buttons that execute combined ATEM, mixer, and PTZ actions in a single press
+- Each button stores: ATEM input + transition type, mixer channel actions (JSON array), camera + preset number
+- Active/selected scene button shows inverted colors (solid background with dark text)
+- Dashboard shows compact quick-access strip; Scenes page shows full management UI
+- Preset numbers use 0-based indexing (preset 1 = index 0) matching VISCA protocol
+
+### Startup Scripts
+- `start.bat` — Windows startup script (double-click to launch)
+- `start.sh` — Mac/Linux startup script (`./start.sh`)
+- Both scripts: check Node.js installation, run `npm install` for updates, auto-open browser at correct URL, start the server
+
 ### Project Structure
 ```
 ├── client/          # React frontend
 │   ├── src/
-│   │   ├── components/ptz/     # PTZ-specific components
-│   │   ├── components/mixer/   # Audio mixer components
+│   │   ├── components/ptz/      # PTZ-specific components
+│   │   ├── components/mixer/    # Audio mixer components
 │   │   ├── components/switcher/ # Video switcher components
-│   │   ├── components/logs/    # Log viewer components
-│   │   ├── components/ui/    # shadcn/ui components
-│   │   ├── pages/            # Route pages
-│   │   └── lib/              # API clients, utilities
+│   │   ├── components/layouts/  # Production layout components
+│   │   ├── components/logs/     # Log viewer components
+│   │   ├── components/ui/       # shadcn/ui components
+│   │   ├── pages/               # Route pages (dashboard, scenes, switcher, mixer)
+│   │   └── lib/                 # API clients, utilities
 ├── server/          # Express backend
 │   ├── routes.ts    # API endpoints + WebSocket setup
-│   ├── storage.ts   # Database operations
+│   ├── storage.ts   # Database operations (IStorage interface + DatabaseStorage)
+│   ├── db.ts        # Database connection (PostgreSQL/SQLite auto-detection)
 │   ├── visca.ts     # VISCA protocol implementation
 │   ├── x32.ts       # X32 OSC protocol implementation
 │   ├── atem.ts      # ATEM switcher protocol implementation
 │   └── logger.ts    # Centralized logging service
 ├── shared/          # Shared TypeScript types and schemas
-│   └── schema.ts    # Drizzle schema definitions
+│   └── schema.ts    # Drizzle schema definitions (7 tables)
+├── start.bat        # Windows startup script
+├── start.sh         # Mac/Linux startup script
 ```
 
 ## External Dependencies

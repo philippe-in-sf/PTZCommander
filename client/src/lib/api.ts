@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -275,5 +275,68 @@ export const sceneButtonApi = {
     });
     if (!res.ok) throw new Error("Failed to execute scene button");
     return res.json();
+  },
+};
+
+export const layoutApi = {
+  getAll: async (): Promise<Layout[]> => {
+    const res = await fetch(`${API_BASE}/layouts`);
+    if (!res.ok) throw new Error("Failed to fetch layouts");
+    return res.json();
+  },
+
+  getActive: async (): Promise<Layout | null> => {
+    const res = await fetch(`${API_BASE}/layouts/active`);
+    if (!res.ok) throw new Error("Failed to fetch active layout");
+    return res.json();
+  },
+
+  getOne: async (id: number): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch layout");
+    return res.json();
+  },
+
+  saveCurrent: async (data: { name: string; description?: string; color?: string }): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/save-current`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to save layout");
+    return res.json();
+  },
+
+  load: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}/load`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to load layout");
+    return res.json();
+  },
+
+  updateSnapshot: async (id: number): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}/update-snapshot`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to update layout snapshot");
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<Layout>): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update layout");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete layout");
   },
 };

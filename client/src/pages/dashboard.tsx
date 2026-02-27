@@ -8,6 +8,7 @@ import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi } from "@/lib/api";
@@ -203,6 +204,7 @@ export default function Dashboard() {
             {ws ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {ws ? "SYSTEM ONLINE" : "DISCONNECTED"}
           </div>
+          <LayoutSelector />
           <LogViewer />
         </div>
       </header>
