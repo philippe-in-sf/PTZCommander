@@ -11,6 +11,7 @@ import { Plus, Trash2, Settings, Zap, Play, Video } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { Link } from "wouter";
 import type { SceneButton, Camera } from "@shared/schema";
 
@@ -213,6 +214,7 @@ export default function ScenesPage() {
         </div>
 
         <div className="flex items-center gap-4">
+          <LayoutSelector />
           <LogViewer />
         </div>
       </header>

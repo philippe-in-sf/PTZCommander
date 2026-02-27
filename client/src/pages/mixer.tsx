@@ -11,6 +11,7 @@ import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Tra
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { Video } from "lucide-react";
 import { Link } from "wouter";
 import type { Mixer } from "@shared/schema";
@@ -283,6 +284,7 @@ export default function MixerPage() {
               </Button>
             </div>
           ) : null}
+          <LayoutSelector />
           <LogViewer />
         </div>
       </header>

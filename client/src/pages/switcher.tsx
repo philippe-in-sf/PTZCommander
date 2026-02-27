@@ -11,6 +11,7 @@ import { MonitorPlay, Plus, Wifi, WifiOff, Zap, ArrowRightLeft, Settings, Trash2
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { Video } from "lucide-react";
 import { Link } from "wouter";
 import type { Switcher } from "@shared/schema";
@@ -266,6 +267,7 @@ export default function SwitcherPage() {
               </Button>
             </div>
           ) : null}
+          <LayoutSelector />
           <LogViewer />
         </div>
       </header>
