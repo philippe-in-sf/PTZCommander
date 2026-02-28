@@ -7,6 +7,7 @@ import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
+import { CameraPreview } from "@/components/ptz/camera-preview";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal } from "lucide-react";
@@ -25,7 +26,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addCameraOpen, setAddCameraOpen] = useState(false);
-  const [newCamera, setNewCamera] = useState({ name: "", ip: "", port: 52381 });
+  const [newCamera, setNewCamera] = useState({ name: "", ip: "", port: 52381, streamUrl: "" });
 
   const ws = useWebSocket();
 
@@ -52,7 +53,7 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cameras"] });
       setAddCameraOpen(false);
-      setNewCamera({ name: "", ip: "", port: 52381 });
+      setNewCamera({ name: "", ip: "", port: 52381, streamUrl: "" });
       toast.success("Camera added successfully");
     },
     onError: (error: Error) => {
@@ -149,6 +150,7 @@ export default function Dashboard() {
       ip: newCamera.ip,
       port: newCamera.port,
       protocol: "visca",
+      streamUrl: newCamera.streamUrl || null,
     });
   };
 
@@ -222,6 +224,17 @@ export default function Dashboard() {
           <MixerPanel />
         </section>
 
+        {/* Camera Preview */}
+        {cameras.length > 0 && cameras.some(c => c.streamUrl) && (
+          <section>
+            <CameraPreview
+              cameras={cameras}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+            />
+          </section>
+        )}
+
         {/* Camera Strip */}
         <section>
           <div className="flex items-center justify-between mb-2">
@@ -267,6 +280,19 @@ export default function Dashboard() {
                       data-testid="input-new-camera-port"
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="stream-url">Snapshot URL (optional)</Label>
+                    <Input
+                      id="stream-url"
+                      value={newCamera.streamUrl}
+                      onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
+                      placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
+                      data-testid="input-new-camera-stream-url"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      HTTP URL for JPEG snapshot. Used for live preview.
+                    </p>
+                  </div>
                   <Button onClick={handleAddCamera} className="w-full" data-testid="button-save-new-camera">
                     Add Camera
                   </Button>
@@ -289,6 +315,7 @@ export default function Dashboard() {
                 name: c.name,
                 ip: c.ip,
                 port: c.port,
+                streamUrl: c.streamUrl,
                 status: c.status as 'online' | 'offline' | 'tally',
               }))}
               selectedId={selectedId || 0}

@@ -122,6 +122,48 @@ export async function registerRoutes(
     }
   });
 
+  // Camera snapshot proxy
+  app.get("/api/cameras/:id/snapshot", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const camera = await storage.getCamera(id);
+      if (!camera) return res.status(404).json({ message: "Camera not found" });
+      if (!camera.streamUrl) return res.status(404).json({ message: "No stream URL configured" });
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const response = await fetch(camera.streamUrl, {
+          signal: controller.signal,
+          headers: camera.username && camera.password
+            ? { 'Authorization': 'Basic ' + Buffer.from(`${camera.username}:${camera.password}`).toString('base64') }
+            : {},
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          return res.status(502).json({ message: `Camera returned ${response.status}` });
+        }
+
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+        const buffer = Buffer.from(await response.arrayBuffer());
+        res.send(buffer);
+      } catch (fetchError: any) {
+        clearTimeout(timeout);
+        if (fetchError.name === 'AbortError') {
+          return res.status(504).json({ message: "Camera snapshot timed out" });
+        }
+        return res.status(502).json({ message: `Failed to reach camera: ${fetchError.message}` });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to get snapshot" });
+    }
+  });
+
   // ========== Preset Routes ==========
   
   // Get presets for camera

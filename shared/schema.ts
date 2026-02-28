@@ -11,6 +11,7 @@ export const cameras = pgTable("cameras", {
   protocol: text("protocol").notNull().default("visca"),
   username: text("username"),
   password: text("password"),
+  streamUrl: text("stream_url"),
   status: text("status").notNull().default("offline"),
   isProgramOutput: boolean("is_program_output").notNull().default(false),
   isPreviewOutput: boolean("is_preview_output").notNull().default(false),

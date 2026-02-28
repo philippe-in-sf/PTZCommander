@@ -11,6 +11,7 @@ export interface CameraData {
   name: string;
   ip: string;
   port?: number;
+  streamUrl?: string | null;
   status: 'online' | 'offline' | 'tally';
 }
 
@@ -18,7 +19,7 @@ interface CameraSelectorProps {
   cameras: CameraData[];
   selectedId: number;
   onSelect: (id: number) => void;
-  onUpdateCamera?: (id: number, updates: { name: string; ip: string; port: number }) => void;
+  onUpdateCamera?: (id: number, updates: { name: string; ip: string; port: number; streamUrl?: string | null }) => void;
   onDeleteCamera?: (id: number) => void;
 }
 
@@ -30,7 +31,7 @@ export function CameraSelector({
   onDeleteCamera 
 }: CameraSelectorProps) {
   const [editingCamera, setEditingCamera] = useState<CameraData | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381 });
+  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, streamUrl: '' });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
@@ -39,14 +40,18 @@ export function CameraSelector({
     setEditForm({ 
       name: cam.name, 
       ip: cam.ip, 
-      port: cam.port || 52381 
+      port: cam.port || 52381,
+      streamUrl: cam.streamUrl || '',
     });
     setConfirmDelete(false);
   };
 
   const handleSave = () => {
     if (editingCamera && onUpdateCamera) {
-      onUpdateCamera(editingCamera.id, editForm);
+      onUpdateCamera(editingCamera.id, {
+        ...editForm,
+        streamUrl: editForm.streamUrl || null,
+      });
     }
     setEditingCamera(null);
   };
@@ -168,6 +173,19 @@ export function CameraSelector({
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Common ports: 5678 (Fomako), 52381 (Sony/standard), 1259
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="edit-stream">Snapshot/Stream URL</Label>
+                <Input
+                  id="edit-stream"
+                  value={editForm.streamUrl}
+                  onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
+                  placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
+                  data-testid="input-camera-stream-url"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  HTTP URL for camera snapshot (JPEG). Used for live preview on dashboard.
                 </p>
               </div>
               
