@@ -153,12 +153,6 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
 }
 
 export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval = 2000 }: CameraPreviewProps) {
-  const camerasWithStreams = cameras.filter(c => c.streamUrl);
-
-  if (camerasWithStreams.length === 0 && cameras.length > 0) {
-    return null;
-  }
-
   return (
     <div className="bg-slate-900/30 border border-slate-800 rounded-xl p-4">
       <h3 className="text-xs font-mono uppercase text-slate-500 tracking-widest mb-3 flex items-center gap-2">

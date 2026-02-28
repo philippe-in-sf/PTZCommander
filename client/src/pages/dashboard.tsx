@@ -225,7 +225,7 @@ export default function Dashboard() {
         </section>
 
         {/* Camera Preview */}
-        {cameras.length > 0 && cameras.some(c => c.streamUrl) && (
+        {cameras.length > 0 && (
           <section>
             <CameraPreview
               cameras={cameras}
