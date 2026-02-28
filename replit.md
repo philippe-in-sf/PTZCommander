@@ -22,7 +22,7 @@ Preferred communication style: Simple, everyday language.
 - **Animations**: Framer Motion for joystick interactions
 
 The frontend is a multi-page application with navigation tabs:
-- **Dashboard** (`/`): Scene buttons (quick access), ATEM/Mixer summary panels, camera selector grid, virtual joystick, preset grid, lens controls
+- **Dashboard** (`/`): Scene buttons (quick access), ATEM/Mixer summary panels, camera preview grid (with live JPEG snapshots), camera selector strip, virtual joystick, preset grid, lens controls
 - **Scenes** (`/scenes`): Full-page scene button management — create, edit, and execute programmable macro buttons that trigger combined ATEM, mixer, and PTZ actions
 - **Video Switcher** (`/switcher`): Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
 - **Audio Mixer** (`/mixer`): Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)

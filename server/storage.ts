@@ -66,6 +66,7 @@ function sqliteRowToCamera(row: any): Camera {
     protocol: row.protocol,
     username: row.username,
     password: row.password,
+    streamUrl: row.stream_url,
     status: row.status,
     isProgramOutput: Boolean(row.is_program_output),
     isPreviewOutput: Boolean(row.is_preview_output),
@@ -181,8 +182,8 @@ export class DatabaseStorage implements IStorage {
   async createCamera(insertCamera: InsertCamera): Promise<Camera> {
     if (useSqlite && sqlite) {
       const stmt = sqlite.prepare(`
-        INSERT INTO cameras (name, ip, port, protocol, username, password)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO cameras (name, ip, port, protocol, username, password, stream_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         insertCamera.name,
@@ -190,7 +191,8 @@ export class DatabaseStorage implements IStorage {
         insertCamera.port || 52381,
         insertCamera.protocol || 'visca',
         insertCamera.username || null,
-        insertCamera.password || null
+        insertCamera.password || null,
+        insertCamera.streamUrl || null
       );
       return this.getCamera(Number(result.lastInsertRowid)) as Promise<Camera>;
     }
@@ -209,6 +211,7 @@ export class DatabaseStorage implements IStorage {
       if (updates.protocol !== undefined) { setClauses.push('protocol = ?'); values.push(updates.protocol); }
       if (updates.username !== undefined) { setClauses.push('username = ?'); values.push(updates.username); }
       if (updates.password !== undefined) { setClauses.push('password = ?'); values.push(updates.password); }
+      if (updates.streamUrl !== undefined) { setClauses.push('stream_url = ?'); values.push(updates.streamUrl); }
       if (updates.status !== undefined) { setClauses.push('status = ?'); values.push(updates.status); }
       if (updates.isProgramOutput !== undefined) { setClauses.push('is_program_output = ?'); values.push(updates.isProgramOutput ? 1 : 0); }
       if (updates.isPreviewOutput !== undefined) { setClauses.push('is_preview_output = ?'); values.push(updates.isPreviewOutput ? 1 : 0); }
