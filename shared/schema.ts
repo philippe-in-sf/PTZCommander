@@ -12,6 +12,8 @@ export const cameras = pgTable("cameras", {
   username: text("username"),
   password: text("password"),
   streamUrl: text("stream_url"),
+  atemInputId: integer("atem_input_id"),
+  tallyState: text("tally_state").notNull().default("off"),
   status: text("status").notNull().default("offline"),
   isProgramOutput: boolean("is_program_output").notNull().default(false),
   isPreviewOutput: boolean("is_preview_output").notNull().default(false),
@@ -87,6 +89,7 @@ export const insertCameraSchema = createInsertSchema(cameras).omit({
   id: true,
   createdAt: true,
   status: true,
+  tallyState: true,
   isProgramOutput: true,
   isPreviewOutput: true,
 });

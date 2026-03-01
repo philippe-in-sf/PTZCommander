@@ -52,8 +52,9 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
     };
   }, [camera.id, camera.streamUrl, refreshInterval, hasStream]);
 
-  const isPgm = camera.isProgramOutput;
-  const isPvw = camera.isPreviewOutput;
+  const tallyState = camera.tallyState || (camera.isProgramOutput ? "program" : camera.isPreviewOutput ? "preview" : "off");
+  const isPgm = tallyState === "program";
+  const isPvw = tallyState === "preview";
 
   return (
     <>
@@ -61,12 +62,12 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
         onClick={onSelect}
         className={cn(
           "relative rounded-lg border overflow-hidden cursor-pointer transition-all group aspect-video",
-          isSelected
-            ? "border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
-            : isPgm
-            ? "border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+          isPgm
+            ? "border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]"
             : isPvw
-            ? "border-green-500 shadow-[0_0_12px_rgba(34,197,94,0.2)]"
+            ? "border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+            : isSelected
+            ? "border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
             : "border-slate-800 hover:border-slate-600"
         )}
         data-testid={`camera-preview-${camera.id}`}

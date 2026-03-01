@@ -12,6 +12,8 @@ export interface CameraData {
   ip: string;
   port?: number;
   streamUrl?: string | null;
+  atemInputId?: number | null;
+  tallyState?: string;
   status: 'online' | 'offline' | 'tally';
 }
 
@@ -19,7 +21,7 @@ interface CameraSelectorProps {
   cameras: CameraData[];
   selectedId: number;
   onSelect: (id: number) => void;
-  onUpdateCamera?: (id: number, updates: { name: string; ip: string; port: number; streamUrl?: string | null }) => void;
+  onUpdateCamera?: (id: number, updates: { name: string; ip: string; port: number; streamUrl?: string | null; atemInputId?: number | null }) => void;
   onDeleteCamera?: (id: number) => void;
 }
 
@@ -31,7 +33,7 @@ export function CameraSelector({
   onDeleteCamera 
 }: CameraSelectorProps) {
   const [editingCamera, setEditingCamera] = useState<CameraData | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, streamUrl: '' });
+  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, streamUrl: '', atemInputId: '' });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
@@ -42,6 +44,7 @@ export function CameraSelector({
       ip: cam.ip, 
       port: cam.port || 52381,
       streamUrl: cam.streamUrl || '',
+      atemInputId: cam.atemInputId ? String(cam.atemInputId) : '',
     });
     setConfirmDelete(false);
   };
@@ -49,8 +52,11 @@ export function CameraSelector({
   const handleSave = () => {
     if (editingCamera && onUpdateCamera) {
       onUpdateCamera(editingCamera.id, {
-        ...editForm,
+        name: editForm.name,
+        ip: editForm.ip,
+        port: editForm.port,
         streamUrl: editForm.streamUrl || null,
+        atemInputId: editForm.atemInputId ? parseInt(editForm.atemInputId) : null,
       });
     }
     setEditingCamera(null);
@@ -78,7 +84,11 @@ export function CameraSelector({
               onClick={() => onSelect(cam.id)}
               className={cn(
                 "relative flex flex-col items-start p-4 h-32 rounded-lg border transition-all duration-200 group overflow-hidden cursor-pointer",
-                isSelected
+                cam.tallyState === "program"
+                  ? "bg-red-950/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.25)]"
+                  : cam.tallyState === "preview"
+                  ? "bg-green-950/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.25)]"
+                  : isSelected
                   ? "bg-cyan-950/20 border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
                   : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50"
               )}
@@ -92,6 +102,12 @@ export function CameraSelector({
               </button>
 
               <div className="absolute top-3 right-3 flex items-center gap-2">
+                {cam.tallyState === "program" && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white animate-pulse" data-testid={`tally-pgm-${cam.id}`}>PGM</span>
+                )}
+                {cam.tallyState === "preview" && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-600 text-white" data-testid={`tally-pvw-${cam.id}`}>PVW</span>
+                )}
                 <span className={cn(
                   "text-[10px] font-mono uppercase tracking-wider",
                   isSelected ? "text-cyan-500 font-bold" : "text-slate-500"
@@ -100,6 +116,8 @@ export function CameraSelector({
                 </span>
                 <div className={cn(
                   "w-2 h-2 rounded-full",
+                  cam.tallyState === "program" ? "bg-red-500 shadow-[0_0_8px_red]" :
+                  cam.tallyState === "preview" ? "bg-green-500 shadow-[0_0_8px_green]" :
                   isSelected ? "bg-cyan-500 shadow-[0_0_8px_cyan]" :
                   isOnline ? "bg-slate-600" : "bg-red-900"
                 )} />
@@ -186,6 +204,20 @@ export function CameraSelector({
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   HTTP URL for camera snapshot (JPEG). Used for live preview on dashboard.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="edit-atem-input">ATEM Input Number</Label>
+                <Input
+                  id="edit-atem-input"
+                  type="number"
+                  value={editForm.atemInputId}
+                  onChange={(e) => setEditForm({ ...editForm, atemInputId: e.target.value })}
+                  placeholder="e.g. 1, 2, 3, 4"
+                  data-testid="input-camera-atem-input"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Maps this camera to an ATEM switcher input for automatic tally lights.
                 </p>
               </div>
               

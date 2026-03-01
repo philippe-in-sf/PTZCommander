@@ -60,6 +60,16 @@ The server handles:
 - Active layout indicator shown in the header across all pages
 - Layout selector component: `client/src/components/layouts/layout-selector.tsx`
 
+### Tally Lights
+- Automatic tally light control driven by ATEM switcher state
+- Each camera can be mapped to an ATEM input number via `atemInputId` field
+- When ATEM program/preview inputs change, tally commands are sent to mapped cameras via VISCA
+- VISCA tally on/off commands: `81 01 7E 01 0A 00 02 FF` (on) / `81 01 7E 01 0A 00 03 FF` (off)
+- Tally state (`program`, `preview`, `off`) stored in database and reflected in UI
+- Camera cards show red border + PGM badge for program, green border + PVW badge for preview
+- Camera preview grid also shows tally-colored borders
+- Fomako cameras support single tally LED (on/off) — no separate program/preview colors on hardware
+
 ### Logging System
 - Centralized logging via `server/logger.ts`
 - Categories: api, websocket, camera, mixer, switcher, database, system
