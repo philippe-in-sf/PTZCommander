@@ -67,6 +67,8 @@ function sqliteRowToCamera(row: any): Camera {
     username: row.username,
     password: row.password,
     streamUrl: row.stream_url,
+    atemInputId: row.atem_input_id,
+    tallyState: row.tally_state || 'off',
     status: row.status,
     isProgramOutput: Boolean(row.is_program_output),
     isPreviewOutput: Boolean(row.is_preview_output),
@@ -182,8 +184,8 @@ export class DatabaseStorage implements IStorage {
   async createCamera(insertCamera: InsertCamera): Promise<Camera> {
     if (useSqlite && sqlite) {
       const stmt = sqlite.prepare(`
-        INSERT INTO cameras (name, ip, port, protocol, username, password, stream_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cameras (name, ip, port, protocol, username, password, stream_url, atem_input_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         insertCamera.name,
@@ -192,7 +194,8 @@ export class DatabaseStorage implements IStorage {
         insertCamera.protocol || 'visca',
         insertCamera.username || null,
         insertCamera.password || null,
-        insertCamera.streamUrl || null
+        insertCamera.streamUrl || null,
+        insertCamera.atemInputId || null
       );
       return this.getCamera(Number(result.lastInsertRowid)) as Promise<Camera>;
     }
@@ -212,6 +215,8 @@ export class DatabaseStorage implements IStorage {
       if (updates.username !== undefined) { setClauses.push('username = ?'); values.push(updates.username); }
       if (updates.password !== undefined) { setClauses.push('password = ?'); values.push(updates.password); }
       if (updates.streamUrl !== undefined) { setClauses.push('stream_url = ?'); values.push(updates.streamUrl); }
+      if (updates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(updates.atemInputId); }
+      if (updates.tallyState !== undefined) { setClauses.push('tally_state = ?'); values.push(updates.tallyState); }
       if (updates.status !== undefined) { setClauses.push('status = ?'); values.push(updates.status); }
       if (updates.isProgramOutput !== undefined) { setClauses.push('is_program_output = ?'); values.push(updates.isProgramOutput ? 1 : 0); }
       if (updates.isPreviewOutput !== undefined) { setClauses.push('is_preview_output = ?'); values.push(updates.isPreviewOutput ? 1 : 0); }

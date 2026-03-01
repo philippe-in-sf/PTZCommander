@@ -34,6 +34,8 @@ if (useSqlite) {
       username TEXT,
       password TEXT,
       stream_url TEXT,
+      atem_input_id INTEGER,
+      tally_state TEXT NOT NULL DEFAULT 'off',
       status TEXT NOT NULL DEFAULT 'offline',
       is_program_output INTEGER NOT NULL DEFAULT 0,
       is_preview_output INTEGER NOT NULL DEFAULT 0,

@@ -190,6 +190,20 @@ export class VISCAClient {
     this.sendCommand(cmd);
   }
 
+  // Tally light control
+  // state: "program" (red), "preview" (green), "off"
+  tallyOn(): void {
+    const cmd = Buffer.from([0x81, 0x01, 0x7E, 0x01, 0x0A, 0x00, 0x02, 0xFF]);
+    console.log(`[VISCA] Tally ON for ${this.host}:${this.port}`);
+    this.sendCommand(cmd);
+  }
+
+  tallyOff(): void {
+    const cmd = Buffer.from([0x81, 0x01, 0x7E, 0x01, 0x0A, 0x00, 0x03, 0xFF]);
+    console.log(`[VISCA] Tally OFF for ${this.host}:${this.port}`);
+    this.sendCommand(cmd);
+  }
+
   // Home position
   home(): void {
     const cmd = Buffer.from([0x81, 0x01, 0x06, 0x04, 0xFF]);

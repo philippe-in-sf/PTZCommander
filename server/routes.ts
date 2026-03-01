@@ -928,9 +928,53 @@ export async function registerRoutes(
     broadcast({ type: "mixer_state", section, channels: states });
   });
 
-  // Wire ATEM state changes to broadcast to all clients
+  // Track previous tally state to only send commands on changes
+  let previousTallyMap: Map<number, string> = new Map();
+
+  async function updateTallyLights(programInput: number, previewInput: number) {
+    try {
+      const cameras = await storage.getAllCameras();
+      const newTallyMap = new Map<number, string>();
+
+      for (const camera of cameras) {
+        if (!camera.atemInputId) continue;
+
+        let tallyState = "off";
+        if (camera.atemInputId === programInput) {
+          tallyState = "program";
+        } else if (camera.atemInputId === previewInput) {
+          tallyState = "preview";
+        }
+
+        newTallyMap.set(camera.id, tallyState);
+        const previousState = previousTallyMap.get(camera.id) || "off";
+
+        if (tallyState !== previousState) {
+          console.log(`[Tally] Camera ${camera.name} (ID:${camera.id}): ${previousState} → ${tallyState}`);
+
+          await storage.updateCamera(camera.id, { tallyState });
+
+          const client = cameraManager.getClient(camera.id);
+          if (client && client.isConnected()) {
+            if (tallyState === "program" || tallyState === "preview") {
+              client.tallyOn();
+            } else {
+              client.tallyOff();
+            }
+          }
+        }
+      }
+
+      previousTallyMap = newTallyMap;
+    } catch (error) {
+      console.error("[Tally] Error updating tally lights:", error);
+    }
+  }
+
+  // Wire ATEM state changes to broadcast to all clients and update tally
   atemManager.setStateChangeCallback((state) => {
     broadcast({ type: "atem_state", ...state });
+    updateTallyLights(state.programInput, state.previewInput);
   });
 
   wss.on("connection", (ws: WebSocket) => {

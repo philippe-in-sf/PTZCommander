@@ -316,6 +316,8 @@ export default function Dashboard() {
                 ip: c.ip,
                 port: c.port,
                 streamUrl: c.streamUrl,
+                atemInputId: c.atemInputId,
+                tallyState: c.tallyState || 'off',
                 status: c.status as 'online' | 'offline' | 'tally',
               }))}
               selectedId={selectedId || 0}
