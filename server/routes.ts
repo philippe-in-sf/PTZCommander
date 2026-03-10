@@ -9,6 +9,8 @@ import { logger, setupAuditLogging } from "./logger";
 import { insertCameraSchema, insertPresetSchema, insertMixerSchema, insertSwitcherSchema, insertSceneButtonSchema, insertLayoutSchema } from "@shared/schema";
 import { APP_VERSION } from "@shared/version";
 import { fromError } from "zod-validation-error";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -21,6 +23,16 @@ export async function registerRoutes(
   // Version endpoint
   app.get("/api/version", (_req, res) => {
     res.json({ version: APP_VERSION });
+  });
+
+  // Changelog endpoint
+  app.get("/api/changelog", (_req, res) => {
+    try {
+      const content = readFileSync(join(process.cwd(), "CHANGELOG.md"), "utf-8");
+      res.json({ changelog: content });
+    } catch {
+      res.status(404).json({ message: "Changelog not found" });
+    }
   });
 
   // ========== Camera Routes ==========

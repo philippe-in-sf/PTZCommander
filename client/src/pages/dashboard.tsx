@@ -10,7 +10,7 @@ import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { CameraPreview } from "@/components/ptz/camera-preview";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
-import { APP_VERSION } from "@shared/version";
+import { ChangelogDialog } from "@/components/changelog-dialog";
 import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi } from "@/lib/api";
@@ -177,7 +177,7 @@ export default function Dashboard() {
             <h1 className="font-bold tracking-tight text-lg leading-none">
               PTZ<span className="text-cyan-500 font-light">COMMAND</span>
             </h1>
-            <span className="text-xs font-semibold text-cyan-500/80 italic tracking-widest" data-testid="text-version">v{APP_VERSION}</span>
+            <ChangelogDialog />
           </div>
 
           <nav className="flex items-center gap-1 ml-6">
