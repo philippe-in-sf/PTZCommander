@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
+import { APP_VERSION } from "@shared/version";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LogViewer } from "@/components/logs/log-viewer";
@@ -240,9 +241,12 @@ export default function MixerPage() {
               <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
                 <Video className="text-white w-4 h-4" />
               </div>
-              <h1 className="font-bold tracking-tight text-lg">
-                PTZ<span className="text-cyan-500 font-light">COMMAND</span>
-              </h1>
+              <div>
+                <h1 className="font-bold tracking-tight text-lg leading-none">
+                  PTZ<span className="text-cyan-500 font-light">COMMAND</span>
+                </h1>
+                <span className="text-[9px] font-mono text-slate-600 tracking-wider" data-testid="text-version">v{APP_VERSION}</span>
+              </div>
             </div>
           </Link>
 

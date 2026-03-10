@@ -7,6 +7,7 @@ import { x32Manager } from "./x32";
 import { atemManager } from "./atem";
 import { logger, setupAuditLogging } from "./logger";
 import { insertCameraSchema, insertPresetSchema, insertMixerSchema, insertSwitcherSchema, insertSceneButtonSchema, insertLayoutSchema } from "@shared/schema";
+import { APP_VERSION } from "@shared/version";
 import { fromError } from "zod-validation-error";
 
 export async function registerRoutes(
@@ -15,7 +16,12 @@ export async function registerRoutes(
 ): Promise<Server> {
   
   setupAuditLogging();
-  logger.info("system", "Application started");
+  logger.info("system", `Application started — PTZ Command v${APP_VERSION}`);
+
+  // Version endpoint
+  app.get("/api/version", (_req, res) => {
+    res.json({ version: APP_VERSION });
+  });
 
   // ========== Camera Routes ==========
   
