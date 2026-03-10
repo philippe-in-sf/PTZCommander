@@ -7,6 +7,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { APP_VERSION } from "@shared/version";
 
 function parseChangelog(raw: string) {
@@ -55,14 +61,23 @@ export function ChangelogDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button
-          className="text-xs font-semibold text-cyan-500/80 italic tracking-widest hover:text-cyan-400 transition-colors cursor-pointer"
-          data-testid="button-changelog"
-        >
-          v{APP_VERSION}
-        </button>
-      </DialogTrigger>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <button
+                className="text-xs font-semibold text-cyan-500/80 italic tracking-widest hover:text-cyan-400 hover:underline transition-colors cursor-pointer"
+                data-testid="button-changelog"
+              >
+                v{APP_VERSION}
+              </button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="bg-slate-800 text-slate-200 text-xs border-slate-700">
+            View changelog
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto bg-slate-900 border-slate-700 text-white">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">
