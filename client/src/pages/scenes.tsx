@@ -190,7 +190,7 @@ export default function ScenesPage() {
                 <h1 className="font-bold tracking-tight text-lg leading-none">
                   PTZ<span className="text-cyan-500 font-light">COMMAND</span>
                 </h1>
-                <span className="text-[9px] font-mono text-slate-600 tracking-wider" data-testid="text-version">v{APP_VERSION}</span>
+                <span className="text-[10px] font-mono text-cyan-700 italic tracking-widest" data-testid="text-version">v{APP_VERSION}</span>
               </div>
             </div>
           </Link>
