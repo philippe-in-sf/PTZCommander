@@ -85,17 +85,17 @@ export function CameraSelector({
               className={cn(
                 "relative flex flex-col items-start p-4 h-32 rounded-lg border transition-all duration-200 group overflow-hidden cursor-pointer",
                 cam.tallyState === "program"
-                  ? "bg-red-950/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.25)]"
+                  ? "bg-red-50/50 dark:bg-red-950/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.25)]"
                   : cam.tallyState === "preview"
-                  ? "bg-green-950/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.25)]"
+                  ? "bg-green-50/50 dark:bg-green-950/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.25)]"
                   : isSelected
-                  ? "bg-cyan-950/20 border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
-                  : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50"
+                  ? "bg-cyan-50/50 dark:bg-cyan-950/20 border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
+                  : "bg-white/50 dark:bg-slate-900/50 border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
               )}
             >
               <button
                 onClick={(e) => handleEditClick(e, cam)}
-                className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white"
+                className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 data-testid={`camera-settings-${cam.id}`}
               >
                 <Settings className="w-3.5 h-3.5" />
@@ -110,7 +110,7 @@ export function CameraSelector({
                 )}
                 <span className={cn(
                   "text-[10px] font-mono uppercase tracking-wider",
-                  isSelected ? "text-cyan-500 font-bold" : "text-slate-500"
+                  isSelected ? "text-cyan-500 font-bold" : "text-slate-400 dark:text-slate-500"
                 )}>
                   {isSelected ? "SELECTED" : cam.status}
                 </span>
@@ -126,16 +126,16 @@ export function CameraSelector({
               <div className={cn(
                 "mb-auto p-2 rounded-md transition-colors",
                 isSelected ? "bg-cyan-500/10 text-cyan-400" : 
-                "bg-slate-800 text-slate-500"
+                "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
               )}>
                 {isOnline ? <Camera className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
               </div>
 
               <div className="text-left z-10 w-full">
-                <div className="font-mono text-xs text-slate-500 mb-0.5">{cam.ip}:{cam.port || 52381}</div>
+                <div className="font-mono text-xs text-slate-400 dark:text-slate-500 mb-0.5">{cam.ip}:{cam.port || 52381}</div>
                 <div className={cn(
                   "font-bold text-lg leading-none tracking-tight",
-                  isSelected ? "text-cyan-100" : "text-slate-300"
+                  isSelected ? "text-cyan-900 dark:text-cyan-100" : "text-slate-700 dark:text-slate-300"
                 )}>
                   {cam.name}
                 </div>
@@ -236,10 +236,10 @@ export function CameraSelector({
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-center text-slate-300">
+              <p className="text-center text-slate-700 dark:text-slate-300">
                 Are you sure you want to delete <strong>{editingCamera?.name}</strong>?
               </p>
-              <p className="text-center text-sm text-slate-500">
+              <p className="text-center text-sm text-slate-500 dark:text-slate-500">
                 This will also delete all saved presets for this camera.
               </p>
               <div className="flex gap-2">

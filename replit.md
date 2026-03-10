@@ -18,7 +18,7 @@ Preferred communication style: Simple, everyday language.
 - **Routing**: Wouter (lightweight React router)
 - **State Management**: TanStack React Query for server state
 - **UI Components**: Radix UI primitives with shadcn/ui component library
-- **Styling**: Tailwind CSS v4 with custom dark theme optimized for broadcast control rooms
+- **Styling**: Tailwind CSS v4 with light/dark theme toggle (dark default, optimized for broadcast control rooms)
 - **Animations**: Framer Motion for joystick interactions
 
 The frontend is a multi-page application with navigation tabs:

@@ -140,8 +140,8 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
 
   if (collapsed) {
     return (
-      <div className="bg-slate-900/80 border border-slate-700 rounded-lg p-3">
-        <div className="flex items-center gap-2 text-slate-400">
+      <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
+        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
           <MonitorPlay className="h-4 w-4" />
           <span className="text-sm">Switcher</span>
         </div>
@@ -150,16 +150,16 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
   }
 
   return (
-    <div className="bg-slate-900/80 border border-slate-700 rounded-lg p-4" data-testid="atem-panel">
+    <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="atem-panel">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <MonitorPlay className="h-5 w-5 text-purple-400" />
-          <h2 className="text-lg font-semibold text-white">Video Switcher</h2>
+          <MonitorPlay className="h-5 w-5 text-purple-500 dark:text-purple-400" />
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Video Switcher</h2>
         </div>
 
         {switcher ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-400">{switcher.name}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">{switcher.name}</span>
             {atemState.connected ? (
               <Wifi className="h-4 w-4 text-green-500" />
             ) : (
@@ -167,7 +167,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => connectSwitcherMutation.mutate(switcher.id)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 data-testid="button-connect-switcher"
               >
                 <WifiOff className="h-4 w-4 mr-1" />
@@ -183,7 +183,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                 Add ATEM
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-900 border-slate-700">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add ATEM Switcher</DialogTitle>
               </DialogHeader>
@@ -195,7 +195,6 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                     value={newSwitcher.name}
                     onChange={(e) => setNewSwitcher({ ...newSwitcher, name: e.target.value })}
                     placeholder="ATEM Extreme"
-                    className="bg-slate-800 border-slate-600"
                     data-testid="input-switcher-name"
                   />
                 </div>
@@ -206,7 +205,6 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                     value={newSwitcher.ip}
                     onChange={(e) => setNewSwitcher({ ...newSwitcher, ip: e.target.value })}
                     placeholder="192.168.1.100"
-                    className="bg-slate-800 border-slate-600"
                     data-testid="input-switcher-ip"
                   />
                 </div>
@@ -225,13 +223,13 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
       </div>
 
       {!switcher ? (
-        <div className="text-center py-8 text-slate-500">
+        <div className="text-center py-8 text-slate-400 dark:text-slate-500">
           <MonitorPlay className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No switcher configured</p>
           <p className="text-sm">Add your ATEM to get started</p>
         </div>
       ) : !atemState.connected ? (
-        <div className="text-center py-8 text-slate-500">
+        <div className="text-center py-8 text-slate-400 dark:text-slate-500">
           <WifiOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>Switcher offline</p>
           <p className="text-sm">Click Connect to establish connection</p>
@@ -240,7 +238,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs font-mono text-slate-500 mb-2">PREVIEW</div>
+              <div className="text-xs font-mono text-slate-400 dark:text-slate-500 mb-2">PREVIEW</div>
               <div className="grid grid-cols-4 gap-1">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((input) => (
                   <Button
@@ -260,7 +258,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
               </div>
             </div>
             <div>
-              <div className="text-xs font-mono text-slate-500 mb-2">PROGRAM</div>
+              <div className="text-xs font-mono text-slate-400 dark:text-slate-500 mb-2">PROGRAM</div>
               <div className="grid grid-cols-4 gap-1">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((input) => (
                   <Button

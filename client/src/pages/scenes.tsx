@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Plus, Trash2, Settings, Zap, Play, Video } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -179,7 +180,7 @@ export default function ScenesPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-white/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -197,20 +198,20 @@ export default function ScenesPage() {
 
           <nav className="flex items-center gap-1 ml-6">
             <Link href="/">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
                 Dashboard
               </button>
             </Link>
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700" data-testid="nav-scenes">
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" data-testid="nav-scenes">
               Scenes
             </button>
             <Link href="/switcher">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
                 Video Switcher
               </button>
             </Link>
             <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
                 Audio Mixer
               </button>
             </Link>
@@ -218,6 +219,7 @@ export default function ScenesPage() {
         </div>
 
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           <LayoutSelector />
           <LogViewer />
         </div>
@@ -239,10 +241,10 @@ export default function ScenesPage() {
         </div>
 
         {sceneButtons.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-800 rounded-xl p-16 text-center">
-            <Zap className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+          <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-16 text-center">
+            <Zap className="w-12 h-12 text-slate-400 dark:text-slate-700 mx-auto mb-4" />
             <p className="text-slate-500 mb-2">No scene buttons configured yet</p>
-            <p className="text-sm text-slate-600 mb-6">Create a scene button to trigger combined actions across your ATEM switcher, audio mixer, and PTZ cameras.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-600 mb-6">Create a scene button to trigger combined actions across your ATEM switcher, audio mixer, and PTZ cameras.</p>
             <Button onClick={openCreate} data-testid="button-add-first-scene">
               <Plus className="w-4 h-4 mr-2" /> Create Your First Scene
             </Button>
@@ -276,17 +278,17 @@ export default function ScenesPage() {
                     <span className="text-base">{btn.name}</span>
                     <div className="flex flex-wrap gap-1 mt-2 justify-center">
                       {btn.atemInputId !== null && (
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-800 text-slate-400")}>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                           ATEM:{btn.atemInputId}
                         </span>
                       )}
                       {btn.cameraId !== null && btn.presetNumber !== null && (
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-800 text-slate-400")}>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                           CAM:{btn.cameraId} P{(btn.presetNumber ?? 0) + 1}
                         </span>
                       )}
                       {mixerActions.length > 0 && (
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-800 text-slate-400")}>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                           MIX:{mixerActions.length}ch
                         </span>
                       )}
@@ -294,7 +296,7 @@ export default function ScenesPage() {
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/80 rounded p-1.5"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 rounded p-1.5"
                     data-testid={`button-scene-edit-${btn.id}`}
                   >
                     <Settings className="w-3.5 h-3.5 text-slate-400" />
@@ -344,7 +346,7 @@ export default function ScenesPage() {
                     onClick={() => setFormData(p => ({ ...p, color: c }))}
                     className={cn(
                       "w-7 h-7 rounded-full border-2 transition-all",
-                      formData.color === c ? "border-white scale-110" : "border-transparent"
+                      formData.color === c ? "border-slate-900 dark:border-white scale-110" : "border-transparent"
                     )}
                     style={{ backgroundColor: c }}
                     data-testid={`button-color-${c}`}
@@ -353,8 +355,8 @@ export default function ScenesPage() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-3">
-              <h4 className="text-xs font-mono uppercase text-slate-400 mb-2">ATEM Switcher Action</h4>
+            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
+              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2">ATEM Switcher Action</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Input Number</Label>
@@ -385,8 +387,8 @@ export default function ScenesPage() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-3">
-              <h4 className="text-xs font-mono uppercase text-slate-400 mb-2">PTZ Camera Action</h4>
+            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
+              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2">PTZ Camera Action</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Camera</Label>
@@ -425,22 +427,22 @@ export default function ScenesPage() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-3">
+            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-mono uppercase text-slate-400">Mixer Channel Actions</h4>
+                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400">Mixer Channel Actions</h4>
                 <Button variant="outline" size="sm" className="text-xs h-6" onClick={addMixerAction} data-testid="button-add-mixer-action">
                   <Plus className="w-3 h-3 mr-1" /> Add Channel
                 </Button>
               </div>
 
               {formData.mixerActions.length === 0 ? (
-                <p className="text-xs text-slate-600">No mixer actions configured.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-600">No mixer actions configured.</p>
               ) : (
                 <div className="space-y-3">
                   {formData.mixerActions.map((action, idx) => (
-                    <div key={idx} className="bg-slate-800/50 rounded-lg p-3 space-y-2">
+                    <div key={idx} className="bg-slate-100 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400 font-mono">Channel Action {idx + 1}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Channel Action {idx + 1}</span>
                         <button onClick={() => removeMixerAction(idx)} className="text-red-500 hover:text-red-400">
                           <Trash2 className="w-3 h-3" />
                         </button>

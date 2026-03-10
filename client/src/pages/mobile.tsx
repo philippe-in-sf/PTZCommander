@@ -65,7 +65,7 @@ function MobileJoystick({ cameraId, ws }: { cameraId: number; ws: ReturnType<typ
     <div className="flex flex-col items-center gap-2">
       <div
         ref={containerRef}
-        className="relative w-36 h-36 rounded-full bg-slate-900 border-2 border-slate-700 touch-none"
+        className="relative w-36 h-36 rounded-full bg-slate-100 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 touch-none"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={handleEnd}
@@ -73,15 +73,15 @@ function MobileJoystick({ cameraId, ws }: { cameraId: number; ws: ReturnType<typ
         data-testid="mobile-joystick"
       >
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-px h-full bg-slate-800" />
+          <div className="w-px h-full bg-slate-300 dark:bg-slate-800" />
         </div>
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="h-px w-full bg-slate-800" />
+          <div className="h-px w-full bg-slate-300 dark:bg-slate-800" />
         </div>
         <div
           className={cn(
             "absolute w-14 h-14 rounded-full transition-colors",
-            active ? "bg-cyan-500/80 shadow-[0_0_20px_rgba(6,182,212,0.5)]" : "bg-slate-700"
+            active ? "bg-cyan-500/80 shadow-[0_0_20px_rgba(6,182,212,0.5)]" : "bg-slate-300 dark:bg-slate-700"
           )}
           style={{
             left: `calc(50% + ${pos.x}px - 28px)`,
@@ -90,7 +90,7 @@ function MobileJoystick({ cameraId, ws }: { cameraId: number; ws: ReturnType<typ
           }}
         />
       </div>
-      <span className="text-[10px] font-mono text-slate-600 uppercase">Pan / Tilt</span>
+      <span className="text-[10px] font-mono text-slate-400 dark:text-slate-600 uppercase">Pan / Tilt</span>
     </div>
   );
 }
@@ -106,7 +106,7 @@ function ZoomControl({ cameraId, ws }: { cameraId: number; ws: ReturnType<typeof
   return (
     <div className="flex flex-col items-center gap-1">
       <button
-        className="w-14 h-10 rounded-t-lg bg-slate-800 border border-slate-700 text-white font-bold text-lg active:bg-cyan-700 touch-none select-none"
+        className="w-14 h-10 rounded-t-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-lg active:bg-cyan-700 active:text-white touch-none select-none"
         onTouchStart={() => sendZoom(1)}
         onTouchEnd={stopZoom}
         onTouchCancel={stopZoom}
@@ -114,9 +114,9 @@ function ZoomControl({ cameraId, ws }: { cameraId: number; ws: ReturnType<typeof
       >
         T
       </button>
-      <span className="text-[9px] font-mono text-slate-600">ZOOM</span>
+      <span className="text-[9px] font-mono text-slate-400 dark:text-slate-600">ZOOM</span>
       <button
-        className="w-14 h-10 rounded-b-lg bg-slate-800 border border-slate-700 text-white font-bold text-lg active:bg-cyan-700 touch-none select-none"
+        className="w-14 h-10 rounded-b-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-lg active:bg-cyan-700 active:text-white touch-none select-none"
         onTouchStart={() => sendZoom(-1)}
         onTouchEnd={stopZoom}
         onTouchCancel={stopZoom}
@@ -191,31 +191,31 @@ export default function MobilePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col" style={{ maxWidth: "100vw", overflow: "hidden" }}>
-      <header className="h-11 border-b border-slate-800 bg-slate-950 flex items-center justify-between px-3 shrink-0">
+      <header className="h-11 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex items-center justify-between px-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
             <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
           </div>
           <div>
             <span className="font-bold text-sm leading-none">PTZ<span className="text-cyan-500 font-light">CMD</span></span>
-            <span className="text-[8px] font-mono text-slate-600 ml-1" data-testid="text-version-mobile">v{APP_VERSION}</span>
+            <span className="text-[8px] font-mono text-slate-400 dark:text-slate-600 ml-1" data-testid="text-version-mobile">v{APP_VERSION}</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {atemState?.connected && (
-            <span className="text-[9px] font-mono text-green-500 px-1.5 py-0.5 rounded bg-green-950 border border-green-900">ATEM</span>
+            <span className="text-[9px] font-mono text-green-600 dark:text-green-500 px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-900">ATEM</span>
           )}
         </div>
       </header>
 
-      <div className="flex border-b border-slate-800 bg-slate-950/50 shrink-0">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
         {(["control", "scenes", "switcher"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
               "flex-1 py-2.5 text-xs font-medium uppercase tracking-wider transition-colors",
-              activeTab === tab ? "text-cyan-400 border-b-2 border-cyan-500 bg-slate-900/50" : "text-slate-500"
+              activeTab === tab ? "text-cyan-600 dark:text-cyan-400 border-b-2 border-cyan-500 bg-slate-100/50 dark:bg-slate-900/50" : "text-slate-400 dark:text-slate-500"
             )}
             data-testid={`mobile-tab-${tab}`}
           >
@@ -238,12 +238,12 @@ export default function MobilePage() {
                     className={cn(
                       "py-3 px-1 rounded-lg border text-center transition-all",
                       tally === "program"
-                        ? "border-red-500 bg-red-950/40 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+                        ? "border-red-500 bg-red-100/40 dark:bg-red-950/40 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
                         : tally === "preview"
-                        ? "border-green-500 bg-green-950/40 shadow-[0_0_12px_rgba(34,197,94,0.2)]"
+                        ? "border-green-500 bg-green-100/40 dark:bg-green-950/40 shadow-[0_0_12px_rgba(34,197,94,0.2)]"
                         : isSelected
-                        ? "border-cyan-500 bg-cyan-950/30"
-                        : "border-slate-800 bg-slate-900/50"
+                        ? "border-cyan-500 bg-cyan-100/30 dark:bg-cyan-950/30"
+                        : "border-slate-300 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50"
                     )}
                     data-testid={`mobile-camera-${cam.id}`}
                   >
@@ -253,16 +253,16 @@ export default function MobilePage() {
                     </div>
                     <div className={cn(
                       "text-xs font-bold truncate",
-                      isSelected ? "text-cyan-300" : "text-slate-300"
+                      isSelected ? "text-cyan-600 dark:text-cyan-300" : "text-slate-700 dark:text-slate-300"
                     )}>
                       {cam.name}
                     </div>
                     <div className="flex items-center justify-center gap-1 mt-1">
                       <div className={cn(
                         "w-1.5 h-1.5 rounded-full",
-                        cam.status === "online" ? "bg-green-500" : "bg-red-900"
+                        cam.status === "online" ? "bg-green-500" : "bg-red-300 dark:bg-red-900"
                       )} />
-                      <span className="text-[9px] text-slate-600">{cam.status}</span>
+                      <span className="text-[9px] text-slate-400 dark:text-slate-600">{cam.status}</span>
                     </div>
                   </button>
                 );
@@ -277,7 +277,7 @@ export default function MobilePage() {
                 </div>
 
                 <div>
-                  <h3 className="text-[10px] font-mono text-slate-600 uppercase tracking-widest mb-2">Presets — {selectedCamera?.name}</h3>
+                  <h3 className="text-[10px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-2">Presets — {selectedCamera?.name}</h3>
                   <div className="grid grid-cols-4 gap-2">
                     {Array.from({ length: 16 }, (_, i) => {
                       const preset = presets.find(p => p.presetNumber === i);
@@ -288,13 +288,13 @@ export default function MobilePage() {
                           className={cn(
                             "py-3 rounded-lg border text-center transition-all active:scale-95",
                             preset
-                              ? "border-cyan-800 bg-cyan-950/30 text-cyan-300"
-                              : "border-slate-800 bg-slate-900/50 text-slate-600"
+                              ? "border-cyan-300 dark:border-cyan-800 bg-cyan-100/30 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300"
+                              : "border-slate-300 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-600"
                           )}
                           data-testid={`mobile-preset-${i}`}
                         >
                           <div className="text-xs font-bold">{i + 1}</div>
-                          {preset?.name && <div className="text-[9px] text-slate-500 truncate px-1 mt-0.5">{preset.name}</div>}
+                          {preset?.name && <div className="text-[9px] text-slate-400 dark:text-slate-500 truncate px-1 mt-0.5">{preset.name}</div>}
                         </button>
                       );
                     })}
@@ -307,9 +307,9 @@ export default function MobilePage() {
 
         {activeTab === "scenes" && (
           <div className="p-3 space-y-3">
-            <h3 className="text-[10px] font-mono text-slate-600 uppercase tracking-widest">Scene Buttons</h3>
+            <h3 className="text-[10px] font-mono text-slate-400 dark:text-slate-600 uppercase tracking-widest">Scene Buttons</h3>
             {sceneButtons.length === 0 ? (
-              <div className="text-center py-12 text-slate-600 text-sm">No scene buttons configured</div>
+              <div className="text-center py-12 text-slate-400 dark:text-slate-600 text-sm">No scene buttons configured</div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {sceneButtons
@@ -318,7 +318,7 @@ export default function MobilePage() {
                     <button
                       key={btn.id}
                       onClick={() => executeScene(btn)}
-                      className="py-4 px-3 rounded-lg border border-slate-700 text-center transition-all active:scale-95"
+                      className="py-4 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-center transition-all active:scale-95"
                       style={{
                         borderColor: btn.color,
                         backgroundColor: `${btn.color}15`,
@@ -326,7 +326,7 @@ export default function MobilePage() {
                       data-testid={`mobile-scene-${btn.id}`}
                     >
                       <div className="font-bold text-sm" style={{ color: btn.color }}>{btn.name}</div>
-                      <div className="text-[9px] text-slate-500 mt-1">
+                      <div className="text-[9px] text-slate-400 dark:text-slate-500 mt-1">
                         {[
                           btn.atemInputId && `ATEM ${btn.atemInputId}`,
                           btn.cameraId && `CAM ${btn.cameraId}`,
@@ -343,20 +343,20 @@ export default function MobilePage() {
         {activeTab === "switcher" && (
           <div className="p-3 space-y-4">
             {!atemState?.connected ? (
-              <div className="text-center py-12 text-slate-600 text-sm">ATEM not connected</div>
+              <div className="text-center py-12 text-slate-400 dark:text-slate-600 text-sm">ATEM not connected</div>
             ) : (
               <>
                 <div className="flex gap-3">
                   <button
                     onClick={atemCut}
-                    className="flex-1 py-4 rounded-lg bg-slate-800 border border-slate-700 text-white font-bold text-lg active:bg-red-700 transition-colors"
+                    className="flex-1 py-4 rounded-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-lg active:bg-red-700 active:text-white transition-colors"
                     data-testid="mobile-atem-cut"
                   >
                     CUT
                   </button>
                   <button
                     onClick={atemAuto}
-                    className="flex-1 py-4 rounded-lg bg-slate-800 border border-slate-700 text-white font-bold text-lg active:bg-amber-700 transition-colors"
+                    className="flex-1 py-4 rounded-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-lg active:bg-amber-700 active:text-white transition-colors"
                     data-testid="mobile-atem-auto"
                   >
                     AUTO
@@ -374,7 +374,7 @@ export default function MobilePage() {
                           "py-3 rounded-lg border text-center font-bold text-sm transition-all active:scale-95",
                           atemState.programInput === input.inputId
                             ? "border-red-500 bg-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)]"
-                            : "border-slate-700 bg-slate-900 text-slate-400"
+                            : "border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400"
                         )}
                         data-testid={`mobile-pgm-${input.inputId}`}
                       >
@@ -395,7 +395,7 @@ export default function MobilePage() {
                           "py-3 rounded-lg border text-center font-bold text-sm transition-all active:scale-95",
                           atemState.previewInput === input.inputId
                             ? "border-green-500 bg-green-600 text-white shadow-[0_0_15px_rgba(34,197,94,0.3)]"
-                            : "border-slate-700 bg-slate-900 text-slate-400"
+                            : "border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400"
                         )}
                         data-testid={`mobile-pvw-${input.inputId}`}
                       >

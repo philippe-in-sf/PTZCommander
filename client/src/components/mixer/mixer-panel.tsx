@@ -211,8 +211,8 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
 
   if (collapsed) {
     return (
-      <div className="bg-slate-900/80 border border-slate-700 rounded-lg p-3">
-        <div className="flex items-center gap-2 text-slate-400">
+      <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
+        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
           <SlidersHorizontal className="h-4 w-4" />
           <span className="text-sm">Mixer</span>
         </div>
@@ -221,16 +221,16 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   }
 
   return (
-    <div className="bg-slate-900/80 border border-slate-700 rounded-lg p-4" data-testid="mixer-panel">
+    <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="mixer-panel">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-5 w-5 text-cyan-400" />
-          <h2 className="text-lg font-semibold text-white">Audio Mixer</h2>
+          <SlidersHorizontal className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Audio Mixer</h2>
         </div>
 
         {mixer ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-400">{mixer.name}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">{mixer.name}</span>
             {mixer.status === "online" ? (
               <Wifi className="h-4 w-4 text-green-500" />
             ) : (
@@ -238,7 +238,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => connectMixerMutation.mutate(mixer.id)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 data-testid="button-connect-mixer"
               >
                 <WifiOff className="h-4 w-4 mr-1" />
@@ -249,7 +249,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
               variant="ghost"
               size="sm"
               onClick={handleEditClick}
-              className="text-slate-400 hover:text-white p-1.5"
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5"
               data-testid="button-edit-mixer"
             >
               <Settings className="h-4 w-4" />
@@ -263,7 +263,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 Add Mixer
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-900 border-slate-700">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add X32 Mixer</DialogTitle>
               </DialogHeader>
@@ -275,7 +275,6 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                     value={newMixer.name}
                     onChange={(e) => setNewMixer({ ...newMixer, name: e.target.value })}
                     placeholder="X32 Compact"
-                    className="bg-slate-800 border-slate-600"
                     data-testid="input-mixer-name"
                   />
                 </div>
@@ -286,7 +285,6 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                     value={newMixer.ip}
                     onChange={(e) => setNewMixer({ ...newMixer, ip: e.target.value })}
                     placeholder="192.168.0.64"
-                    className="bg-slate-800 border-slate-600"
                     data-testid="input-mixer-ip"
                   />
                 </div>
@@ -297,7 +295,6 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                     type="number"
                     value={newMixer.port}
                     onChange={(e) => setNewMixer({ ...newMixer, port: parseInt(e.target.value) || 10023 })}
-                    className="bg-slate-800 border-slate-600"
                     data-testid="input-mixer-port"
                   />
                 </div>
@@ -315,9 +312,8 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
         )}
       </div>
 
-      {/* Edit Mixer Dialog */}
       <Dialog open={editMixerOpen} onOpenChange={(open) => { setEditMixerOpen(open); if (!open) setConfirmDelete(false); }}>
-        <DialogContent className="bg-slate-900 border-slate-700">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Mixer Settings</DialogTitle>
           </DialogHeader>
@@ -330,7 +326,6 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                   id="edit-mixer-name"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="bg-slate-800 border-slate-600"
                   data-testid="input-edit-mixer-name"
                 />
               </div>
@@ -340,7 +335,6 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                   id="edit-mixer-ip"
                   value={editForm.ip}
                   onChange={(e) => setEditForm({ ...editForm, ip: e.target.value })}
-                  className="bg-slate-800 border-slate-600"
                   data-testid="input-edit-mixer-ip"
                 />
               </div>
@@ -351,7 +345,6 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                   type="number"
                   value={editForm.port}
                   onChange={(e) => setEditForm({ ...editForm, port: parseInt(e.target.value) || 10023 })}
-                  className="bg-slate-800 border-slate-600"
                   data-testid="input-edit-mixer-port"
                 />
               </div>
@@ -375,11 +368,11 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-red-500 flex-shrink-0" />
                 <div>
-                  <p className="text-white font-medium">Delete {mixer?.name}?</p>
-                  <p className="text-sm text-slate-400">This will remove the mixer configuration and disconnect it.</p>
+                  <p className="text-slate-900 dark:text-white font-medium">Delete {mixer?.name}?</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">This will remove the mixer configuration and disconnect it.</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -407,7 +400,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
       </Dialog>
 
       {!mixer ? (
-        <div className="text-center py-8 text-slate-500">
+        <div className="text-center py-8 text-slate-400 dark:text-slate-500">
           <SlidersHorizontal className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No mixer configured</p>
           <p className="text-sm">Add your X32 to get started</p>
@@ -431,9 +424,9 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
             })}
           </div>
 
-          <div className="flex items-center gap-4 p-3 bg-slate-800/50 rounded-lg border border-slate-600">
+          <div className="flex items-center gap-4 p-3 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg border border-slate-300 dark:border-slate-600">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-cyan-400">MAIN</span>
+              <span className="text-sm font-semibold text-cyan-500 dark:text-cyan-400">MAIN</span>
               <Button
                 variant={mainMuted ? "destructive" : "outline"}
                 size="sm"
@@ -452,7 +445,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
               className="flex-1"
               data-testid="fader-main"
             />
-            <span className="text-xs font-mono text-slate-400 w-12 text-right">
+            <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-12 text-right">
               {faderToDb(mainFader)}
             </span>
           </div>

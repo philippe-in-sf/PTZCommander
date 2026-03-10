@@ -66,40 +66,40 @@ export function ChangelogDialog() {
           <TooltipTrigger asChild>
             <DialogTrigger asChild>
               <button
-                className="text-xs font-semibold text-cyan-500/80 italic tracking-widest hover:text-cyan-400 hover:underline transition-colors cursor-pointer"
+                className="text-xs font-semibold text-cyan-600/80 dark:text-cyan-500/80 italic tracking-widest hover:text-cyan-500 dark:hover:text-cyan-400 hover:underline transition-colors cursor-pointer"
                 data-testid="button-changelog"
               >
                 v{APP_VERSION}
               </button>
             </DialogTrigger>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="bg-slate-800 text-slate-200 text-xs border-slate-700">
+          <TooltipContent side="bottom">
             View changelog
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto bg-slate-900 border-slate-700 text-white">
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold">
             PTZ<span className="text-cyan-500 font-light">COMMAND</span>{" "}
-            <span className="text-sm text-slate-400 font-normal">Changelog</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400 font-normal">Changelog</span>
           </DialogTitle>
         </DialogHeader>
-        {isLoading && <p className="text-slate-400 text-sm py-4">Loading...</p>}
+        {isLoading && <p className="text-slate-500 dark:text-slate-400 text-sm py-4">Loading...</p>}
         {sections.length > 0 && (
           <div className="space-y-5 mt-2" data-testid="changelog-content">
             {sections.map((section) => (
               <div key={section.version}>
                 <div className="flex items-baseline gap-2 mb-1.5">
                   <span className="text-sm font-bold text-cyan-500">v{section.version}</span>
-                  <span className="text-xs text-slate-500">{section.date}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{section.date}</span>
                 </div>
                 {section.entries.map((entry) => (
                   <div key={entry.category} className="mb-1.5">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">{entry.category}</p>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">{entry.category}</p>
                     <ul className="space-y-0.5">
                       {entry.items.map((item, i) => (
-                        <li key={i} className="text-xs text-slate-300 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-cyan-600">
+                        <li key={i} className="text-xs text-slate-700 dark:text-slate-300 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-cyan-600">
                           {item.replace(/\*\*(.+?)\*\*/g, "$1")}
                         </li>
                       ))}

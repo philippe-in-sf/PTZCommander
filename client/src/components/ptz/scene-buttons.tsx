@@ -174,9 +174,9 @@ export function SceneButtons() {
   };
 
   return (
-    <div className="bg-slate-900/30 border border-slate-800 rounded-xl p-4">
+    <div className="bg-white/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-mono uppercase text-slate-500 tracking-widest flex items-center gap-2">
+        <h3 className="text-xs font-mono uppercase text-slate-400 dark:text-slate-500 tracking-widest flex items-center gap-2">
           <Zap className="w-3 h-3" /> Scene Buttons
         </h3>
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={openCreate} data-testid="button-add-scene">
@@ -185,7 +185,7 @@ export function SceneButtons() {
       </div>
 
       {sceneButtons.length === 0 ? (
-        <div className="text-center py-6 text-slate-600 text-sm">
+        <div className="text-center py-6 text-slate-400 dark:text-slate-600 text-sm">
           No scene buttons configured. Create one to trigger combined actions.
         </div>
       ) : (
@@ -215,10 +215,10 @@ export function SceneButtons() {
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/80 rounded p-1"
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 rounded p-1"
                 data-testid={`button-scene-edit-${btn.id}`}
               >
-                <Settings className="w-3 h-3 text-slate-400" />
+                <Settings className="w-3 h-3 text-slate-500 dark:text-slate-400" />
               </button>
             </div>
           );
@@ -264,7 +264,7 @@ export function SceneButtons() {
                     onClick={() => setFormData(p => ({ ...p, color: c }))}
                     className={cn(
                       "w-7 h-7 rounded-full border-2 transition-all",
-                      formData.color === c ? "border-white scale-110" : "border-transparent"
+                      formData.color === c ? "border-slate-900 dark:border-white scale-110" : "border-transparent"
                     )}
                     style={{ backgroundColor: c }}
                     data-testid={`button-color-${c}`}
@@ -273,8 +273,8 @@ export function SceneButtons() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-3">
-              <h4 className="text-xs font-mono uppercase text-slate-400 mb-2">ATEM Switcher Action</h4>
+            <div className="border-t border-slate-200 dark:border-slate-800 pt-3">
+              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2">ATEM Switcher Action</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Input Number</Label>
@@ -305,8 +305,8 @@ export function SceneButtons() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-3">
-              <h4 className="text-xs font-mono uppercase text-slate-400 mb-2">PTZ Camera Action</h4>
+            <div className="border-t border-slate-200 dark:border-slate-800 pt-3">
+              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2">PTZ Camera Action</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Camera</Label>
@@ -345,22 +345,22 @@ export function SceneButtons() {
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-3">
+            <div className="border-t border-slate-200 dark:border-slate-800 pt-3">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-mono uppercase text-slate-400">Mixer Channel Actions</h4>
+                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400">Mixer Channel Actions</h4>
                 <Button variant="outline" size="sm" className="text-xs h-6" onClick={addMixerAction} data-testid="button-add-mixer-action">
                   <Plus className="w-3 h-3 mr-1" /> Add Channel
                 </Button>
               </div>
 
               {formData.mixerActions.length === 0 ? (
-                <p className="text-xs text-slate-600">No mixer actions configured.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-600">No mixer actions configured.</p>
               ) : (
                 <div className="space-y-3">
                   {formData.mixerActions.map((action, idx) => (
-                    <div key={idx} className="bg-slate-800/50 rounded-lg p-3 space-y-2">
+                    <div key={idx} className="bg-slate-100/50 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400 font-mono">Channel Action {idx + 1}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Channel Action {idx + 1}</span>
                         <button onClick={() => removeMixerAction(idx)} className="text-red-500 hover:text-red-400">
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -402,8 +402,8 @@ export function SceneButtons() {
                             className={cn(
                               "h-8 px-3 rounded text-xs font-bold border w-full",
                               action.muted
-                                ? "bg-red-950/50 border-red-700 text-red-400"
-                                : "bg-green-950/50 border-green-700 text-green-400"
+                                ? "bg-red-50 dark:bg-red-950/50 border-red-300 dark:border-red-700 text-red-500 dark:text-red-400"
+                                : "bg-green-50 dark:bg-green-950/50 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400"
                             )}
                           >
                             {action.muted ? "MUTED" : "ON"}

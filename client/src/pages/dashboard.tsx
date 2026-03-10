@@ -12,6 +12,7 @@ import { LogViewer } from "@/components/logs/log-viewer";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
@@ -160,7 +161,7 @@ export default function Dashboard() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-400 font-mono">Initializing PTZ Command...</p>
+          <p className="text-slate-500 dark:text-slate-400 font-mono">Initializing PTZ Command...</p>
         </div>
       </div>
     );
@@ -168,7 +169,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-white/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
             <Video className="text-white w-4 h-4" />
@@ -181,21 +182,21 @@ export default function Dashboard() {
           </div>
 
           <nav className="flex items-center gap-1 ml-6">
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700" data-testid="nav-dashboard">
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" data-testid="nav-dashboard">
               Dashboard
             </button>
             <Link href="/scenes">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
                 Scenes
               </button>
             </Link>
             <Link href="/switcher">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
                 Video Switcher
               </button>
             </Link>
             <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
                 Audio Mixer
               </button>
             </Link>
@@ -205,11 +206,12 @@ export default function Dashboard() {
         <div className="flex items-center gap-4">
           <div className={cn(
             "flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-md border",
-            ws ? "text-emerald-500 bg-emerald-950/30 border-emerald-900/50" : "text-red-500 bg-red-950/30 border-red-900/50"
+            ws ? "text-emerald-600 dark:text-emerald-500 bg-emerald-100/50 dark:bg-emerald-950/30 border-emerald-300/50 dark:border-emerald-900/50" : "text-red-600 dark:text-red-500 bg-red-100/50 dark:bg-red-950/30 border-red-300/50 dark:border-red-900/50"
           )}>
             {ws ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {ws ? "SYSTEM ONLINE" : "DISCONNECTED"}
           </div>
+          <ThemeToggle />
           <LayoutSelector />
           <LogViewer />
         </div>
@@ -242,7 +244,7 @@ export default function Dashboard() {
         {/* Camera Strip */}
         <section>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-mono uppercase text-slate-500 tracking-widest">Camera Select</h2>
+            <h2 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-500 tracking-widest">Camera Select</h2>
             <Dialog open={addCameraOpen} onOpenChange={setAddCameraOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="text-xs" data-testid="button-add-camera">
@@ -293,7 +295,7 @@ export default function Dashboard() {
                       placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
                       data-testid="input-new-camera-stream-url"
                     />
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
                       HTTP URL for JPEG snapshot. Used for live preview.
                     </p>
                   </div>
@@ -306,8 +308,8 @@ export default function Dashboard() {
           </div>
            
           {cameras.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-800 rounded-xl p-12 text-center">
-              <p className="text-slate-500 mb-4">No cameras configured</p>
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center">
+              <p className="text-slate-500 dark:text-slate-500 mb-4">No cameras configured</p>
               <Button onClick={() => setAddCameraOpen(true)} data-testid="button-add-first-camera">
                 <Plus className="w-4 h-4 mr-2" /> Add Your First Camera
               </Button>
@@ -340,7 +342,7 @@ export default function Dashboard() {
               <div className="glass-panel rounded-2xl p-8 flex-1 flex flex-col items-center justify-center relative overflow-hidden group border-cyan-500/20">
                 <div className="absolute inset-0 bg-[url('/src/assets/tech-grid.png')] bg-cover opacity-10 pointer-events-none mix-blend-overlay" />
                 
-                <div className="absolute top-4 left-4 font-mono text-xs text-cyan-500/70 border border-cyan-500/30 px-2 py-1 rounded bg-cyan-950/30">
+                <div className="absolute top-4 left-4 font-mono text-xs text-cyan-600/70 dark:text-cyan-500/70 border border-cyan-500/30 px-2 py-1 rounded bg-cyan-100/30 dark:bg-cyan-950/30">
                   CONTROLLING: {selectedCam.name.toUpperCase()}
                 </div>
                 
@@ -351,15 +353,15 @@ export default function Dashboard() {
                 />
 
                 <div className="mt-8 text-center space-y-1">
-                   <div className="text-2xl font-bold font-mono text-white tracking-widest">{selectedCam.name}</div>
+                   <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white tracking-widest">{selectedCam.name}</div>
                    <div className="text-xs font-mono text-cyan-500">{selectedCam.ip}</div>
                 </div>
               </div>
             </div>
 
             <div className="lg:col-span-3 flex flex-col gap-4">
-              <div className="bg-slate-900/30 border border-slate-800 rounded-xl p-4 flex-1">
-                 <h3 className="text-xs font-mono uppercase text-slate-500 tracking-widest mb-4">Optical Controls</h3>
+              <div className="bg-slate-100/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4 flex-1">
+                 <h3 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-500 tracking-widest mb-4">Optical Controls</h3>
                  <LensControls 
                    onZoomChange={(v) => ws?.zoom(selectedId!, v / 50 - 1, 0.5)}
                    onFocusChange={(v) => console.log('Focus', v)}
@@ -367,15 +369,15 @@ export default function Dashboard() {
                  />
                  
                  <div className="mt-6 grid grid-cols-2 gap-2">
-                    <button className="h-12 border border-slate-700 rounded bg-slate-800/50 hover:bg-slate-700 hover:text-white text-slate-400 text-xs font-bold transition-colors" data-testid="button-night-mode">
+                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-200/50 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-night-mode">
                       NIGHT MODE
                     </button>
-                    <button className="h-12 border border-slate-700 rounded bg-slate-800/50 hover:bg-slate-700 hover:text-white text-slate-400 text-xs font-bold transition-colors" data-testid="button-osd-menu">
+                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-200/50 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-osd-menu">
                       OSD MENU
                     </button>
                     <button 
                       onClick={() => ws?.focusAuto(selectedId!)}
-                      className="h-12 border border-slate-700 rounded bg-slate-800/50 hover:bg-slate-700 hover:text-white text-slate-400 text-xs font-bold transition-colors col-span-2"
+                      className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-200/50 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors col-span-2"
                       data-testid="button-auto-focus"
                     >
                       AUTO FOCUS

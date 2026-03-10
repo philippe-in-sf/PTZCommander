@@ -99,7 +99,7 @@ export function LayoutSelector() {
           onClick={() => setManageOpen(true)}
           className={cn(
             "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors",
-            "bg-slate-800/60 border border-slate-700 hover:bg-slate-700 text-slate-300 hover:text-white"
+            "bg-slate-100/60 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
           )}
           data-testid="button-layouts"
         >
@@ -123,13 +123,13 @@ export function LayoutSelector() {
             </DialogTitle>
           </DialogHeader>
 
-          <p className="text-xs text-slate-500 -mt-2">
+          <p className="text-xs text-slate-400 dark:text-slate-500 -mt-2">
             Save and load complete production setups — cameras, scene buttons, mixer, and switcher configurations.
           </p>
 
           <div className="space-y-2">
             {allLayouts.length === 0 ? (
-              <div className="text-center py-8 text-slate-600 text-sm">
+              <div className="text-center py-8 text-slate-400 dark:text-slate-600 text-sm">
                 No layouts saved yet. Save your current setup to get started.
               </div>
             ) : (
@@ -141,8 +141,8 @@ export function LayoutSelector() {
                     className={cn(
                       "rounded-lg border p-3 transition-all",
                       isActive
-                        ? "border-cyan-600 bg-cyan-950/20"
-                        : "border-slate-800 bg-slate-900/50 hover:border-slate-700"
+                        ? "border-cyan-500 dark:border-cyan-600 bg-cyan-50/50 dark:bg-cyan-950/20"
+                        : "border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 hover:border-slate-400 dark:hover:border-slate-700"
                     )}
                     data-testid={`layout-item-${layout.id}`}
                   >
@@ -153,15 +153,15 @@ export function LayoutSelector() {
                           <div className="font-medium text-sm flex items-center gap-1.5">
                             {layout.name}
                             {isActive && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900/50 text-cyan-400 border border-cyan-800">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-800">
                                 ACTIVE
                               </span>
                             )}
                           </div>
                           {layout.description && (
-                            <p className="text-xs text-slate-500 truncate">{layout.description}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{layout.description}</p>
                           )}
-                          <p className="text-[10px] text-slate-600 mt-0.5">{getSnapshotSummary(layout)}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-600 mt-0.5">{getSnapshotSummary(layout)}</p>
                         </div>
                       </div>
 
@@ -193,7 +193,7 @@ export function LayoutSelector() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 w-7 p-0 text-red-500 hover:text-red-400 hover:bg-red-950/30"
+                          className="h-7 w-7 p-0 text-red-500 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                           onClick={() => deleteMutation.mutate(layout.id)}
                           data-testid={`button-delete-layout-${layout.id}`}
                         >
@@ -254,7 +254,7 @@ export function LayoutSelector() {
                     onClick={() => setSaveColor(c)}
                     className={cn(
                       "w-7 h-7 rounded-full border-2 transition-all",
-                      saveColor === c ? "border-white scale-110" : "border-transparent"
+                      saveColor === c ? "border-slate-900 dark:border-white scale-110" : "border-transparent"
                     )}
                     style={{ backgroundColor: c }}
                   />

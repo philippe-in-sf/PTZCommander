@@ -34,12 +34,12 @@ export function ChannelStrip({
   return (
     <div 
       className={cn(
-        "flex flex-col items-center gap-2 p-2 rounded-lg bg-slate-800/50 border border-slate-700",
+        "flex flex-col items-center gap-2 p-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700",
         muted && "opacity-60"
       )}
       data-testid={`channel-strip-${channel}`}
     >
-      <span className="text-[10px] text-slate-400 font-mono truncate w-full text-center">
+      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate w-full text-center">
         {name}
       </span>
       
@@ -56,7 +56,7 @@ export function ChannelStrip({
         />
       </div>
 
-      <span className="text-[10px] text-slate-500 font-mono">
+      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
         {dbValue}
       </span>
 
@@ -70,7 +70,7 @@ export function ChannelStrip({
         {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
       </Button>
 
-      <span className="text-xs font-bold text-slate-300">{channel}</span>
+      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
     </div>
   );
 }

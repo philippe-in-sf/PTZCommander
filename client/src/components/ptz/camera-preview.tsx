@@ -68,7 +68,7 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
             ? "border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
             : isSelected
             ? "border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
-            : "border-slate-800 hover:border-slate-600"
+            : "border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600"
         )}
         data-testid={`camera-preview-${camera.id}`}
       >
@@ -79,20 +79,20 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
             className="w-full h-full object-cover"
           />
         ) : (
-          <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+          <div className="w-full h-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
             {hasStream && loading ? (
-              <div className="animate-pulse text-slate-600">
+              <div className="animate-pulse text-slate-400 dark:text-slate-600">
                 <Video className="w-8 h-8" />
               </div>
             ) : hasStream && error ? (
               <div className="text-center">
-                <VideoOff className="w-6 h-6 text-slate-700 mx-auto" />
-                <p className="text-[10px] text-slate-700 mt-1">No signal</p>
+                <VideoOff className="w-6 h-6 text-slate-400 dark:text-slate-700 mx-auto" />
+                <p className="text-[10px] text-slate-400 dark:text-slate-700 mt-1">No signal</p>
               </div>
             ) : (
               <div className="text-center">
-                <Camera className="w-6 h-6 text-slate-700 mx-auto" />
-                <p className="text-[10px] text-slate-700 mt-1">No stream URL</p>
+                <Camera className="w-6 h-6 text-slate-400 dark:text-slate-700 mx-auto" />
+                <p className="text-[10px] text-slate-400 dark:text-slate-700 mt-1">No stream URL</p>
               </div>
             )}
           </div>
@@ -138,7 +138,7 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
       </div>
 
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-slate-800">
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-slate-300 dark:border-slate-800">
           {imgSrc && (
             <div className="relative">
               <img src={imgSrc} alt={camera.name} className="w-full" />
@@ -155,8 +155,8 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
 
 export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval = 2000 }: CameraPreviewProps) {
   return (
-    <div className="bg-slate-900/30 border border-slate-800 rounded-xl p-4">
-      <h3 className="text-xs font-mono uppercase text-slate-500 tracking-widest mb-3 flex items-center gap-2">
+    <div className="bg-white/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
+      <h3 className="text-xs font-mono uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-3 flex items-center gap-2">
         <Video className="w-3 h-3" /> Camera Preview
       </h3>
       <div className={cn(

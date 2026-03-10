@@ -2,6 +2,14 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.10.0] - 2026-03-10
+
+### Added
+- **Light/dark theme toggle** — click the sun/moon button in the header to switch themes
+- Light theme with clean, professional appearance for well-lit environments
+- Dark theme remains the default, optimized for broadcast control rooms
+- Theme preference saved to browser local storage
+
 ## [0.9.0] - 2026-03-01
 
 ### Added

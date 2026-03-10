@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LogViewer } from "@/components/logs/log-viewer";
@@ -234,7 +235,7 @@ export default function MixerPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
       {/* Top Bar */}
-      <header className="h-14 border-b border-border bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-white/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -252,21 +253,21 @@ export default function MixerPage() {
 
           <nav className="flex items-center gap-1 ml-6">
             <Link href="/">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
                 Dashboard
               </button>
             </Link>
             <Link href="/scenes">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
                 Scenes
               </button>
             </Link>
             <Link href="/switcher">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
                 Video Switcher
               </button>
             </Link>
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700" data-testid="nav-mixer">
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" data-testid="nav-mixer">
               Audio Mixer
             </button>
           </nav>
@@ -275,19 +276,20 @@ export default function MixerPage() {
         <div className="flex items-center gap-4">
           {mixer ? (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">{mixer.name}</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">{mixer.name}</span>
               {mixer.status === "online" ? (
                 <Wifi className="h-4 w-4 text-green-500" />
               ) : (
-                <Button variant="ghost" size="sm" onClick={() => connectMixerMutation.mutate(mixer.id)} className="text-slate-400 hover:text-white" data-testid="button-connect-mixer">
+                <Button variant="ghost" size="sm" onClick={() => connectMixerMutation.mutate(mixer.id)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" data-testid="button-connect-mixer">
                   <WifiOff className="h-4 w-4 mr-1" /> Connect
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={handleEditClick} className="text-slate-400 hover:text-white p-1.5" data-testid="button-edit-mixer-full">
+              <Button variant="ghost" size="sm" onClick={handleEditClick} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5" data-testid="button-edit-mixer-full">
                 <Settings className="h-4 w-4" />
               </Button>
             </div>
           ) : null}
+          <ThemeToggle />
           <LayoutSelector />
           <LogViewer />
         </div>
@@ -297,29 +299,29 @@ export default function MixerPage() {
       {!mixer ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <SlidersHorizontal className="h-16 w-16 mx-auto text-slate-600" />
-            <h2 className="text-xl font-semibold text-white">No Mixer Configured</h2>
-            <p className="text-slate-400">Add your Behringer X32/M32 to get started</p>
+            <SlidersHorizontal className="h-16 w-16 mx-auto text-slate-400 dark:text-slate-600" />
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">No Mixer Configured</h2>
+            <p className="text-slate-500 dark:text-slate-400">Add your Behringer X32/M32 to get started</p>
             <Dialog open={addMixerOpen} onOpenChange={setAddMixerOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="button-add-mixer-full">
                   <Plus className="h-4 w-4 mr-2" /> Add Mixer
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-slate-900 border-slate-700">
+              <DialogContent className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                 <DialogHeader><DialogTitle>Add X32 Mixer</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="mixer-name-full">Name</Label>
-                    <Input id="mixer-name-full" value={newMixer.name} onChange={(e) => setNewMixer({ ...newMixer, name: e.target.value })} placeholder="X32 Compact" className="bg-slate-800 border-slate-600" data-testid="input-mixer-name-full" />
+                    <Input id="mixer-name-full" value={newMixer.name} onChange={(e) => setNewMixer({ ...newMixer, name: e.target.value })} placeholder="X32 Compact" className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-mixer-name-full" />
                   </div>
                   <div>
                     <Label htmlFor="mixer-ip-full">IP Address</Label>
-                    <Input id="mixer-ip-full" value={newMixer.ip} onChange={(e) => setNewMixer({ ...newMixer, ip: e.target.value })} placeholder="192.168.0.64" className="bg-slate-800 border-slate-600" data-testid="input-mixer-ip-full" />
+                    <Input id="mixer-ip-full" value={newMixer.ip} onChange={(e) => setNewMixer({ ...newMixer, ip: e.target.value })} placeholder="192.168.0.64" className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-mixer-ip-full" />
                   </div>
                   <div>
                     <Label htmlFor="mixer-port-full">Port</Label>
-                    <Input id="mixer-port-full" type="number" value={newMixer.port} onChange={(e) => setNewMixer({ ...newMixer, port: parseInt(e.target.value) || 10023 })} className="bg-slate-800 border-slate-600" data-testid="input-mixer-port-full" />
+                    <Input id="mixer-port-full" type="number" value={newMixer.port} onChange={(e) => setNewMixer({ ...newMixer, port: parseInt(e.target.value) || 10023 })} className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-mixer-port-full" />
                   </div>
                   <Button className="w-full" onClick={() => createMixerMutation.mutate(newMixer)} disabled={!newMixer.ip || createMixerMutation.isPending} data-testid="button-save-mixer-full">
                     {createMixerMutation.isPending ? "Adding..." : "Add Mixer"}
@@ -332,7 +334,7 @@ export default function MixerPage() {
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Section Tabs */}
-          <div className="border-b border-slate-800 bg-slate-950/30 px-6">
+          <div className="border-b border-slate-200 dark:border-slate-800 bg-white/30 dark:bg-slate-950/30 px-6">
             <div className="flex gap-1 py-2">
               {SECTION_TABS.map(tab => (
                 <button
@@ -341,8 +343,8 @@ export default function MixerPage() {
                   className={cn(
                     "px-4 py-2 rounded-md text-sm font-medium transition-colors",
                     activeSection === tab.key
-                      ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                      : "text-slate-400 hover:text-white hover:bg-slate-800"
+                      ? "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800"
                   )}
                   data-testid={`tab-section-${tab.key}`}
                 >
@@ -370,9 +372,9 @@ export default function MixerPage() {
 
             {/* Main Fader */}
             <div className="mt-6 max-w-2xl mx-auto">
-              <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-lg border border-slate-600">
+              <div className="flex items-center gap-4 p-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg border border-slate-300 dark:border-slate-600">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-cyan-400">MAIN LR</span>
+                  <span className="text-sm font-semibold text-cyan-600 dark:text-cyan-400">MAIN LR</span>
                   <Button
                     variant={mainMuted ? "destructive" : "outline"}
                     size="sm"
@@ -391,7 +393,7 @@ export default function MixerPage() {
                   className="flex-1"
                   data-testid="fader-main-full"
                 />
-                <span className="text-xs font-mono text-slate-400 w-16 text-right">
+                <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-16 text-right">
                   {faderToDb(mainFader)}
                 </span>
               </div>
@@ -402,21 +404,21 @@ export default function MixerPage() {
 
       {/* Edit Mixer Dialog */}
       <Dialog open={editMixerOpen} onOpenChange={(open) => { setEditMixerOpen(open); if (!open) setConfirmDelete(false); }}>
-        <DialogContent className="bg-slate-900 border-slate-700">
+        <DialogContent className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
           <DialogHeader><DialogTitle>Mixer Settings</DialogTitle></DialogHeader>
           {!confirmDelete ? (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="edit-mixer-name-full">Name</Label>
-                <Input id="edit-mixer-name-full" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="bg-slate-800 border-slate-600" data-testid="input-edit-mixer-name-full" />
+                <Input id="edit-mixer-name-full" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-edit-mixer-name-full" />
               </div>
               <div>
                 <Label htmlFor="edit-mixer-ip-full">IP Address</Label>
-                <Input id="edit-mixer-ip-full" value={editForm.ip} onChange={(e) => setEditForm({ ...editForm, ip: e.target.value })} className="bg-slate-800 border-slate-600" data-testid="input-edit-mixer-ip-full" />
+                <Input id="edit-mixer-ip-full" value={editForm.ip} onChange={(e) => setEditForm({ ...editForm, ip: e.target.value })} className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-edit-mixer-ip-full" />
               </div>
               <div>
                 <Label htmlFor="edit-mixer-port-full">Port</Label>
-                <Input id="edit-mixer-port-full" type="number" value={editForm.port} onChange={(e) => setEditForm({ ...editForm, port: parseInt(e.target.value) || 10023 })} className="bg-slate-800 border-slate-600" data-testid="input-edit-mixer-port-full" />
+                <Input id="edit-mixer-port-full" type="number" value={editForm.port} onChange={(e) => setEditForm({ ...editForm, port: parseInt(e.target.value) || 10023 })} className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-edit-mixer-port-full" />
               </div>
               <div className="flex gap-2">
                 <Button className="flex-1" onClick={() => mixer && updateMixerMutation.mutate({ id: mixer.id, updates: editForm })} disabled={!editForm.ip || updateMixerMutation.isPending} data-testid="button-save-mixer-edit-full">
@@ -432,8 +434,8 @@ export default function MixerPage() {
               <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-red-500 flex-shrink-0" />
                 <div>
-                  <p className="text-white font-medium">Delete {mixer?.name}?</p>
-                  <p className="text-sm text-slate-400">This will remove the mixer and disconnect.</p>
+                  <p className="text-slate-900 dark:text-white font-medium">Delete {mixer?.name}?</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">This will remove the mixer and disconnect.</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -475,12 +477,12 @@ function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteT
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-800/50 border border-slate-700 w-[72px]",
+        "flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700 w-[72px]",
         muted && "opacity-60"
       )}
       data-testid={`mixer-strip-${channel}`}
     >
-      <span className="text-[10px] text-slate-400 font-mono truncate w-full text-center" title={name}>
+      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate w-full text-center" title={name}>
         {name}
       </span>
 
@@ -496,7 +498,7 @@ function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteT
         />
       </div>
 
-      <span className="text-[10px] text-slate-500 font-mono">
+      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
         {faderToDb(localFader)}
       </span>
 
@@ -509,7 +511,7 @@ function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteT
         {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
       </Button>
 
-      <span className="text-xs font-bold text-slate-300">{channel}</span>
+      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
     </div>
   );
 }
