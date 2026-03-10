@@ -4,6 +4,7 @@ import { cameraApi, sceneButtonApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
 import { APP_VERSION } from "@shared/version";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import type { Camera, Preset, SceneButton } from "@shared/schema";
 
 interface AtemState {
@@ -108,6 +109,7 @@ function ZoomControl({ cameraId, ws }: { cameraId: number; ws: ReturnType<typeof
         className="w-14 h-10 rounded-t-lg bg-slate-800 border border-slate-700 text-white font-bold text-lg active:bg-cyan-700 touch-none select-none"
         onTouchStart={() => sendZoom(1)}
         onTouchEnd={stopZoom}
+        onTouchCancel={stopZoom}
         data-testid="mobile-zoom-in"
       >
         T
@@ -117,6 +119,7 @@ function ZoomControl({ cameraId, ws }: { cameraId: number; ws: ReturnType<typeof
         className="w-14 h-10 rounded-b-lg bg-slate-800 border border-slate-700 text-white font-bold text-lg active:bg-cyan-700 touch-none select-none"
         onTouchStart={() => sendZoom(-1)}
         onTouchEnd={stopZoom}
+        onTouchCancel={stopZoom}
         data-testid="mobile-zoom-out"
       >
         W
@@ -168,8 +171,15 @@ export default function MobilePage() {
   const executeScene = async (btn: SceneButton) => {
     try {
       const res = await fetch(`/api/scene-buttons/${btn.id}/execute`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed");
-    } catch {}
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.message || `Failed to execute "${btn.name}"`);
+        return;
+      }
+      toast.success(`${btn.name} executed`, { duration: 1500 });
+    } catch (err: any) {
+      toast.error(`Error: ${err.message || "Connection failed"}`);
+    }
   };
 
   const atemCut = () => ws.send({ type: "atem_cut" });
