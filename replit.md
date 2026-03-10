@@ -26,6 +26,7 @@ The frontend is a multi-page application with navigation tabs:
 - **Scenes** (`/scenes`): Full-page scene button management — create, edit, and execute programmable macro buttons that trigger combined ATEM, mixer, and PTZ actions
 - **Video Switcher** (`/switcher`): Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
 - **Audio Mixer** (`/mixer`): Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
+- **Mobile Companion** (`/mobile`): Touch-optimized mobile web view with 3 tabs (Camera, Scenes, Switcher) — camera selector with tally, touch joystick, zoom, presets, scene execution, ATEM program/preview/cut/auto
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5
