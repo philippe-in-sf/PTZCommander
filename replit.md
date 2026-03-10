@@ -85,6 +85,13 @@ The server handles:
 - Dashboard shows compact quick-access strip; Scenes page shows full management UI
 - Preset numbers use 0-based indexing (preset 1 = index 0) matching VISCA protocol
 
+### Versioning
+- Version defined in `shared/version.ts` as `APP_VERSION`
+- Displayed in the header of all pages (under the PTZCOMMAND logo)
+- Available via API at `GET /api/version`
+- Shown in server startup log
+- **On every deploy**: bump the version in `shared/version.ts` and add a changelog entry to `CHANGELOG.md`
+
 ### Startup Scripts
 - `start.bat` — Windows startup script (double-click to launch)
 - `start.sh` — Mac/Linux startup script (`./start.sh`)

@@ -10,6 +10,7 @@ import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { CameraPreview } from "@/components/ptz/camera-preview";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
+import { APP_VERSION } from "@shared/version";
 import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi } from "@/lib/api";
@@ -172,9 +173,12 @@ export default function Dashboard() {
           <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
             <Video className="text-white w-4 h-4" />
           </div>
-          <h1 className="font-bold tracking-tight text-lg">
-            PTZ<span className="text-cyan-500 font-light">COMMAND</span>
-          </h1>
+          <div>
+            <h1 className="font-bold tracking-tight text-lg leading-none">
+              PTZ<span className="text-cyan-500 font-light">COMMAND</span>
+            </h1>
+            <span className="text-[9px] font-mono text-slate-600 tracking-wider" data-testid="text-version">v{APP_VERSION}</span>
+          </div>
 
           <nav className="flex items-center gap-1 ml-6">
             <button className="px-3 py-1.5 rounded text-sm font-medium text-white bg-slate-800 border border-slate-700" data-testid="nav-dashboard">
