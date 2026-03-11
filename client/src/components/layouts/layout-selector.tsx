@@ -142,7 +142,7 @@ export function LayoutSelector() {
                       "rounded-lg border p-3 transition-all",
                       isActive
                         ? "border-cyan-500 dark:border-cyan-600 bg-cyan-50/50 dark:bg-cyan-950/20"
-                        : "border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 hover:border-slate-400 dark:hover:border-slate-700"
+                        : "border-slate-300 dark:border-slate-800 bg-slate-200/50 dark:bg-slate-900/50 hover:border-slate-400 dark:hover:border-slate-700"
                     )}
                     data-testid={`layout-item-${layout.id}`}
                   >

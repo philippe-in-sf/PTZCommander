@@ -155,7 +155,7 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
 
 export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval = 2000 }: CameraPreviewProps) {
   return (
-    <div className="bg-white/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
+    <div className="bg-slate-200/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
       <h3 className="text-xs font-mono uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-3 flex items-center gap-2">
         <Video className="w-3 h-3" /> Camera Preview
       </h3>

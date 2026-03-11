@@ -235,7 +235,7 @@ export default function MixerPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
       {/* Top Bar */}
-      <header className="h-14 border-b border-border bg-white/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-slate-200/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -308,7 +308,7 @@ export default function MixerPage() {
                   <Plus className="h-4 w-4 mr-2" /> Add Mixer
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+              <DialogContent className="bg-slate-200 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                 <DialogHeader><DialogTitle>Add X32 Mixer</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -334,7 +334,7 @@ export default function MixerPage() {
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Section Tabs */}
-          <div className="border-b border-slate-200 dark:border-slate-800 bg-white/30 dark:bg-slate-950/30 px-6">
+          <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-200/30 dark:bg-slate-950/30 px-6">
             <div className="flex gap-1 py-2">
               {SECTION_TABS.map(tab => (
                 <button
@@ -404,7 +404,7 @@ export default function MixerPage() {
 
       {/* Edit Mixer Dialog */}
       <Dialog open={editMixerOpen} onOpenChange={(open) => { setEditMixerOpen(open); if (!open) setConfirmDelete(false); }}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+        <DialogContent className="bg-slate-200 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
           <DialogHeader><DialogTitle>Mixer Settings</DialogTitle></DialogHeader>
           {!confirmDelete ? (
             <div className="space-y-4">

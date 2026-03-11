@@ -43,30 +43,30 @@
 :root {
   color-scheme: light;
 
-  --bg: hsl(210 20% 97%);
-  --fg: hsl(220 15% 15%);
+  --bg: hsl(215 25% 90%);
+  --fg: hsl(220 20% 18%);
 
-  --card-bg: hsl(0 0% 100%);
-  --card-fg: hsl(220 15% 15%);
+  --card-bg: hsl(215 20% 93%);
+  --card-fg: hsl(220 20% 18%);
 
-  --popover-bg: hsl(0 0% 100%);
-  --popover-fg: hsl(220 15% 15%);
+  --popover-bg: hsl(215 20% 93%);
+  --popover-fg: hsl(220 20% 18%);
 
-  --primary-bg: hsl(192 90% 40%);
+  --primary-bg: hsl(192 90% 38%);
   --primary-fg: hsl(0 0% 100%);
 
-  --secondary-bg: hsl(210 15% 93%);
-  --secondary-fg: hsl(220 15% 20%);
+  --secondary-bg: hsl(215 18% 86%);
+  --secondary-fg: hsl(220 15% 22%);
 
-  --muted-bg: hsl(210 15% 93%);
-  --muted-fg: hsl(220 10% 45%);
+  --muted-bg: hsl(215 18% 86%);
+  --muted-fg: hsl(220 10% 42%);
 
-  --accent-bg: hsl(192 90% 40%);
+  --accent-bg: hsl(192 90% 38%);
   --accent-fg: hsl(0 0% 100%);
 
-  --border-color: hsl(220 15% 85%);
-  --input-bg: hsl(210 15% 93%);
-  --ring-color: hsl(192 90% 40%);
+  --border-color: hsl(215 15% 78%);
+  --input-bg: hsl(215 18% 86%);
+  --ring-color: hsl(192 90% 38%);
 }
 
 .dark {
@@ -127,10 +127,10 @@ body {
 }
 
 .glass-panel {
-  background: rgba(240, 245, 250, 0.8);
+  background: rgba(210, 220, 235, 0.6);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(100, 120, 160, 0.15);
+  box-shadow: 0 4px 30px rgba(60, 80, 120, 0.08);
 }
 
 .dark .glass-panel {

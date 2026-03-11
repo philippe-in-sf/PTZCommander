@@ -218,7 +218,7 @@ export default function SwitcherPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-white/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-slate-200/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -290,7 +290,7 @@ export default function SwitcherPage() {
                   <Plus className="h-4 w-4 mr-2" /> Add ATEM Switcher
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+              <DialogContent className="bg-slate-200 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                 <DialogHeader><DialogTitle>Add ATEM Switcher</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -350,7 +350,7 @@ export default function SwitcherPage() {
       )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+        <DialogContent className="bg-slate-200 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
           <DialogHeader><DialogTitle>Switcher Settings</DialogTitle></DialogHeader>
           {switcher && (
             <div className="space-y-4">

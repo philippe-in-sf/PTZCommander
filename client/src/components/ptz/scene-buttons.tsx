@@ -174,7 +174,7 @@ export function SceneButtons() {
   };
 
   return (
-    <div className="bg-white/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
+    <div className="bg-slate-200/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-mono uppercase text-slate-400 dark:text-slate-500 tracking-widest flex items-center gap-2">
           <Zap className="w-3 h-3" /> Scene Buttons
@@ -215,7 +215,7 @@ export function SceneButtons() {
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 rounded p-1"
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-200/80 dark:bg-slate-900/80 rounded p-1"
                 data-testid={`button-scene-edit-${btn.id}`}
               >
                 <Settings className="w-3 h-3 text-slate-500 dark:text-slate-400" />

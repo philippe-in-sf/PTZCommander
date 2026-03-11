@@ -191,7 +191,7 @@ export default function MobilePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col" style={{ maxWidth: "100vw", overflow: "hidden" }}>
-      <header className="h-11 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex items-center justify-between px-3 shrink-0">
+      <header className="h-11 border-b border-slate-200 dark:border-slate-800 bg-slate-200 dark:bg-slate-950 flex items-center justify-between px-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
             <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
@@ -208,7 +208,7 @@ export default function MobilePage() {
         </div>
       </header>
 
-      <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-200/50 dark:bg-slate-950/50 shrink-0">
         {(["control", "scenes", "switcher"] as const).map(tab => (
           <button
             key={tab}

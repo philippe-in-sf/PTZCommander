@@ -180,7 +180,7 @@ export default function ScenesPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-white/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-slate-200/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -296,7 +296,7 @@ export default function ScenesPage() {
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-slate-900/80 rounded p-1.5"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-200/80 dark:bg-slate-900/80 rounded p-1.5"
                     data-testid={`button-scene-edit-${btn.id}`}
                   >
                     <Settings className="w-3.5 h-3.5 text-slate-400" />
