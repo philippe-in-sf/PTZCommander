@@ -81,18 +81,18 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
         ) : (
           <div className="w-full h-full bg-slate-300 dark:bg-slate-900 flex items-center justify-center">
             {hasStream && loading ? (
-              <div className="animate-pulse text-slate-400 dark:text-slate-600">
+              <div className="animate-pulse text-slate-600 dark:text-slate-600">
                 <Video className="w-8 h-8" />
               </div>
             ) : hasStream && error ? (
               <div className="text-center">
-                <VideoOff className="w-6 h-6 text-slate-400 dark:text-slate-700 mx-auto" />
-                <p className="text-[10px] text-slate-400 dark:text-slate-700 mt-1">No signal</p>
+                <VideoOff className="w-6 h-6 text-slate-600 dark:text-slate-700 mx-auto" />
+                <p className="text-[10px] text-slate-600 dark:text-slate-700 mt-1">No signal</p>
               </div>
             ) : (
               <div className="text-center">
-                <Camera className="w-6 h-6 text-slate-400 dark:text-slate-700 mx-auto" />
-                <p className="text-[10px] text-slate-400 dark:text-slate-700 mt-1">No stream URL</p>
+                <Camera className="w-6 h-6 text-slate-600 dark:text-slate-700 mx-auto" />
+                <p className="text-[10px] text-slate-600 dark:text-slate-700 mt-1">No stream URL</p>
               </div>
             )}
           </div>
@@ -155,8 +155,8 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
 
 export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval = 2000 }: CameraPreviewProps) {
   return (
-    <div className="bg-slate-400/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
-      <h3 className="text-xs font-mono uppercase text-slate-400 dark:text-slate-500 tracking-widest mb-3 flex items-center gap-2">
+    <div className="bg-slate-200/80 dark:bg-slate-900/30 border border-slate-400/50 dark:border-slate-800 rounded-xl p-4">
+      <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest mb-3 flex items-center gap-2 font-bold">
         <Video className="w-3 h-3" /> Camera Preview
       </h3>
       <div className={cn(

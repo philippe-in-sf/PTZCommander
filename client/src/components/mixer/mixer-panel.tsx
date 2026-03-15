@@ -212,7 +212,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   if (collapsed) {
     return (
       <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
-        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-400">
           <SlidersHorizontal className="h-4 w-4" />
           <span className="text-sm">Mixer</span>
         </div>
@@ -230,7 +230,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
 
         {mixer ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500 dark:text-slate-400">{mixer.name}</span>
+            <span className="text-sm text-slate-700 dark:text-slate-400">{mixer.name}</span>
             {mixer.status === "online" ? (
               <Wifi className="h-4 w-4 text-green-500" />
             ) : (
@@ -238,7 +238,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => connectMixerMutation.mutate(mixer.id)}
-                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                className="text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 data-testid="button-connect-mixer"
               >
                 <WifiOff className="h-4 w-4 mr-1" />
@@ -249,7 +249,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
               variant="ghost"
               size="sm"
               onClick={handleEditClick}
-              className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5"
+              className="text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5"
               data-testid="button-edit-mixer"
             >
               <Settings className="h-4 w-4" />
@@ -372,7 +372,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 <AlertTriangle className="h-6 w-6 text-red-500 flex-shrink-0" />
                 <div>
                   <p className="text-slate-900 dark:text-white font-medium">Delete {mixer?.name}?</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">This will remove the mixer configuration and disconnect it.</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-400">This will remove the mixer configuration and disconnect it.</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -400,7 +400,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
       </Dialog>
 
       {!mixer ? (
-        <div className="text-center py-8 text-slate-400 dark:text-slate-500">
+        <div className="text-center py-8 text-slate-700 dark:text-slate-500">
           <SlidersHorizontal className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No mixer configured</p>
           <p className="text-sm">Add your X32 to get started</p>
@@ -445,7 +445,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
               className="flex-1"
               data-testid="fader-main"
             />
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-12 text-right">
+            <span className="text-xs font-mono text-slate-700 dark:text-slate-400 w-12 text-right">
               {faderToDb(mainFader)}
             </span>
           </div>

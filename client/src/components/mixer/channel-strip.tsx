@@ -39,7 +39,7 @@ export function ChannelStrip({
       )}
       data-testid={`channel-strip-${channel}`}
     >
-      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate w-full text-center">
+      <span className="text-[10px] text-slate-700 dark:text-slate-400 font-mono truncate w-full text-center">
         {name}
       </span>
       
@@ -56,7 +56,7 @@ export function ChannelStrip({
         />
       </div>
 
-      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+      <span className="text-[10px] text-slate-600 dark:text-slate-500 font-mono">
         {dbValue}
       </span>
 

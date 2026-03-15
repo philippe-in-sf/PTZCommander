@@ -180,7 +180,7 @@ export default function Dashboard() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-500 dark:text-slate-400 font-mono">Initializing PTZ Command...</p>
+          <p className="text-slate-700 dark:text-slate-400 font-mono">Initializing PTZ Command...</p>
         </div>
       </div>
     );
@@ -282,7 +282,7 @@ export default function Dashboard() {
         {/* Camera Strip */}
         <section>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-500 tracking-widest">Camera Select</h2>
+            <h2 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest font-bold">Camera Select</h2>
             <Dialog open={addCameraOpen} onOpenChange={setAddCameraOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="text-xs" data-testid="button-add-camera">
@@ -347,7 +347,7 @@ export default function Dashboard() {
            
           {cameras.length === 0 ? (
             <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center">
-              <p className="text-slate-500 dark:text-slate-500 mb-4">No cameras configured</p>
+              <p className="text-slate-700 dark:text-slate-500 mb-4">No cameras configured</p>
               <Button onClick={() => setAddCameraOpen(true)} data-testid="button-add-first-camera">
                 <Plus className="w-4 h-4 mr-2" /> Add Your First Camera
               </Button>
@@ -399,7 +399,7 @@ export default function Dashboard() {
 
             <div className="lg:col-span-3 flex flex-col gap-4">
               <div className="bg-slate-100/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4 flex-1">
-                 <h3 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-500 tracking-widest mb-4">Optical Controls</h3>
+                 <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest mb-4 font-bold">Optical Controls</h3>
                  <LensControls 
                    onZoomChange={(v) => ws?.zoom(selectedId!, v / 50 - 1, 0.5)}
                    onFocusChange={(v) => console.log('Focus', v)}
@@ -407,15 +407,15 @@ export default function Dashboard() {
                  />
                  
                  <div className="mt-6 grid grid-cols-2 gap-2">
-                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-night-mode">
+                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-700 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-night-mode">
                       NIGHT MODE
                     </button>
-                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-osd-menu">
+                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-700 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-osd-menu">
                       OSD MENU
                     </button>
                     <button 
                       onClick={() => ws?.focusAuto(selectedId!)}
-                      className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors col-span-2"
+                      className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-700 dark:text-slate-400 text-xs font-bold transition-colors col-span-2"
                       data-testid="button-auto-focus"
                     >
                       AUTO FOCUS

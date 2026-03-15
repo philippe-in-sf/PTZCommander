@@ -28,7 +28,7 @@ export function ConnectionHealth() {
         className={cn(
           "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border transition-colors",
           totalDevices === 0
-            ? "bg-slate-300/60 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400"
+            ? "bg-slate-300/60 dark:bg-slate-800/60 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-400"
             : onlineDevices === totalDevices
               ? "bg-emerald-100/50 dark:bg-emerald-950/30 border-emerald-300/50 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-500"
               : onlineDevices > 0
@@ -51,14 +51,14 @@ export function ConnectionHealth() {
 
           <div className="space-y-4">
             {(!health || totalDevices === 0) && (
-              <div className="text-center py-8 text-slate-400 dark:text-slate-600 text-sm">
+              <div className="text-center py-8 text-slate-600 dark:text-slate-600 text-sm">
                 No devices configured. Add cameras, a mixer, or a switcher to see their status.
               </div>
             )}
 
             {health?.cameras?.length > 0 && (
               <div>
-                <h3 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
+                <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
                   <Camera className="w-3.5 h-3.5" /> Cameras
                 </h3>
                 <div className="space-y-1.5">
@@ -79,7 +79,7 @@ export function ConnectionHealth() {
 
             {health?.mixers?.length > 0 && (
               <div>
-                <h3 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
+                <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
                   <Music className="w-3.5 h-3.5" /> Audio Mixers
                 </h3>
                 <div className="space-y-1.5">
@@ -98,7 +98,7 @@ export function ConnectionHealth() {
 
             {health?.switchers?.length > 0 && (
               <div>
-                <h3 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
+                <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
                   <Tv className="w-3.5 h-3.5" /> Video Switchers
                 </h3>
                 <div className="space-y-1.5">
@@ -148,7 +148,7 @@ function DeviceRow({ name, ip, status, extra, extraColor, testId }: {
         )} />
         <div className="min-w-0">
           <div className="text-sm font-medium truncate">{name}</div>
-          <div className="text-[10px] text-slate-400 dark:text-slate-600 font-mono">{ip}</div>
+          <div className="text-[10px] text-slate-600 dark:text-slate-600 font-mono">{ip}</div>
         </div>
       </div>
 

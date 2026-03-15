@@ -110,7 +110,7 @@ export function CameraSelector({
                 )}
                 <span className={cn(
                   "text-[10px] font-mono uppercase tracking-wider",
-                  isSelected ? "text-cyan-500 font-bold" : "text-slate-400 dark:text-slate-500"
+                  isSelected ? "text-cyan-500 font-bold" : "text-slate-600 dark:text-slate-500"
                 )}>
                   {isSelected ? "SELECTED" : cam.status}
                 </span>
@@ -126,13 +126,13 @@ export function CameraSelector({
               <div className={cn(
                 "mb-auto p-2 rounded-md transition-colors",
                 isSelected ? "bg-cyan-500/10 text-cyan-400" : 
-                "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
+                "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-500"
               )}>
                 {isOnline ? <Camera className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
               </div>
 
               <div className="text-left z-10 w-full">
-                <div className="font-mono text-xs text-slate-400 dark:text-slate-500 mb-0.5">{cam.ip}:{cam.port || 52381}</div>
+                <div className="font-mono text-xs text-slate-600 dark:text-slate-500 mb-0.5">{cam.ip}:{cam.port || 52381}</div>
                 <div className={cn(
                   "font-bold text-lg leading-none tracking-tight",
                   isSelected ? "text-cyan-900 dark:text-cyan-100" : "text-slate-700 dark:text-slate-300"
@@ -239,7 +239,7 @@ export function CameraSelector({
               <p className="text-center text-slate-700 dark:text-slate-300">
                 Are you sure you want to delete <strong>{editingCamera?.name}</strong>?
               </p>
-              <p className="text-center text-sm text-slate-500 dark:text-slate-500">
+              <p className="text-center text-sm text-slate-700 dark:text-slate-500">
                 This will also delete all saved presets for this camera.
               </p>
               <div className="flex gap-2">
