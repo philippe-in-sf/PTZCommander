@@ -174,9 +174,9 @@ export function SceneButtons() {
   };
 
   return (
-    <div className="bg-slate-400/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
+    <div className="bg-slate-200/80 dark:bg-slate-900/30 border border-slate-400/50 dark:border-slate-800 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-xs font-mono uppercase text-slate-400 dark:text-slate-500 tracking-widest flex items-center gap-2">
+        <h3 className="text-xs font-mono uppercase text-slate-600 dark:text-slate-500 tracking-widest flex items-center gap-2">
           <Zap className="w-3 h-3" /> Scene Buttons
         </h3>
         <Button variant="outline" size="sm" className="text-xs h-7" onClick={openCreate} data-testid="button-add-scene">
@@ -185,7 +185,7 @@ export function SceneButtons() {
       </div>
 
       {sceneButtons.length === 0 ? (
-        <div className="text-center py-6 text-slate-400 dark:text-slate-600 text-sm">
+        <div className="text-center py-6 text-slate-500 dark:text-slate-600 text-sm">
           No scene buttons configured. Create one to trigger combined actions.
         </div>
       ) : (
@@ -203,7 +203,7 @@ export function SceneButtons() {
                   "border-2 flex flex-col items-center justify-center gap-0.5"
                 )}
                 style={{
-                  backgroundColor: isActive ? btn.color : `${btn.color}20`,
+                  backgroundColor: isActive ? btn.color : `${btn.color}25`,
                   borderColor: btn.color,
                   color: isActive ? '#000' : btn.color,
                   boxShadow: isActive ? `0 0 24px ${btn.color}60` : `0 0 12px ${btn.color}30`,
