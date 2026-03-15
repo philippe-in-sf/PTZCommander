@@ -100,6 +100,7 @@ if (useSqlite) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT,
+      notes TEXT,
       color TEXT NOT NULL DEFAULT '#06b6d4',
       steps TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),

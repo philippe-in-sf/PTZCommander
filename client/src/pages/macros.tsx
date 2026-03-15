@@ -288,6 +288,7 @@ export default function MacrosPage() {
 
   const [formName, setFormName] = useState("");
   const [formDescription, setFormDescription] = useState("");
+  const [formNotes, setFormNotes] = useState("");
   const [formColor, setFormColor] = useState("#06b6d4");
   const [formSteps, setFormSteps] = useState<MacroStep[]>([]);
 
@@ -346,6 +347,7 @@ export default function MacrosPage() {
     setEditingMacro(null);
     setFormName("");
     setFormDescription("");
+    setFormNotes("");
     setFormColor("#06b6d4");
     setFormSteps([]);
     setEditOpen(true);
@@ -355,6 +357,7 @@ export default function MacrosPage() {
     setEditingMacro(macro);
     setFormName(macro.name);
     setFormDescription(macro.description || "");
+    setFormNotes(macro.notes || "");
     setFormColor(macro.color);
     try {
       const parsed = JSON.parse(macro.steps);
@@ -369,6 +372,7 @@ export default function MacrosPage() {
     createMutation.mutate({
       name: `${macro.name} (copy)`,
       description: macro.description,
+      notes: macro.notes,
       color: macro.color,
       steps: macro.steps,
     });
@@ -414,12 +418,13 @@ export default function MacrosPage() {
     if (editingMacro) {
       updateMutation.mutate({
         id: editingMacro.id,
-        updates: { name: formName, description: formDescription || null, color: formColor, steps: stepsJson },
+        updates: { name: formName, description: formDescription || null, notes: formNotes || null, color: formColor, steps: stepsJson },
       });
     } else {
       createMutation.mutate({
         name: formName,
         description: formDescription || null,
+        notes: formNotes || null,
         color: formColor,
         steps: stepsJson,
       });
@@ -547,7 +552,13 @@ export default function MacrosPage() {
                     </div>
 
                     {macro.description && (
-                      <p className="text-xs text-muted-foreground mb-3">{macro.description}</p>
+                      <p className="text-xs text-muted-foreground mb-2" data-testid={`macro-description-${macro.id}`}>{macro.description}</p>
+                    )}
+
+                    {macro.notes && (
+                      <div className="mb-3 p-2 rounded-md bg-slate-400/20 dark:bg-slate-800/60 border border-slate-400/20 dark:border-slate-700/50">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap" data-testid={`macro-notes-${macro.id}`}>{macro.notes}</p>
+                      </div>
                     )}
 
                     <div className="space-y-1 mb-4 max-h-40 overflow-auto">
@@ -603,11 +614,23 @@ export default function MacrosPage() {
                 <Input
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="Optional description"
+                  placeholder="Short description"
                   className="bg-slate-200 dark:bg-slate-800 border-slate-400/30 dark:border-slate-700"
                   data-testid="input-macro-description"
                 />
               </div>
+            </div>
+
+            <div>
+              <Label className="text-xs uppercase text-slate-500 dark:text-slate-400">Notes</Label>
+              <textarea
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+                placeholder="Usage instructions, tips, or any details about this macro..."
+                rows={3}
+                className="w-full mt-1 rounded-md px-3 py-2 text-sm bg-slate-200 dark:bg-slate-800 border border-slate-400/30 dark:border-slate-700 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+                data-testid="input-macro-notes"
+              />
             </div>
 
             <div>

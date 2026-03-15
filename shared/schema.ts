@@ -78,6 +78,7 @@ export const macros = pgTable("macros", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  notes: text("notes"),
   color: text("color").notNull().default("#06b6d4"),
   steps: text("steps").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
