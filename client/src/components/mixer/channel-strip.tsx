@@ -34,7 +34,7 @@ export function ChannelStrip({
   return (
     <div 
       className={cn(
-        "flex flex-col items-center gap-2 p-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700",
+        "flex flex-col items-center gap-2 p-2 rounded-lg bg-slate-300/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700",
         muted && "opacity-60"
       )}
       data-testid={`channel-strip-${channel}`}

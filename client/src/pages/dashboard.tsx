@@ -169,7 +169,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-200/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
             <Video className="text-white w-4 h-4" />
@@ -182,21 +182,21 @@ export default function Dashboard() {
           </div>
 
           <nav className="flex items-center gap-1 ml-6">
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" data-testid="nav-dashboard">
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-dashboard">
               Dashboard
             </button>
             <Link href="/scenes">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
                 Scenes
               </button>
             </Link>
             <Link href="/switcher">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
                 Video Switcher
               </button>
             </Link>
             <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
                 Audio Mixer
               </button>
             </Link>
@@ -369,15 +369,15 @@ export default function Dashboard() {
                  />
                  
                  <div className="mt-6 grid grid-cols-2 gap-2">
-                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-200/50 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-night-mode">
+                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-night-mode">
                       NIGHT MODE
                     </button>
-                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-200/50 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-osd-menu">
+                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-osd-menu">
                       OSD MENU
                     </button>
                     <button 
                       onClick={() => ws?.focusAuto(selectedId!)}
-                      className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-200/50 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors col-span-2"
+                      className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-500 dark:text-slate-400 text-xs font-bold transition-colors col-span-2"
                       data-testid="button-auto-focus"
                     >
                       AUTO FOCUS

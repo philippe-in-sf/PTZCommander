@@ -174,7 +174,7 @@ export function SceneButtons() {
   };
 
   return (
-    <div className="bg-slate-200/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
+    <div className="bg-slate-400/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs font-mono uppercase text-slate-400 dark:text-slate-500 tracking-widest flex items-center gap-2">
           <Zap className="w-3 h-3" /> Scene Buttons
@@ -358,7 +358,7 @@ export function SceneButtons() {
               ) : (
                 <div className="space-y-3">
                   {formData.mixerActions.map((action, idx) => (
-                    <div key={idx} className="bg-slate-100/50 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
+                    <div key={idx} className="bg-slate-300/50 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Channel Action {idx + 1}</span>
                         <button onClick={() => removeMixerAction(idx)} className="text-red-500 hover:text-red-400">

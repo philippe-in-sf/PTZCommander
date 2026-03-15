@@ -99,7 +99,7 @@ export function LayoutSelector() {
           onClick={() => setManageOpen(true)}
           className={cn(
             "flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors",
-            "bg-slate-100/60 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+            "bg-slate-300/60 dark:bg-slate-800/60 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
           )}
           data-testid="button-layouts"
         >
@@ -142,7 +142,7 @@ export function LayoutSelector() {
                       "rounded-lg border p-3 transition-all",
                       isActive
                         ? "border-cyan-500 dark:border-cyan-600 bg-cyan-50/50 dark:bg-cyan-950/20"
-                        : "border-slate-300 dark:border-slate-800 bg-slate-200/50 dark:bg-slate-900/50 hover:border-slate-400 dark:hover:border-slate-700"
+                        : "border-slate-300 dark:border-slate-800 bg-slate-400/40 dark:bg-slate-900/50 hover:border-slate-400 dark:hover:border-slate-700"
                     )}
                     data-testid={`layout-item-${layout.id}`}
                   >

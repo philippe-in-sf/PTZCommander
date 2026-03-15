@@ -218,7 +218,7 @@ export default function SwitcherPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-200/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -236,20 +236,20 @@ export default function SwitcherPage() {
 
           <nav className="flex items-center gap-1 ml-6">
             <Link href="/">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
                 Dashboard
               </button>
             </Link>
             <Link href="/scenes">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
                 Scenes
               </button>
             </Link>
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" data-testid="nav-switcher">
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-switcher">
               Video Switcher
             </button>
             <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
                 Audio Mixer
               </button>
             </Link>
@@ -290,16 +290,16 @@ export default function SwitcherPage() {
                   <Plus className="h-4 w-4 mr-2" /> Add ATEM Switcher
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-slate-200 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+              <DialogContent className="bg-slate-300 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                 <DialogHeader><DialogTitle>Add ATEM Switcher</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="sw-name">Name</Label>
-                    <Input id="sw-name" value={newSwitcher.name} onChange={(e) => setNewSwitcher({ ...newSwitcher, name: e.target.value })} placeholder="ATEM Extreme" className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-switcher-name-full" />
+                    <Input id="sw-name" value={newSwitcher.name} onChange={(e) => setNewSwitcher({ ...newSwitcher, name: e.target.value })} placeholder="ATEM Extreme" className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-switcher-name-full" />
                   </div>
                   <div>
                     <Label htmlFor="sw-ip">IP Address</Label>
-                    <Input id="sw-ip" value={newSwitcher.ip} onChange={(e) => setNewSwitcher({ ...newSwitcher, ip: e.target.value })} placeholder="192.168.1.100" className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-switcher-ip-full" />
+                    <Input id="sw-ip" value={newSwitcher.ip} onChange={(e) => setNewSwitcher({ ...newSwitcher, ip: e.target.value })} placeholder="192.168.1.100" className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-switcher-ip-full" />
                   </div>
                   <Button className="w-full" onClick={() => createSwitcherMutation.mutate(newSwitcher)} disabled={!newSwitcher.ip || createSwitcherMutation.isPending} data-testid="button-save-switcher-full">
                     {createSwitcherMutation.isPending ? "Adding..." : "Add Switcher"}
@@ -350,7 +350,7 @@ export default function SwitcherPage() {
       )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="bg-slate-200 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+        <DialogContent className="bg-slate-300 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
           <DialogHeader><DialogTitle>Switcher Settings</DialogTitle></DialogHeader>
           {switcher && (
             <div className="space-y-4">
@@ -386,7 +386,7 @@ function MESection({ state, send, displayInputs, getInputLabel }: { state: AtemS
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="text-xs font-mono text-green-400 mb-3 tracking-widest">PREVIEW</div>
           <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-4 xl:grid-cols-5 gap-2">
             {displayInputs.map((input) => (
@@ -407,7 +407,7 @@ function MESection({ state, send, displayInputs, getInputLabel }: { state: AtemS
           </div>
         </div>
 
-        <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="text-xs font-mono text-red-400 mb-3 tracking-widest">PROGRAM</div>
           <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-4 xl:grid-cols-5 gap-2">
             {displayInputs.map((input) => (
@@ -460,7 +460,7 @@ function MESection({ state, send, displayInputs, getInputLabel }: { state: AtemS
         </Button>
       </div>
 
-      <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4">
+      <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4">
         <div className="text-xs font-mono text-slate-500 mb-2">STATUS</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
@@ -501,7 +501,7 @@ function TransitionSection({ state, send }: { state: AtemState; send: (msg: any)
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="text-xs font-mono text-purple-400 mb-4 tracking-widest">TRANSITION STYLE</div>
           <div className="grid grid-cols-5 gap-2">
             {TRANSITION_STYLES.map((style) => (
@@ -536,7 +536,7 @@ function TransitionSection({ state, send }: { state: AtemState; send: (msg: any)
           </div>
         </div>
 
-        <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="text-xs font-mono text-purple-400 mb-4 tracking-widest">TRANSITION RATE</div>
           <div className="flex items-center gap-4">
             <div className="text-3xl font-mono text-slate-900 dark:text-white font-bold min-w-[80px] text-center">
@@ -560,7 +560,7 @@ function TransitionSection({ state, send }: { state: AtemState; send: (msg: any)
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="text-xs font-mono text-purple-400 mb-4 tracking-widest">TRANSITION CONTROLS</div>
           <div className="flex gap-3">
             <Button
@@ -595,7 +595,7 @@ function TransitionSection({ state, send }: { state: AtemState; send: (msg: any)
           </div>
         </div>
 
-        <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="text-xs font-mono text-red-400 mb-4 tracking-widest">FADE TO BLACK</div>
           <Button
             variant="outline"
@@ -641,7 +641,7 @@ function TransitionSection({ state, send }: { state: AtemState; send: (msg: any)
 function USKSection({ state, send, getInputLabel }: { state: AtemState; send: (msg: any) => void; getInputLabel: (id: number) => string }) {
   if (state.upstreamKeyers.length === 0) {
     return (
-      <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+      <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
         <div className="text-slate-500 text-lg">No Upstream Keyers Available</div>
         <p className="text-slate-400 dark:text-slate-600 text-sm mt-2">Upstream keyers will appear when connected to an ATEM with keyer capability</p>
       </div>
@@ -651,7 +651,7 @@ function USKSection({ state, send, getInputLabel }: { state: AtemState; send: (m
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {state.upstreamKeyers.map((usk) => (
-        <div key={usk.index} className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div key={usk.index} className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs font-mono text-amber-400 tracking-widest">UPSTREAM KEY {usk.index + 1}</div>
             <Button
@@ -701,7 +701,7 @@ function USKSection({ state, send, getInputLabel }: { state: AtemState; send: (m
 function DSKSection({ state, send }: { state: AtemState; send: (msg: any) => void }) {
   if (state.downstreamKeyers.length === 0) {
     return (
-      <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+      <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
         <div className="text-slate-500 text-lg">No Downstream Keyers Available</div>
         <p className="text-slate-400 dark:text-slate-600 text-sm mt-2">Downstream keyers will appear when connected to an ATEM</p>
       </div>
@@ -711,7 +711,7 @@ function DSKSection({ state, send }: { state: AtemState; send: (msg: any) => voi
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {state.downstreamKeyers.map((dsk) => (
-        <div key={dsk.index} className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+        <div key={dsk.index} className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs font-mono text-cyan-400 tracking-widest">DSK {dsk.index + 1}</div>
             <div className="flex items-center gap-2">
@@ -789,7 +789,7 @@ function MacroSection({ state, send }: { state: AtemState; send: (msg: any) => v
 
   return (
     <div className="space-y-6">
-      <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
+      <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="text-xs font-mono text-emerald-400 tracking-widest">MACRO PLAYER</div>
           <div className="flex items-center gap-2">
@@ -830,7 +830,7 @@ function MacroSection({ state, send }: { state: AtemState; send: (msg: any) => v
       </div>
 
       {macros.length === 0 ? (
-        <div className="bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
+        <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-8 text-center">
           <div className="text-slate-500 text-lg">No Macros Available</div>
           <p className="text-slate-400 dark:text-slate-600 text-sm mt-2">Create macros on your ATEM to see them here</p>
         </div>

@@ -9,7 +9,7 @@ interface LensControlsProps {
 
 export function LensControls({ onZoomChange, onFocusChange, onSpeedChange }: LensControlsProps) {
   return (
-    <div className="grid grid-cols-1 gap-6 p-4 bg-slate-100/50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-800 rounded-xl">
+    <div className="grid grid-cols-1 gap-6 p-4 bg-slate-300/50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-800 rounded-xl">
       <div className="space-y-3">
         <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
           <label className="text-xs font-mono uppercase flex items-center gap-2">

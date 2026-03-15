@@ -211,7 +211,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
 
   if (collapsed) {
     return (
-      <div className="bg-slate-200/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
+      <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
         <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
           <SlidersHorizontal className="h-4 w-4" />
           <span className="text-sm">Mixer</span>
@@ -221,7 +221,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   }
 
   return (
-    <div className="bg-slate-200/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="mixer-panel">
+    <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="mixer-panel">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
@@ -424,7 +424,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
             })}
           </div>
 
-          <div className="flex items-center gap-4 p-3 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg border border-slate-300 dark:border-slate-600">
+          <div className="flex items-center gap-4 p-3 bg-slate-300/50 dark:bg-slate-800/50 rounded-lg border border-slate-300 dark:border-slate-600">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-cyan-500 dark:text-cyan-400">MAIN</span>
               <Button

@@ -140,7 +140,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
 
   if (collapsed) {
     return (
-      <div className="bg-slate-200/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
+      <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
         <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
           <MonitorPlay className="h-4 w-4" />
           <span className="text-sm">Switcher</span>
@@ -150,7 +150,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
   }
 
   return (
-    <div className="bg-slate-200/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="atem-panel">
+    <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="atem-panel">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <MonitorPlay className="h-5 w-5 text-purple-500 dark:text-purple-400" />

@@ -90,7 +90,7 @@ export function CameraSelector({
                   ? "bg-green-50/50 dark:bg-green-950/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.25)]"
                   : isSelected
                   ? "bg-cyan-50/50 dark:bg-cyan-950/20 border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
-                  : "bg-slate-200/50 dark:bg-slate-900/50 border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
+                  : "bg-slate-400/40 dark:bg-slate-900/50 border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
               )}
             >
               <button

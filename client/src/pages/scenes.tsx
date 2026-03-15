@@ -180,7 +180,7 @@ export default function ScenesPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-200/80 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
+      <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -198,20 +198,20 @@ export default function ScenesPage() {
 
           <nav className="flex items-center gap-1 ml-6">
             <Link href="/">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
                 Dashboard
               </button>
             </Link>
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700" data-testid="nav-scenes">
+            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-scenes">
               Scenes
             </button>
             <Link href="/switcher">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
                 Video Switcher
               </button>
             </Link>
             <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
                 Audio Mixer
               </button>
             </Link>
@@ -296,7 +296,7 @@ export default function ScenesPage() {
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-200/80 dark:bg-slate-900/80 rounded p-1.5"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-300/80 dark:bg-slate-900/80 rounded p-1.5"
                     data-testid={`button-scene-edit-${btn.id}`}
                   >
                     <Settings className="w-3.5 h-3.5 text-slate-400" />
@@ -440,7 +440,7 @@ export default function ScenesPage() {
               ) : (
                 <div className="space-y-3">
                   {formData.mixerActions.map((action, idx) => (
-                    <div key={idx} className="bg-slate-100 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
+                    <div key={idx} className="bg-slate-300 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Channel Action {idx + 1}</span>
                         <button onClick={() => removeMixerAction(idx)} className="text-red-500 hover:text-red-400">
