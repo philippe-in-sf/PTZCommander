@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, switchers, sceneButtons, layouts, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type AuditLog, type InsertAuditLog } from "@shared/schema";
+import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type AuditLog, type InsertAuditLog } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
@@ -51,6 +51,13 @@ export interface IStorage {
   deleteLayout(id: number): Promise<void>;
   setActiveLayout(id: number): Promise<void>;
   getActiveLayout(): Promise<Layout | undefined>;
+
+  // Macro operations
+  getAllMacros(): Promise<Macro[]>;
+  getMacro(id: number): Promise<Macro | undefined>;
+  createMacro(macro: InsertMacro): Promise<Macro>;
+  updateMacro(id: number, updates: Partial<Macro>): Promise<Macro | undefined>;
+  deleteMacro(id: number): Promise<void>;
 
   // Audit log operations
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -110,6 +117,18 @@ function sqliteRowToSwitcher(row: any): Switcher {
     type: row.type,
     status: row.status,
     createdAt: new Date(row.created_at),
+  };
+}
+
+function sqliteRowToMacro(row: any): Macro {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    steps: row.steps,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
   };
 }
 
@@ -676,6 +695,75 @@ export class DatabaseStorage implements IStorage {
     }
     const [layout] = await db.select().from(layouts).where(eq(layouts.isActive, true));
     return layout || undefined;
+  }
+
+  // Macro operations
+  async getAllMacros(): Promise<Macro[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM macros ORDER BY name').all();
+      return rows.map(sqliteRowToMacro);
+    }
+    return await db.select().from(macros).orderBy(macros.name);
+  }
+
+  async getMacro(id: number): Promise<Macro | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM macros WHERE id = ?').get(id);
+      return row ? sqliteRowToMacro(row) : undefined;
+    }
+    const [macro] = await db.select().from(macros).where(eq(macros.id, id));
+    return macro || undefined;
+  }
+
+  async createMacro(insert: InsertMacro): Promise<Macro> {
+    if (useSqlite && sqlite) {
+      const result = sqlite.prepare(`
+        INSERT INTO macros (name, description, color, steps, created_at, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).run(
+        insert.name,
+        insert.description || null,
+        insert.color || '#06b6d4',
+        insert.steps
+      );
+      return this.getMacro(Number(result.lastInsertRowid)) as Promise<Macro>;
+    }
+    const [macro] = await db.insert(macros).values(insert).returning();
+    return macro;
+  }
+
+  async updateMacro(id: number, updates: Partial<Macro>): Promise<Macro | undefined> {
+    if (useSqlite && sqlite) {
+      const setClauses: string[] = [];
+      const values: any[] = [];
+
+      if (updates.name !== undefined) { setClauses.push('name = ?'); values.push(updates.name); }
+      if (updates.description !== undefined) { setClauses.push('description = ?'); values.push(updates.description); }
+      if (updates.color !== undefined) { setClauses.push('color = ?'); values.push(updates.color); }
+      if (updates.steps !== undefined) { setClauses.push('steps = ?'); values.push(updates.steps); }
+
+      setClauses.push("updated_at = datetime('now')");
+
+      if (setClauses.length === 0) return this.getMacro(id);
+
+      values.push(id);
+      sqlite.prepare(`UPDATE macros SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+      return this.getMacro(id);
+    }
+    const [macro] = await db
+      .update(macros)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(macros.id, id))
+      .returning();
+    return macro || undefined;
+  }
+
+  async deleteMacro(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('DELETE FROM macros WHERE id = ?').run(id);
+      return;
+    }
+    await db.delete(macros).where(eq(macros.id, id));
   }
 
   // Audit log operations

@@ -245,6 +245,11 @@ export default function SwitcherPage() {
                 Scenes
               </button>
             </Link>
+            <Link href="/macros">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-macros">
+                Macros
+              </button>
+            </Link>
             <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-switcher">
               Video Switcher
             </button>

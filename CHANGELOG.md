@@ -2,6 +2,17 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.11.0] - 2026-03-15
+
+### Added
+- **Macro Builder** — dedicated page for creating, editing, and executing multi-step PTZ command sequences
+- New `/macros` page accessible from all navigation headers
+- Macro steps support: Recall Preset, Pan/Tilt, Pan/Tilt Stop, Zoom, Auto Focus, ATEM Preview/Program/Cut/Auto, and configurable Delays
+- Reorder steps with up/down arrows, duplicate macros, color-coded macro cards
+- One-click macro execution runs all steps in sequence with proper timing
+- Macro data persisted in database (PostgreSQL and SQLite)
+- "Macros" navigation tab added to all pages (Dashboard, Scenes, Switcher, Mixer)
+
 ## [0.10.0] - 2026-03-10
 
 ### Added

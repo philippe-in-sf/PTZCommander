@@ -24,6 +24,7 @@ Preferred communication style: Simple, everyday language.
 The frontend is a multi-page application with navigation tabs:
 - **Dashboard** (`/`): Scene buttons (quick access), ATEM/Mixer summary panels, camera preview grid (with live JPEG snapshots), camera selector strip, virtual joystick, preset grid, lens controls
 - **Scenes** (`/scenes`): Full-page scene button management — create, edit, and execute programmable macro buttons that trigger combined ATEM, mixer, and PTZ actions
+- **Macros** (`/macros`): Macro builder — create, edit, and execute multi-step PTZ command sequences (preset recall, pan/tilt, zoom, focus, ATEM transitions, configurable delays)
 - **Video Switcher** (`/switcher`): Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
 - **Audio Mixer** (`/mixer`): Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
 - **Mobile Companion** (`/mobile`): Touch-optimized mobile web view with 3 tabs (Camera, Scenes, Switcher) — camera selector with tally, touch joystick, zoom, presets, scene execution, ATEM program/preview/cut/auto
@@ -50,7 +51,7 @@ The server handles:
   - Automatically detects: Uses PostgreSQL when `DATABASE_URL` is set, otherwise falls back to SQLite
   - SQLite file stored at `data/ptzcommand.db` for portable local installations
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema**: Seven tables - `cameras`, `presets`, `mixers`, `switchers`, `scene_buttons`, `layouts`, and `audit_logs`
+- **Schema**: Eight tables - `cameras`, `presets`, `mixers`, `switchers`, `scene_buttons`, `layouts`, `macros`, and `audit_logs`
 - **Migrations**: Managed via `drizzle-kit push` (PostgreSQL) or auto-created (SQLite)
 
 ### Production Layouts

@@ -74,6 +74,16 @@ export const layouts = pgTable("layouts", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const macros = pgTable("macros", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").notNull().default("#06b6d4"),
+  steps: text("steps").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
@@ -123,6 +133,12 @@ export const insertLayoutSchema = createInsertSchema(layouts).omit({
   isActive: true,
 });
 
+export const insertMacroSchema = createInsertSchema(macros).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
 });
@@ -139,5 +155,7 @@ export type SceneButton = typeof sceneButtons.$inferSelect;
 export type InsertSceneButton = z.infer<typeof insertSceneButtonSchema>;
 export type Layout = typeof layouts.$inferSelect;
 export type InsertLayout = z.infer<typeof insertLayoutSchema>;
+export type Macro = typeof macros.$inferSelect;
+export type InsertMacro = z.infer<typeof insertMacroSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;

@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -274,6 +274,55 @@ export const sceneButtonApi = {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to execute scene button");
+    return res.json();
+  },
+};
+
+export const macroApi = {
+  getAll: async (): Promise<Macro[]> => {
+    const res = await fetch(`${API_BASE}/macros`);
+    if (!res.ok) throw new Error("Failed to fetch macros");
+    return res.json();
+  },
+
+  getOne: async (id: number): Promise<Macro> => {
+    const res = await fetch(`${API_BASE}/macros/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch macro");
+    return res.json();
+  },
+
+  create: async (macro: InsertMacro): Promise<Macro> => {
+    const res = await fetch(`${API_BASE}/macros`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(macro),
+    });
+    if (!res.ok) throw new Error("Failed to create macro");
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<Macro>): Promise<Macro> => {
+    const res = await fetch(`${API_BASE}/macros/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update macro");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/macros/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete macro");
+  },
+
+  execute: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/macros/${id}/execute`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to execute macro");
     return res.json();
   },
 };
