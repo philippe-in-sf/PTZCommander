@@ -11,6 +11,76 @@ import { APP_VERSION } from "@shared/version";
 import { fromError } from "zod-validation-error";
 import { readFileSync } from "fs";
 import { join } from "path";
+import http from "http";
+import https from "https";
+
+// ========== Undo History System ==========
+interface UndoAction {
+  type: string;
+  description: string;
+  timestamp: number;
+  undo: () => Promise<void>;
+}
+
+const undoStack: UndoAction[] = [];
+const MAX_UNDO = 50;
+
+function pushUndo(action: UndoAction) {
+  undoStack.push(action);
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+}
+
+// ========== Session Log System ==========
+interface SessionLogEntry {
+  id: number;
+  timestamp: number;
+  action: string;
+  details: string;
+  category: "camera" | "preset" | "scene" | "switcher" | "mixer" | "macro" | "layout" | "system";
+}
+
+let sessionLogId = 0;
+const sessionLog: SessionLogEntry[] = [];
+const MAX_SESSION_LOG = 500;
+let broadcastFn: ((msg: any) => void) | null = null;
+
+async function captureSnapshot(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const mod = url.startsWith("https") ? https : http;
+      const req = mod.get(url, { timeout: 3000 }, (res) => {
+        if (res.statusCode !== 200) { resolve(null); return; }
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => {
+          const buffer = Buffer.concat(chunks);
+          const base64 = `data:image/jpeg;base64,${buffer.toString("base64")}`;
+          resolve(base64);
+        });
+        res.on("error", () => resolve(null));
+      });
+      req.on("error", () => resolve(null));
+      req.on("timeout", () => { req.destroy(); resolve(null); });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function addSessionLog(category: SessionLogEntry["category"], action: string, details: string) {
+  const entry: SessionLogEntry = {
+    id: ++sessionLogId,
+    timestamp: Date.now(),
+    action,
+    details,
+    category,
+  };
+  sessionLog.push(entry);
+  if (sessionLog.length > MAX_SESSION_LOG) sessionLog.shift();
+  if (broadcastFn) {
+    broadcastFn({ type: "session_log", entry });
+  }
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -206,7 +276,18 @@ export async function registerRoutes(
         });
       }
 
-      const preset = await storage.savePreset(result.data);
+      // Try to capture thumbnail from camera stream
+      let thumbnailData = result.data.thumbnail || null;
+      if (!thumbnailData) {
+        try {
+          const camera = await storage.getCamera(result.data.cameraId);
+          if (camera?.streamUrl) {
+            thumbnailData = await captureSnapshot(camera.streamUrl);
+          }
+        } catch {}
+      }
+
+      const preset = await storage.savePreset({ ...result.data, thumbnail: thumbnailData });
       
       // Store on physical camera if connected
       const client = cameraManager.getClient(result.data.cameraId);
@@ -214,6 +295,7 @@ export async function registerRoutes(
         client.storePreset(result.data.presetNumber);
       }
       
+      addSessionLog("preset", "Store Preset", `Preset ${result.data.presetNumber + 1}${result.data.name ? ` (${result.data.name})` : ""} saved`);
       res.json(preset);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to save preset" });
@@ -225,7 +307,6 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       
-      // Get preset from database
       const cameras = await storage.getAllCameras();
       for (const cam of cameras) {
         const presets = await storage.getPresetsForCamera(cam.id);
@@ -234,7 +315,25 @@ export async function registerRoutes(
         if (preset) {
           const client = cameraManager.getClient(cam.id);
           if (client && client.isConnected()) {
+            // Track for undo — find previously active preset if any
+            const previousPreset = req.body?.previousPresetId;
+            if (previousPreset) {
+              pushUndo({
+                type: "preset_recall",
+                description: `Recall preset "${preset.name || preset.presetNumber + 1}" on ${cam.name}`,
+                timestamp: Date.now(),
+                undo: async () => {
+                  const prevP = presets.find(p => p.id === previousPreset);
+                  if (prevP) {
+                    const c = cameraManager.getClient(cam.id);
+                    if (c && c.isConnected()) c.recallPreset(prevP.presetNumber);
+                  }
+                },
+              });
+            }
+
             client.recallPreset(preset.presetNumber);
+            addSessionLog("preset", "Recall Preset", `Preset ${preset.presetNumber + 1}${preset.name ? ` (${preset.name})` : ""} on ${cam.name}`);
             return res.json({ success: true });
           }
         }
@@ -687,6 +786,13 @@ export async function registerRoutes(
       }
 
       logger.info("system", `Scene button executed: ${button.name}`, { action: "scene_button:execute", details: { buttonId: id, results } });
+      addSessionLog("scene", "Scene Execute", `Scene "${button.name}" executed`);
+      pushUndo({
+        type: "scene_execute",
+        description: `Execute scene "${button.name}"`,
+        timestamp: Date.now(),
+        undo: async () => {},
+      });
       res.json({ success: true, results });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to execute scene button" });
@@ -1038,9 +1144,151 @@ export async function registerRoutes(
         }
       }
 
+      addSessionLog("macro", "Macro Execute", `Macro "${macro.name}" executed (${steps.length} steps)`);
       res.json({ success: true, message: `Macro "${macro.name}" executed` });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to execute macro" });
+    }
+  });
+
+  // ========== Undo API ==========
+
+  app.get("/api/undo/status", (_req, res) => {
+    const last = undoStack.length > 0 ? undoStack[undoStack.length - 1] : null;
+    res.json({
+      canUndo: undoStack.length > 0,
+      count: undoStack.length,
+      lastAction: last ? { type: last.type, description: last.description, timestamp: last.timestamp } : null,
+    });
+  });
+
+  app.post("/api/undo", async (_req, res) => {
+    if (undoStack.length === 0) {
+      return res.status(400).json({ message: "Nothing to undo" });
+    }
+    const action = undoStack.pop()!;
+    try {
+      await action.undo();
+      addSessionLog("system", "Undo", `Undid: ${action.description}`);
+      logger.info("system", `Undo: ${action.description}`, { action: "undo" });
+      res.json({ success: true, message: `Undid: ${action.description}` });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to undo" });
+    }
+  });
+
+  // ========== Session Log API ==========
+
+  app.get("/api/session-log", (_req, res) => {
+    res.json(sessionLog);
+  });
+
+  app.delete("/api/session-log", (_req, res) => {
+    sessionLog.length = 0;
+    res.json({ success: true });
+  });
+
+  // ========== Connection Health API ==========
+
+  app.get("/api/health/devices", async (_req, res) => {
+    try {
+      const cameras = await storage.getAllCameras();
+      const mixers = await storage.getAllMixers();
+      const switchers = await storage.getAllSwitchers();
+
+      const cameraHealth = cameras.map(cam => {
+        const client = cameraManager.getClient(cam.id);
+        return {
+          type: "camera" as const,
+          id: cam.id,
+          name: cam.name,
+          ip: cam.ip,
+          port: cam.port,
+          status: client?.isConnected() ? "online" : "offline",
+          tallyState: cam.tallyState,
+        };
+      });
+
+      const mixerHealth = mixers.map(m => {
+        const client = x32Manager.getClient();
+        return {
+          type: "mixer" as const,
+          id: m.id,
+          name: m.name,
+          ip: m.ip,
+          port: m.port,
+          status: client?.isConnected() ? "online" : "offline",
+        };
+      });
+
+      const switcherHealth = switchers.map(s => {
+        const atemState = atemManager.getState();
+        return {
+          type: "switcher" as const,
+          id: s.id,
+          name: s.name,
+          ip: s.ip,
+          status: atemState?.connected ? "online" : "offline",
+        };
+      });
+
+      res.json({
+        cameras: cameraHealth,
+        mixers: mixerHealth,
+        switchers: switcherHealth,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get device health" });
+    }
+  });
+
+  // ========== Layout Export/Import ==========
+
+  app.get("/api/layouts/:id/export", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const layout = await storage.getLayout(id);
+      if (!layout) return res.status(404).json({ message: "Layout not found" });
+
+      const exportData = {
+        version: APP_VERSION,
+        exportedAt: new Date().toISOString(),
+        layout: {
+          name: layout.name,
+          description: layout.description,
+          color: layout.color,
+          snapshot: layout.snapshot,
+        },
+      };
+
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Disposition", `attachment; filename="layout-${layout.name.replace(/[^a-z0-9]/gi, '_')}.json"`);
+      res.json(exportData);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to export layout" });
+    }
+  });
+
+  app.post("/api/layouts/import", async (req, res) => {
+    try {
+      const { layout: importedLayout } = req.body;
+      if (!importedLayout || !importedLayout.name || !importedLayout.snapshot) {
+        return res.status(400).json({ message: "Invalid layout file — missing name or snapshot data" });
+      }
+
+      const created = await storage.createLayout({
+        name: importedLayout.name,
+        description: importedLayout.description || null,
+        color: importedLayout.color || "#06b6d4",
+        snapshot: typeof importedLayout.snapshot === "string" ? importedLayout.snapshot : JSON.stringify(importedLayout.snapshot),
+      });
+
+      addSessionLog("layout", "Import", `Imported layout: ${created.name}`);
+      logger.info("system", `Layout imported: ${created.name}`, { action: "layout:import" });
+      res.status(201).json(created);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to import layout" });
     }
   });
 
@@ -1072,7 +1320,6 @@ export async function registerRoutes(
   
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
-  // Helper to broadcast to all connected clients
   function broadcast(message: any) {
     const data = JSON.stringify(message);
     wss.clients.forEach((client) => {
@@ -1081,6 +1328,8 @@ export async function registerRoutes(
       }
     });
   }
+
+  broadcastFn = broadcast;
 
   // Wire X32 state changes to broadcast to all clients
   // This is set on the manager so it persists across connect/disconnect cycles
@@ -1275,6 +1524,7 @@ export async function registerRoutes(
             const atemCutClient = atemManager.getClient();
             if (atemCutClient && atemCutClient.isConnected()) {
               atemCutClient.cut();
+              addSessionLog("switcher", "ATEM Cut", "Cut transition executed");
             }
             break;
 
@@ -1282,6 +1532,7 @@ export async function registerRoutes(
             const atemAutoClient = atemManager.getClient();
             if (atemAutoClient && atemAutoClient.isConnected()) {
               atemAutoClient.autoTransition();
+              addSessionLog("switcher", "ATEM Auto", "Auto transition executed");
             }
             break;
 
@@ -1289,6 +1540,7 @@ export async function registerRoutes(
             const atemPgmClient = atemManager.getClient();
             if (atemPgmClient && atemPgmClient.isConnected()) {
               atemPgmClient.setProgramInput(message.inputId);
+              addSessionLog("switcher", "ATEM Program", `Program input set to ${message.inputId}`);
             }
             break;
 
@@ -1296,6 +1548,7 @@ export async function registerRoutes(
             const atemPvwClient = atemManager.getClient();
             if (atemPvwClient && atemPvwClient.isConnected()) {
               atemPvwClient.setPreviewInput(message.inputId);
+              addSessionLog("switcher", "ATEM Preview", `Preview input set to ${message.inputId}`);
             }
             break;
 

@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FolderOpen, Save, Trash2, Upload, RefreshCw, Plus, Layout } from "lucide-react";
+import { FolderOpen, Save, Trash2, Upload, RefreshCw, Plus, Layout, Download, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Layout as LayoutType } from "@shared/schema";
+import { useRef } from "react";
 
 const COLORS = [
   "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
@@ -22,6 +23,7 @@ export function LayoutSelector() {
   const [saveName, setSaveName] = useState("");
   const [saveDescription, setSaveDescription] = useState("");
   const [saveColor, setSaveColor] = useState("#06b6d4");
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const { data: allLayouts = [] } = useQuery({
     queryKey: ["layouts"],
@@ -193,6 +195,18 @@ export function LayoutSelector() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-7 w-7 p-0 text-slate-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                          onClick={() => {
+                            layoutApi.exportLayout(layout.id);
+                            toast.success(`Exported "${layout.name}"`);
+                          }}
+                          data-testid={`button-export-layout-${layout.id}`}
+                        >
+                          <Download className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-7 w-7 p-0 text-red-500 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                           onClick={() => deleteMutation.mutate(layout.id)}
                           data-testid={`button-delete-layout-${layout.id}`}
@@ -207,13 +221,42 @@ export function LayoutSelector() {
             )}
           </div>
 
-          <Button
-            className="w-full gap-2"
-            onClick={() => { setSaveOpen(true); setManageOpen(false); }}
-            data-testid="button-save-layout"
-          >
-            <Save className="w-4 h-4" /> Save Current Setup as Layout
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="flex-1 gap-2"
+              onClick={() => { setSaveOpen(true); setManageOpen(false); }}
+              data-testid="button-save-layout"
+            >
+              <Save className="w-4 h-4" /> Save Current Setup
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => importInputRef.current?.click()}
+              data-testid="button-import-layout"
+            >
+              <FileUp className="w-4 h-4" /> Import
+            </Button>
+          </div>
+
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                const layout = await layoutApi.importLayout(file);
+                queryClient.invalidateQueries({ queryKey: ["layouts"] });
+                toast.success(`Layout "${layout.name}" imported`);
+              } catch (err: any) {
+                toast.error(err.message || "Failed to import layout");
+              }
+              e.target.value = "";
+            }}
+          />
         </DialogContent>
       </Dialog>
 

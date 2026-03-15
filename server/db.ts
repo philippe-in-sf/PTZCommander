@@ -47,6 +47,7 @@ if (useSqlite) {
       camera_id INTEGER NOT NULL REFERENCES cameras(id) ON DELETE CASCADE,
       preset_number INTEGER NOT NULL,
       name TEXT,
+      thumbnail TEXT,
       pan INTEGER,
       tilt INTEGER,
       zoom INTEGER,

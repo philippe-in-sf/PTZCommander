@@ -327,6 +327,38 @@ export const macroApi = {
   },
 };
 
+export const undoApi = {
+  getStatus: async (): Promise<{ canUndo: boolean; count: number; lastAction: any }> => {
+    const res = await fetch(`${API_BASE}/undo/status`);
+    if (!res.ok) throw new Error("Failed to get undo status");
+    return res.json();
+  },
+  undo: async (): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/undo`, { method: "POST" });
+    if (!res.ok) throw new Error("Failed to undo");
+    return res.json();
+  },
+};
+
+export const sessionLogApi = {
+  getAll: async (): Promise<any[]> => {
+    const res = await fetch(`${API_BASE}/session-log`);
+    if (!res.ok) throw new Error("Failed to get session log");
+    return res.json();
+  },
+  clear: async (): Promise<void> => {
+    await fetch(`${API_BASE}/session-log`, { method: "DELETE" });
+  },
+};
+
+export const healthApi = {
+  getDevices: async (): Promise<any> => {
+    const res = await fetch(`${API_BASE}/health/devices`);
+    if (!res.ok) throw new Error("Failed to get device health");
+    return res.json();
+  },
+};
+
 export const layoutApi = {
   getAll: async (): Promise<Layout[]> => {
     const res = await fetch(`${API_BASE}/layouts`);
@@ -387,5 +419,30 @@ export const layoutApi = {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete layout");
+  },
+
+  exportLayout: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}/export`);
+    if (!res.ok) throw new Error("Failed to export layout");
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `layout-${data.layout.name.replace(/[^a-z0-9]/gi, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  importLayout: async (file: File): Promise<Layout> => {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const res = await fetch(`${API_BASE}/layouts/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parsed),
+    });
+    if (!res.ok) throw new Error("Failed to import layout");
+    return res.json();
   },
 };

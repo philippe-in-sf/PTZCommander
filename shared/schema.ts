@@ -25,6 +25,7 @@ export const presets = pgTable("presets", {
   cameraId: integer("camera_id").notNull().references(() => cameras.id, { onDelete: "cascade" }),
   presetNumber: integer("preset_number").notNull(),
   name: text("name"),
+  thumbnail: text("thumbnail"),
   pan: integer("pan"),
   tilt: integer("tilt"),
   zoom: integer("zoom"),

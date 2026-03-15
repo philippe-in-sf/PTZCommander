@@ -2,6 +2,16 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.12.0] - 2026-03-15
+
+### Added
+- **Undo / History** — undo button appears in the dashboard header when actions can be reversed (preset recalls, scene executions)
+- **Session Log** — real-time timestamped feed of all actions taken during the current session (preset recalls, scene executions, ATEM transitions, macro runs), accessible from the header; updates live via WebSocket
+- **Preset Thumbnails** — when saving a preset, the camera's current snapshot is captured and shown as a background image on the preset button
+- **Import / Export Layouts** — export any saved production layout as a JSON file, and import layout files to restore configurations; download and upload buttons in the Layout Manager
+- **Connection Health Dashboard** — device status panel showing all cameras, mixers, and switchers with live online/offline indicators, IP addresses, and tally state; accessible from the header
+- Notes field added to macros for usage instructions and free-text details
+
 ## [0.11.0] - 2026-03-15
 
 ### Added

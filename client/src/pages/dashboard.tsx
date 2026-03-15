@@ -9,12 +9,14 @@ import { AtemPanel } from "@/components/switcher/atem-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { CameraPreview } from "@/components/ptz/camera-preview";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { SessionLog } from "@/components/logs/session-log";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
+import { ConnectionHealth } from "@/components/ptz/connection-health";
 import { ChangelogDialog } from "@/components/changelog-dialog";
-import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal } from "lucide-react";
+import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal, Undo2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { cameraApi, presetApi } from "@/lib/api";
+import { cameraApi, presetApi, undoApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -49,6 +51,23 @@ export default function Dashboard() {
       setSelectedId(cameras[0].id);
     }
   }, [cameras, selectedId]);
+
+  const { data: undoStatus } = useQuery({
+    queryKey: ["undo-status"],
+    queryFn: undoApi.getStatus,
+    refetchInterval: 3000,
+  });
+
+  const undoMutation = useMutation({
+    mutationFn: undoApi.undo,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["undo-status"] });
+      queryClient.invalidateQueries({ queryKey: ["cameras"] });
+      queryClient.invalidateQueries({ queryKey: ["presets"] });
+      toast.success(data.message);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const createCameraMutation = useMutation({
     mutationFn: cameraApi.create,
@@ -216,6 +235,20 @@ export default function Dashboard() {
             {ws ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {ws ? "SYSTEM ONLINE" : "DISCONNECTED"}
           </div>
+          {undoStatus?.canUndo && (
+            <button
+              onClick={() => undoMutation.mutate()}
+              disabled={undoMutation.isPending}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium bg-amber-100/50 dark:bg-amber-950/30 border border-amber-300/50 dark:border-amber-900/50 text-amber-600 dark:text-amber-500 hover:bg-amber-200/50 dark:hover:bg-amber-900/40 transition-colors"
+              title={undoStatus.lastAction?.description || "Undo last action"}
+              data-testid="button-undo"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              Undo
+            </button>
+          )}
+          <ConnectionHealth />
+          <SessionLog />
           <ThemeToggle />
           <LayoutSelector />
           <LogViewer />

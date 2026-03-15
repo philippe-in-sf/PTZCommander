@@ -61,13 +61,14 @@ export function PresetGrid({ presets, onRecall, onStore }: PresetGridProps) {
         {Array.from({ length: 16 }, (_, i) => {
           const hasData = hasPreset(i);
           const preset = presets.find(p => p.presetNumber === i);
+          const thumbnail = preset?.thumbnail;
           
           return (
             <button
               key={i}
               onClick={() => handlePress(i)}
               className={cn(
-                "relative group rounded-md border text-sm font-mono font-bold transition-all duration-100 flex flex-col items-center justify-center",
+                "relative group rounded-md border text-sm font-mono font-bold transition-all duration-100 flex flex-col items-center justify-center overflow-hidden",
                 mode === 'store'
                   ? "border-red-300 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 hover:border-red-400 dark:hover:border-red-500/50"
                   : hasData
@@ -76,13 +77,19 @@ export function PresetGrid({ presets, onRecall, onStore }: PresetGridProps) {
               )}
               data-testid={`button-preset-${i}`}
             >
-              <span className="text-lg">{i + 1}</span>
+              {thumbnail && mode !== 'store' && (
+                <div
+                  className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition-opacity"
+                  style={{ backgroundImage: `url(${thumbnail})` }}
+                />
+              )}
+              <span className="text-lg relative z-10 drop-shadow-sm">{i + 1}</span>
               {preset?.name && (
-                <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 truncate max-w-full px-1">
+                <span className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 truncate max-w-full px-1 relative z-10">
                   {preset.name}
                 </span>
               )}
-              {hasData && (
+              {hasData && !thumbnail && (
                 <div className="absolute bottom-1 w-1 h-1 rounded-full bg-cyan-500" />
               )}
             </button>
