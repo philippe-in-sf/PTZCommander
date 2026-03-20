@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Play, GripVertical, Video, Clock, Camera, Monitor, ArrowUpDown, ZoomIn, Focus, Clapperboard, ChevronUp, ChevronDown, Copy, Pencil } from "lucide-react";
+import { Plus, Trash2, Play, GripVertical, Video, Clock, Camera, Monitor, ArrowUpDown, ZoomIn, Focus, Clapperboard, ChevronUp, ChevronDown, Copy, Pencil, Lightbulb } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { toast } from "sonner";
@@ -27,6 +27,13 @@ interface MacroStep {
   direction?: number;
   duration?: number;
   inputId?: number;
+  bridgeId?: number;
+  sceneId?: string;
+  groupId?: string;
+  lightId?: string;
+  on?: boolean;
+  brightness?: number;
+  colorTemp?: number;
 }
 
 const STEP_TYPES = [
@@ -40,6 +47,9 @@ const STEP_TYPES = [
   { value: "atem_cut", label: "Cut Transition", icon: Clapperboard, category: "ATEM" },
   { value: "atem_auto", label: "Auto Transition", icon: Clapperboard, category: "ATEM" },
   { value: "delay", label: "Delay / Wait", icon: Clock, category: "Timing" },
+  { value: "hue_scene", label: "Activate Hue Scene", icon: Lightbulb, category: "Lighting" },
+  { value: "hue_group", label: "Control Room/Zone", icon: Lightbulb, category: "Lighting" },
+  { value: "hue_light", label: "Control Light", icon: Lightbulb, category: "Lighting" },
 ];
 
 const COLORS = [
@@ -49,6 +59,149 @@ const COLORS = [
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9);
+}
+
+interface HueBridgeInfo { id: number; name: string; status: string; }
+interface HueSceneInfo { id: string; name: string; group?: string; }
+interface HueGroupInfo { id: string; name: string; }
+interface HueLightInfo { id: string; name: string; }
+
+function HueStepEditor({ step, onChange }: { step: MacroStep; onChange: (s: MacroStep) => void }) {
+  const { data: bridges = [] } = useQuery<HueBridgeInfo[]>({ queryKey: ["/api/hue/bridges"] });
+  const bridgeId = step.bridgeId;
+  const { data: scenes = [] } = useQuery<HueSceneInfo[]>({
+    queryKey: [`/api/hue/bridges/${bridgeId}/scenes`],
+    enabled: !!bridgeId && step.type === "hue_scene",
+  });
+  const { data: groups = [] } = useQuery<HueGroupInfo[]>({
+    queryKey: [`/api/hue/bridges/${bridgeId}/groups`],
+    enabled: !!bridgeId && (step.type === "hue_group" || step.type === "hue_scene"),
+  });
+  const { data: lights = [] } = useQuery<HueLightInfo[]>({
+    queryKey: [`/api/hue/bridges/${bridgeId}/lights`],
+    enabled: !!bridgeId && step.type === "hue_light",
+  });
+
+  return (
+    <div className="space-y-2 w-full">
+      <div className="flex items-center gap-2">
+        <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Bridge</Label>
+        <Select
+          value={step.bridgeId?.toString() || ""}
+          onValueChange={(v) => onChange({ ...step, bridgeId: parseInt(v), sceneId: undefined, groupId: undefined, lightId: undefined })}
+        >
+          <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-40">
+            <SelectValue placeholder="Select bridge" />
+          </SelectTrigger>
+          <SelectContent>
+            {bridges.map(b => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {step.type === "hue_scene" && bridgeId && (
+        <>
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Scene</Label>
+            <Select value={step.sceneId || ""} onValueChange={(v) => onChange({ ...step, sceneId: v })}>
+              <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-40">
+                <SelectValue placeholder="Select scene" />
+              </SelectTrigger>
+              <SelectContent>
+                {scenes.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Room</Label>
+            <Select value={step.groupId || "_all"} onValueChange={(v) => onChange({ ...step, groupId: v === "_all" ? undefined : v })}>
+              <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-40">
+                <SelectValue placeholder="All lights" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">All lights</SelectItem>
+                {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
+
+      {step.type === "hue_group" && bridgeId && (
+        <>
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Room</Label>
+            <Select value={step.groupId || ""} onValueChange={(v) => onChange({ ...step, groupId: v })}>
+              <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-40">
+                <SelectValue placeholder="Select room" />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-10 shrink-0">Power</Label>
+              <Select value={step.on === undefined ? "_unchanged" : step.on ? "on" : "off"} onValueChange={(v) => onChange({ ...step, on: v === "_unchanged" ? undefined : v === "on" })}>
+                <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_unchanged">Unchanged</SelectItem>
+                  <SelectItem value="on">On</SelectItem>
+                  <SelectItem value="off">Off</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-16 shrink-0">Brightness</Label>
+              <Input type="number" min={1} max={254} value={step.brightness ?? ""} placeholder="1–254"
+                onChange={(e) => onChange({ ...step, brightness: e.target.value ? parseInt(e.target.value) : undefined })}
+                className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-20" />
+            </div>
+          </div>
+        </>
+      )}
+
+      {step.type === "hue_light" && bridgeId && (
+        <>
+          <div className="flex items-center gap-2">
+            <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Light</Label>
+            <Select value={step.lightId || ""} onValueChange={(v) => onChange({ ...step, lightId: v })}>
+              <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-40">
+                <SelectValue placeholder="Select light" />
+              </SelectTrigger>
+              <SelectContent>
+                {lights.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-10 shrink-0">Power</Label>
+              <Select value={step.on === undefined ? "_unchanged" : step.on ? "on" : "off"} onValueChange={(v) => onChange({ ...step, on: v === "_unchanged" ? undefined : v === "on" })}>
+                <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_unchanged">Unchanged</SelectItem>
+                  <SelectItem value="on">On</SelectItem>
+                  <SelectItem value="off">Off</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-16 shrink-0">Brightness</Label>
+              <Input type="number" min={1} max={254} value={step.brightness ?? ""} placeholder="1–254"
+                onChange={(e) => onChange({ ...step, brightness: e.target.value ? parseInt(e.target.value) : undefined })}
+                className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-20" />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function StepEditor({ step, cameras, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast }: {
@@ -249,6 +402,10 @@ function StepEditor({ step, cameras, onChange, onRemove, onMoveUp, onMoveDown, i
             <span className="text-[10px] text-slate-500 dark:text-slate-400">ms</span>
           </div>
         )}
+
+        {(step.type === "hue_scene" || step.type === "hue_group" || step.type === "hue_light") && (
+          <HueStepEditor step={step} onChange={onChange} />
+        )}
       </div>
 
       <button
@@ -276,6 +433,9 @@ function stepSummary(step: MacroStep, cameras: CameraType[]): string {
     case "atem_cut": return "Cut Transition";
     case "atem_auto": return "Auto Transition";
     case "delay": return `Wait ${step.duration || 1000}ms`;
+    case "hue_scene": return `Hue Scene${step.sceneId ? ` (${step.sceneId.slice(0, 8)})` : ""}`;
+    case "hue_group": return `Room ${step.groupId || "?"} ${step.on !== undefined ? (step.on ? "→ On" : "→ Off") : ""}`;
+    case "hue_light": return `Light ${step.lightId || "?"} ${step.on !== undefined ? (step.on ? "→ On" : "→ Off") : ""}`;
     default: return step.type;
   }
 }
@@ -476,6 +636,11 @@ export default function MacrosPage() {
             <Link href="/mixer">
               <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
                 Audio Mixer
+              </button>
+            </Link>
+            <Link href="/lighting">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-lighting">
+                Lighting
               </button>
             </Link>
           </nav>

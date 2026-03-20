@@ -2,6 +2,18 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.13.0] - 2026-03-20
+
+### Added
+- **Philips Hue Lighting Control** — new Lighting page (accessible from all navigation headers) for managing Philips Hue bridges and controlling lights directly from the interface
+- **Hue Bridge Management** — add bridges by IP address with optional API key; pair new bridges by pressing the link button then clicking Pair
+- **Hue Scene Activation** — browse and activate saved Hue scenes grouped by room/zone from the Lighting page
+- **Room & Zone Control** — toggle entire rooms/zones on or off and adjust brightness with a slider
+- **Individual Light Control** — toggle individual lights on/off and set brightness; unreachable lights shown clearly
+- **Hue Actions in Scenes** — scene buttons now support Hue lighting actions (activate a scene in a room when a scene button fires)
+- **Hue Steps in Macros** — macro builder now supports three new step types: Activate Hue Scene, Control Room/Zone, and Control Individual Light
+- **Hue Status on Dashboard** — new Lighting summary panel on the dashboard showing all configured bridges with online/offline status
+
 ## [0.12.0] - 2026-03-15
 
 ### Added

@@ -6,6 +6,7 @@ import { PresetGrid } from "@/components/ptz/preset-grid";
 import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
+import { HuePanel } from "@/components/lighting/hue-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { CameraPreview } from "@/components/ptz/camera-preview";
 import { LogViewer } from "@/components/logs/log-viewer";
@@ -224,6 +225,11 @@ export default function Dashboard() {
                 Audio Mixer
               </button>
             </Link>
+            <Link href="/lighting">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-lighting">
+                Lighting
+              </button>
+            </Link>
           </nav>
         </div>
 
@@ -266,6 +272,7 @@ export default function Dashboard() {
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AtemPanel />
           <MixerPanel />
+          <HuePanel />
         </section>
 
         {/* Camera Preview */}

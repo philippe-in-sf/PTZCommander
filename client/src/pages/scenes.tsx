@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, Trash2, Settings, Zap, Play, Video } from "lucide-react";
+import { Plus, Trash2, Settings, Zap, Play, Video, Lightbulb } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { toast } from "sonner";
@@ -24,10 +24,70 @@ interface MixerAction {
   muted?: boolean;
 }
 
+interface HueSceneAction {
+  type: "scene";
+  bridgeId: number;
+  sceneId: string;
+  groupId?: string;
+}
+
 const COLORS = [
   "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
   "#ef4444", "#f97316", "#eab308", "#22c55e",
 ];
+
+function HueActionRow({ action, bridges, onUpdate, onRemove }: {
+  action: HueSceneAction;
+  bridges: { id: number; name: string }[];
+  onUpdate: (u: Partial<HueSceneAction>) => void;
+  onRemove: () => void;
+}) {
+  const { data: scenes = [] } = useQuery<{ id: string; name: string; group?: string }[]>({
+    queryKey: [`/api/hue/bridges/${action.bridgeId}/scenes`],
+    enabled: !!action.bridgeId,
+  });
+  const { data: groups = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: [`/api/hue/bridges/${action.bridgeId}/groups`],
+    enabled: !!action.bridgeId,
+  });
+
+  return (
+    <div className="bg-slate-300 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-yellow-600 dark:text-yellow-400 font-mono flex items-center gap-1">
+          <Lightbulb className="w-3 h-3" />Activate Scene
+        </span>
+        <button onClick={onRemove} className="text-red-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-xs">Bridge</Label>
+          <Select value={action.bridgeId?.toString() || ""} onValueChange={(v) => onUpdate({ bridgeId: parseInt(v), sceneId: "", groupId: undefined })}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>{bridges.map(b => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Scene</Label>
+          <Select value={action.sceneId || ""} onValueChange={(v) => onUpdate({ sceneId: v })}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>{scenes.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">Room (optional)</Label>
+          <Select value={action.groupId || "_all"} onValueChange={(v) => onUpdate({ groupId: v === "_all" ? undefined : v })}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">All lights</SelectItem>
+              {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ScenesPage() {
   const queryClient = useQueryClient();
@@ -43,6 +103,7 @@ export default function ScenesPage() {
     cameraId: null as number | null,
     presetNumber: null as number | null,
     mixerActions: [] as MixerAction[],
+    hueActions: [] as HueSceneAction[],
   });
 
   const { data: sceneButtons = [] } = useQuery({
@@ -53,6 +114,10 @@ export default function ScenesPage() {
   const { data: cameras = [] } = useQuery({
     queryKey: ["cameras"],
     queryFn: cameraApi.getAll,
+  });
+
+  const { data: hueBridges = [] } = useQuery<{ id: number; name: string; status: string }[]>({
+    queryKey: ["/api/hue/bridges"],
   });
 
   const createMutation = useMutation({
@@ -113,6 +178,7 @@ export default function ScenesPage() {
       cameraId: null,
       presetNumber: null,
       mixerActions: [],
+      hueActions: [],
     });
     setEditOpen(true);
   };
@@ -120,9 +186,9 @@ export default function ScenesPage() {
   const openEdit = (btn: SceneButton) => {
     setEditingButton(btn);
     let mixerActions: MixerAction[] = [];
-    try {
-      if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions);
-    } catch {}
+    try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
+    let hueActions: HueSceneAction[] = [];
+    try { if (btn.hueActions) hueActions = JSON.parse(btn.hueActions); } catch {}
     setFormData({
       buttonNumber: btn.buttonNumber,
       name: btn.name,
@@ -132,6 +198,7 @@ export default function ScenesPage() {
       cameraId: btn.cameraId,
       presetNumber: btn.presetNumber,
       mixerActions,
+      hueActions,
     });
     setEditOpen(true);
   };
@@ -147,6 +214,9 @@ export default function ScenesPage() {
       presetNumber: formData.presetNumber,
       mixerActions: formData.mixerActions.length > 0
         ? JSON.stringify(formData.mixerActions)
+        : null,
+      hueActions: formData.hueActions.length > 0
+        ? JSON.stringify(formData.hueActions)
         : null,
     };
 
@@ -175,6 +245,27 @@ export default function ScenesPage() {
     setFormData(prev => ({
       ...prev,
       mixerActions: prev.mixerActions.filter((_, i) => i !== index),
+    }));
+  };
+
+  const addHueAction = () => {
+    setFormData(prev => ({
+      ...prev,
+      hueActions: [...prev.hueActions, { type: "scene", bridgeId: 0, sceneId: "" }],
+    }));
+  };
+
+  const updateHueAction = (index: number, updates: Partial<HueSceneAction>) => {
+    setFormData(prev => ({
+      ...prev,
+      hueActions: prev.hueActions.map((a, i) => i === index ? { ...a, ...updates } : a),
+    }));
+  };
+
+  const removeHueAction = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      hueActions: prev.hueActions.filter((_, i) => i !== index),
     }));
   };
 
@@ -218,6 +309,11 @@ export default function ScenesPage() {
             <Link href="/mixer">
               <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
                 Audio Mixer
+              </button>
+            </Link>
+            <Link href="/lighting">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-lighting">
+                Lighting
               </button>
             </Link>
           </nav>
@@ -509,6 +605,32 @@ export default function ScenesPage() {
                         />
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Lightbulb className="w-3 h-3 text-yellow-500" />Hue Lighting Actions
+                </h4>
+                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addHueAction} data-testid="button-add-hue-action">
+                  <Plus className="w-3 h-3 mr-1" /> Add Scene
+                </Button>
+              </div>
+              {formData.hueActions.length === 0 ? (
+                <p className="text-xs text-slate-500 dark:text-slate-600">No Hue actions configured.</p>
+              ) : (
+                <div className="space-y-2">
+                  {formData.hueActions.map((action, idx) => (
+                    <HueActionRow
+                      key={idx}
+                      action={action}
+                      bridges={hueBridges}
+                      onUpdate={(u) => updateHueAction(idx, u)}
+                      onRemove={() => removeHueAction(idx)}
+                    />
                   ))}
                 </div>
               )}

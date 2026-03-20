@@ -10,6 +10,7 @@ import SwitcherPage from "@/pages/switcher";
 import ScenesPage from "@/pages/scenes";
 import MacrosPage from "@/pages/macros";
 import MobilePage from "@/pages/mobile";
+import LightingPage from "@/pages/lighting";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/mixer" component={MixerPage}/>
       <Route path="/switcher" component={SwitcherPage}/>
       <Route path="/mobile" component={MobilePage}/>
+      <Route path="/lighting" component={LightingPage}/>
       <Route component={NotFound} />
     </Switch>
   );

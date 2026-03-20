@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, auditLogs, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type AuditLog, type InsertAuditLog } from "@shared/schema";
+import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, auditLogs, hueBridges, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
@@ -58,6 +58,13 @@ export interface IStorage {
   createMacro(macro: InsertMacro): Promise<Macro>;
   updateMacro(id: number, updates: Partial<Macro>): Promise<Macro | undefined>;
   deleteMacro(id: number): Promise<void>;
+
+  // Hue bridge operations
+  getAllHueBridges(): Promise<HueBridge[]>;
+  getHueBridge(id: number): Promise<HueBridge | undefined>;
+  createHueBridge(bridge: InsertHueBridge): Promise<HueBridge>;
+  updateHueBridge(id: number, updates: Partial<HueBridge>): Promise<HueBridge | undefined>;
+  deleteHueBridge(id: number): Promise<void>;
 
   // Audit log operations
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -829,6 +836,63 @@ export class DatabaseStorage implements IStorage {
       .from(auditLogs)
       .orderBy(desc(auditLogs.timestamp))
       .limit(limit);
+  }
+
+  // ========== Hue Bridge Operations ==========
+  async getAllHueBridges(): Promise<HueBridge[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM hue_bridges ORDER BY id').all();
+      return rows.map((r: any) => ({
+        id: r.id, name: r.name, ip: r.ip, apiKey: r.api_key,
+        status: r.status, createdAt: new Date(r.created_at),
+      }));
+    }
+    return await db.select().from(hueBridges);
+  }
+
+  async getHueBridge(id: number): Promise<HueBridge | undefined> {
+    if (useSqlite && sqlite) {
+      const row: any = sqlite.prepare('SELECT * FROM hue_bridges WHERE id = ?').get(id);
+      if (!row) return undefined;
+      return { id: row.id, name: row.name, ip: row.ip, apiKey: row.api_key, status: row.status, createdAt: new Date(row.created_at) };
+    }
+    const [bridge] = await db.select().from(hueBridges).where(eq(hueBridges.id, id));
+    return bridge;
+  }
+
+  async createHueBridge(bridge: InsertHueBridge): Promise<HueBridge> {
+    if (useSqlite && sqlite) {
+      const result = sqlite.prepare('INSERT INTO hue_bridges (name, ip, api_key, status, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *')
+        .get(bridge.name, bridge.ip, bridge.apiKey ?? null, 'offline', new Date().toISOString()) as any;
+      return { id: result.id, name: result.name, ip: result.ip, apiKey: result.api_key, status: result.status, createdAt: new Date(result.created_at) };
+    }
+    const [created] = await db.insert(hueBridges).values(bridge).returning();
+    return created;
+  }
+
+  async updateHueBridge(id: number, updates: Partial<HueBridge>): Promise<HueBridge | undefined> {
+    if (useSqlite && sqlite) {
+      const fields: string[] = [];
+      const vals: any[] = [];
+      if (updates.name !== undefined) { fields.push('name = ?'); vals.push(updates.name); }
+      if (updates.ip !== undefined) { fields.push('ip = ?'); vals.push(updates.ip); }
+      if (updates.apiKey !== undefined) { fields.push('api_key = ?'); vals.push(updates.apiKey); }
+      if (updates.status !== undefined) { fields.push('status = ?'); vals.push(updates.status); }
+      if (!fields.length) return this.getHueBridge(id);
+      vals.push(id);
+      sqlite.prepare(`UPDATE hue_bridges SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+      return this.getHueBridge(id);
+    }
+    const [updated] = await db.update(hueBridges).set(updates).where(eq(hueBridges.id, id)).returning();
+    return updated;
+  }
+
+  async deleteHueBridge(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('DELETE FROM hue_bridges WHERE id = ?').run(id);
+      return;
+    }
+    await db.delete(hueBridges).where(eq(hueBridges.id, id));
   }
 }
 

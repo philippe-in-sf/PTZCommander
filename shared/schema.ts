@@ -62,6 +62,7 @@ export const sceneButtons = pgTable("scene_buttons", {
   cameraId: integer("camera_id"),
   presetNumber: integer("preset_number"),
   mixerActions: text("mixer_actions"),
+  hueActions: text("hue_actions"),
 });
 
 export const layouts = pgTable("layouts", {
@@ -84,6 +85,15 @@ export const macros = pgTable("macros", {
   steps: text("steps").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const hueBridges = pgTable("hue_bridges", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  ip: text("ip").notNull(),
+  apiKey: text("api_key"),
+  status: text("status").notNull().default("offline"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const auditLogs = pgTable("audit_logs", {
@@ -141,6 +151,12 @@ export const insertMacroSchema = createInsertSchema(macros).omit({
   updatedAt: true,
 });
 
+export const insertHueBridgeSchema = createInsertSchema(hueBridges).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+});
+
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
 });
@@ -159,5 +175,7 @@ export type Layout = typeof layouts.$inferSelect;
 export type InsertLayout = z.infer<typeof insertLayoutSchema>;
 export type Macro = typeof macros.$inferSelect;
 export type InsertMacro = z.infer<typeof insertMacroSchema>;
+export type HueBridge = typeof hueBridges.$inferSelect;
+export type InsertHueBridge = z.infer<typeof insertHueBridgeSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
