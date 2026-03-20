@@ -1,0 +1,203 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\Users\phili> ls
+
+
+    Directory: C:\Users\phili
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-r---         3/15/2026   8:47 AM                Contacts
+d-r---         3/15/2026   8:47 AM                Desktop
+d-r---         3/15/2026   8:47 AM                Documents
+d-r---         3/20/2026   4:55 PM                Downloads
+d-r---         3/15/2026   8:47 AM                Favorites
+d-r---         3/15/2026   8:47 AM                Links
+d-r---         3/15/2026   8:47 AM                Music
+dar--l         3/15/2026   9:01 AM                OneDrive
+d-r---         3/15/2026   8:47 AM                Pictures
+d-r---         3/15/2026   8:47 AM                Saved Games
+d-r---         3/15/2026   8:47 AM                Searches
+d-r---         3/19/2026  12:33 PM                Videos
+-a----         3/20/2026   4:58 PM           2706 .bash_history
+
+
+PS C:\Users\phili> cd ..
+PS C:\Users> dir
+
+
+    Directory: C:\Users
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----         3/15/2026   8:44 AM                p
+d-----         3/20/2026   4:54 PM                phili
+d-r---         1/24/2026  11:17 AM                Public
+d-----         3/15/2026   8:45 AM                WsiAccount
+
+
+PS C:\Users> cd P
+PS C:\Users\P> dir
+
+
+    Directory: C:\Users\P
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----         2/27/2026  11:12 AM                .config
+d-----         2/27/2026  11:12 AM                .git
+d-----         2/27/2026  11:12 AM                .local
+d-----          6/2/2025   9:29 PM                .pm2
+d-----         3/20/2026   4:57 PM                Camera-Control-Suite
+d-----         2/27/2026  11:12 AM                client
+d-r---          2/8/2026   6:10 AM                Contacts
+d-----          6/2/2025  10:33 PM                Documents
+d-r---         3/14/2026   9:14 PM                Downloads
+d-r---          2/8/2026   6:10 AM                Favorites
+d-r---          2/8/2026   6:10 AM                Links
+d-----         2/17/2026   2:00 AM                MagicMirror
+dar--l         3/15/2026   8:17 AM                OneDrive
+d-----          6/3/2025  11:23 PM                Pictures
+d-r---          2/8/2026   6:10 AM                Saved Games
+d-----         2/27/2026  11:12 AM                script
+d-----         2/27/2026  11:12 AM                scripts
+d-r---          2/8/2026   6:10 AM                Searches
+d-----         2/27/2026  11:12 AM                server
+d-----         2/27/2026  11:12 AM                shared
+-a----         3/15/2026   2:16 AM            902 .bash_history
+-a----         2/27/2026  11:12 AM            372 .env.example
+-a----         2/27/2026  11:12 AM             67 .gitignore
+-a----         2/27/2026  11:12 AM            782 .replit
+-a----         2/27/2026  11:12 AM            451 components.json
+-a----         2/27/2026  11:12 AM            325 drizzle.config.ts
+-a----         2/27/2026  11:12 AM         374094 package-lock.json
+-a----         2/27/2026  11:12 AM           3607 package.json
+-a----         2/27/2026  11:12 AM             80 postcss.config.js
+-a----         2/27/2026  11:12 AM          10716 README.md
+-a----         2/27/2026  11:12 AM           5927 replit.md
+-a----         2/27/2026  11:12 AM            683 start.bat
+-a----         2/27/2026  11:12 AM            897 start.sh
+-a----         2/27/2026  11:12 AM            657 tsconfig.json
+-a----         2/27/2026  11:12 AM           2333 vite-plugin-meta-images.ts
+-a----         2/27/2026  11:12 AM           1330 vite.config.ts
+
+
+PS C:\Users\P> cd .\Camera-Control-Suite\
+PS C:\Users\P\Camera-Control-Suite> ./start
+================================================
+  PTZ Command - Camera Control System
+================================================
+
+Checking for updates...
+
+up to date, audited 586 packages in 2s
+
+88 packages are looking for funding
+  run `npm fund` for details
+
+13 vulnerabilities (1 low, 5 moderate, 7 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+Starting PTZ Command server...
+
+Press Ctrl+C to stop the server.
+
+[Database] Using SQLite database at: C:\Users\p\Camera-Control-Suite\data\ptzcommand.db
+2026-03-20T22:00:06.399Z INFO  [system]     Application started — PTZ Command v0.13.0
+5:00:07 PM [express] serving on port 3478
+[VISCA] Connected to 192.168.0.27:1259
+[VISCA] Connected to 192.168.0.165:5678
+[VISCA] Connected to 192.168.0.22:5678
+[VISCA] Connected to 192.168.0.71:1259
+[VISCA] Initialized 4 camera connection(s)
+[Browserslist] Could not parse C:\Users\p\package.json. Ignoring it.
+✘ [ERROR] Cannot read file "../package.json": Access is denied.
+
+5:00:10 PM [vite] (client) error while updating dependencies:
+Error: Error during dependency optimization:
+
+✘ [ERROR] Cannot read file "../package.json": Access is denied.
+
+
+    at failureErrorWithLog (C:\Users\p\Camera-Control-Suite\node_modules\vite\node_modules\esbuild\lib\main.js:1467:15)
+    at C:\Users\p\Camera-Control-Suite\node_modules\vite\node_modules\esbuild\lib\main.js:926:25
+    at C:\Users\p\Camera-Control-Suite\node_modules\vite\node_modules\esbuild\lib\main.js:1345:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+PS C:\Users\P\Camera-Control-Suite> ^C
+PS C:\Users\P\Camera-Control-Suite> rmdir /s /q node_modules\.vite
+Remove-Item : A positional parameter cannot be found that accepts argument '/q'.
+At line:1 char:1
++ rmdir /s /q node_modules\.vite
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Remove-Item], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.RemoveItemCommand
+
+PS C:\Users\P\Camera-Control-Suite> ./start
+================================================
+  PTZ Command - Camera Control System
+================================================
+
+Checking for updates...
+
+up to date, audited 586 packages in 2s
+
+88 packages are looking for funding
+  run `npm fund` for details
+
+13 vulnerabilities (1 low, 5 moderate, 7 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+Starting PTZ Command server...
+
+Press Ctrl+C to stop the server.
+
+[Database] Using SQLite database at: C:\Users\p\Camera-Control-Suite\data\ptzcommand.db
+2026-03-20T22:08:33.002Z INFO  [system]     Application started — PTZ Command v0.13.0
+[VISCA] Connected to 192.168.0.27:1259
+5:08:34 PM [express] serving on port 3478
+[VISCA] Connected to 192.168.0.165:5678
+[VISCA] Connected to 192.168.0.22:5678
+[VISCA] Connected to 192.168.0.71:1259
+[VISCA] Initialized 4 camera connection(s)
+[Browserslist] Could not parse C:\Users\p\package.json. Ignoring it.
+✘ [ERROR] Cannot read file "../package.json": Access is denied.
+
+C:\Users\p\Camera-Control-Suite\node_modules\vite\node_modules\esbuild\lib\main.js:1467
+  let error = new Error(text);
+              ^
+
+Error: Error during dependency optimization:
+
+✘ [ERROR] Cannot read file "../package.json": Access is denied.
+
+
+    at failureErrorWithLog (C:\Users\p\Camera-Control-Suite\node_modules\vite\node_modules\esbuild\lib\main.js:1467:15)
+    at C:\Users\p\Camera-Control-Suite\node_modules\vite\node_modules\esbuild\lib\main.js:926:25
+    at C:\Users\p\Camera-Control-Suite\node_modules\vite\node_modules\esbuild\lib\main.js:1345:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+
+Node.js v24.13.1
+PS C:\Users\P\Camera-Control-Suite>
