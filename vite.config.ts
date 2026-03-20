@@ -40,12 +40,18 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
+  optimizeDeps: {
+    esbuildOptions: {
+      absWorkingDir: path.resolve(import.meta.dirname),
+    },
+  },
   server: {
     host: "0.0.0.0",
     allowedHosts: true,
     fs: {
       strict: true,
       deny: ["**/.*"],
+      allow: [path.resolve(import.meta.dirname)],
     },
   },
 });
