@@ -355,6 +355,8 @@ export default function ScenesPage() {
             {sceneButtons.map((btn) => {
               let mixerActions: MixerAction[] = [];
               try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
+              let hueActionCount = 0;
+              try { if (btn.hueActions) hueActionCount = JSON.parse(btn.hueActions).length; } catch {}
               const isActive = activeSceneId === btn.id;
 
               return (
@@ -391,6 +393,11 @@ export default function ScenesPage() {
                       {mixerActions.length > 0 && (
                         <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                           MIX:{mixerActions.length}ch
+                        </span>
+                      )}
+                      {hueActionCount > 0 && (
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-yellow-200/80 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400")}>
+                          HUE:{hueActionCount}
                         </span>
                       )}
                     </div>

@@ -4,7 +4,7 @@
 
 PTZ Command is a professional PTZ (Pan-Tilt-Zoom) camera controller designed for use with OBS, ATEM, and other broadcast software. The application enables control of up to 4 PTZ cameras via VISCA over IP protocol, featuring a virtual joystick for pan/tilt control, preset management with 16 presets per camera, and a standard broadcast-style program/preview workflow.
 
-The application also includes integrated control for Behringer X32 digital audio mixers via OSC protocol, providing basic channel control (faders, mute) from the same interface. Additionally, it supports Blackmagic ATEM video switchers for program/preview input selection and cut/auto transitions.
+The application also includes integrated control for Behringer X32 digital audio mixers via OSC protocol, providing basic channel control (faders, mute) from the same interface. Additionally, it supports Blackmagic ATEM video switchers for program/preview input selection and cut/auto transitions. Philips Hue lighting bridges can be managed from the dedicated Lighting page with scene activation, room/zone control, and individual light control.
 
 ## User Preferences
 
@@ -28,6 +28,7 @@ The frontend is a multi-page application with navigation tabs:
 - **Video Switcher** (`/switcher`): Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
 - **Audio Mixer** (`/mixer`): Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
 - **Mobile Companion** (`/mobile`): Touch-optimized mobile web view with 3 tabs (Camera, Scenes, Switcher) — camera selector with tally, touch joystick, zoom, presets, scene execution, ATEM program/preview/cut/auto
+- **Lighting** (`/lighting`): Philips Hue bridge management — add bridges (IP + API key or pair via button), activate Hue scenes, control rooms/zones and individual lights with brightness sliders
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5
