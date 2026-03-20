@@ -83,7 +83,8 @@ if (useSqlite) {
       atem_transition_type TEXT DEFAULT 'cut',
       camera_id INTEGER,
       preset_number INTEGER,
-      mixer_actions TEXT
+      mixer_actions TEXT,
+      hue_actions TEXT
     );
 
     CREATE TABLE IF NOT EXISTS layouts (
@@ -118,7 +119,23 @@ if (useSqlite) {
       details TEXT,
       user_id TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS hue_bridges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      ip TEXT NOT NULL,
+      api_key TEXT,
+      status TEXT NOT NULL DEFAULT 'offline',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+
+  // Migrate existing scene_buttons table to add hue_actions column if missing
+  try {
+    sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN hue_actions TEXT");
+  } catch {
+    // Column already exists — ignore
+  }
   
   db = drizzleSqlite(sqlite, { schema });
   console.log("[Database] Using SQLite database at:", dbPath);
