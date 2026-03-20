@@ -23,6 +23,12 @@ if %errorlevel% neq 0 (
 )
 echo.
 
+echo Clearing Vite cache...
+if exist "node_modules\.vite" (
+    rmdir /s /q "node_modules\.vite"
+)
+echo.
+
 echo Starting PTZ Command server...
 echo.
 echo Press Ctrl+C to stop the server.
