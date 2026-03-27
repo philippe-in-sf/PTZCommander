@@ -1507,6 +1507,27 @@ export async function registerRoutes(
             }
             break;
 
+          case "focus_far":
+            const focusFarClient = cameraManager.getClient(message.cameraId);
+            if (focusFarClient && focusFarClient.isConnected()) {
+              focusFarClient.focusFar(message.speed ?? 0.5);
+            }
+            break;
+
+          case "focus_near":
+            const focusNearClient = cameraManager.getClient(message.cameraId);
+            if (focusNearClient && focusNearClient.isConnected()) {
+              focusNearClient.focusNear(message.speed ?? 0.5);
+            }
+            break;
+
+          case "focus_stop":
+            const focusStopClient = cameraManager.getClient(message.cameraId);
+            if (focusStopClient && focusStopClient.isConnected()) {
+              focusStopClient.focusStop();
+            }
+            break;
+
           case "recall_preset":
             const recallClient = cameraManager.getClient(message.cameraId);
             if (recallClient && recallClient.isConnected()) {

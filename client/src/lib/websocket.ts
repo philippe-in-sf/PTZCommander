@@ -118,6 +118,18 @@ export class PTZWebSocket {
     });
   }
 
+  focusFar(cameraId: number, speed: number = 0.5): void {
+    this.send({ type: "focus_far", cameraId, speed });
+  }
+
+  focusNear(cameraId: number, speed: number = 0.5): void {
+    this.send({ type: "focus_near", cameraId, speed });
+  }
+
+  focusStop(cameraId: number): void {
+    this.send({ type: "focus_stop", cameraId });
+  }
+
   recallPreset(cameraId: number, presetNumber: number): void {
     this.send({
       type: "recall_preset",

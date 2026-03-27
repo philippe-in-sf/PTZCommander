@@ -158,6 +158,25 @@ export class VISCAClient {
     this.sendCommand(cmd);
   }
 
+  focusFar(speed: number = 0.5): void {
+    const s = Math.max(0, Math.min(1, speed));
+    const spd = Math.round(s * 7);
+    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x20 | spd, 0xFF]);
+    this.sendCommand(cmd);
+  }
+
+  focusNear(speed: number = 0.5): void {
+    const s = Math.max(0, Math.min(1, speed));
+    const spd = Math.round(s * 7);
+    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x30 | spd, 0xFF]);
+    this.sendCommand(cmd);
+  }
+
+  focusStop(): void {
+    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x00, 0xFF]);
+    this.sendCommand(cmd);
+  }
+
   // Recall preset
   recallPreset(presetNumber: number): void {
     if (presetNumber < 0 || presetNumber > 254) {

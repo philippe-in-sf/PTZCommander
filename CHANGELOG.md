@@ -2,6 +2,16 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.14.0] - 2026-03-27
+
+### Added
+- **Mobile: Focus Controls** — Far/Near hold-to-focus buttons and Auto Focus button added to the Camera tab alongside zoom
+- **Mobile: Speed Control** — Slow / Med / Fast toggle now adjusts joystick pan/tilt sensitivity on the Camera tab
+- **Mobile: Macros Tab** — new Macros tab lists all configured macros with a one-tap Run button and step count
+- **Mobile: Lighting Tab** — new Lighting tab shows Hue bridges with Scenes, Rooms, and Lights sub-tabs; toggle rooms/lights and activate scenes from mobile
+- **Mobile: Theme Toggle** — light/dark mode switch added to the mobile header
+- **VISCA: Manual Focus Commands** — added `focusFar`, `focusNear`, and `focusStop` VISCA commands (also available from the desktop via WebSocket)
+
 ## [0.13.0] - 2026-03-20
 
 ### Added
