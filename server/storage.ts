@@ -17,6 +17,7 @@ export interface IStorage {
   // Preset operations
   getPresetsForCamera(cameraId: number): Promise<Preset[]>;
   getPreset(cameraId: number, presetNumber: number): Promise<Preset | undefined>;
+  getPresetById(id: number): Promise<Preset | undefined>;
   savePreset(preset: InsertPreset): Promise<Preset>;
   deletePreset(id: number): Promise<void>;
 
@@ -289,8 +290,10 @@ export class DatabaseStorage implements IStorage {
         throw error;
       }
     } else {
-      await db.update(cameras).set({ isProgramOutput: false });
-      await db.update(cameras).set({ isProgramOutput: true }).where(eq(cameras.id, id));
+      await db.transaction(async (tx: typeof db) => {
+        await tx.update(cameras).set({ isProgramOutput: false });
+        await tx.update(cameras).set({ isProgramOutput: true }).where(eq(cameras.id, id));
+      });
     }
   }
 
@@ -306,8 +309,10 @@ export class DatabaseStorage implements IStorage {
         throw error;
       }
     } else {
-      await db.update(cameras).set({ isPreviewOutput: false });
-      await db.update(cameras).set({ isPreviewOutput: true }).where(eq(cameras.id, id));
+      await db.transaction(async (tx: typeof db) => {
+        await tx.update(cameras).set({ isPreviewOutput: false });
+        await tx.update(cameras).set({ isPreviewOutput: true }).where(eq(cameras.id, id));
+      });
     }
   }
 
@@ -329,6 +334,18 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(presets)
       .where(and(eq(presets.cameraId, cameraId), eq(presets.presetNumber, presetNumber)));
+    return preset || undefined;
+  }
+
+  async getPresetById(id: number): Promise<Preset | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM presets WHERE id = ?').get(id);
+      return row ? sqliteRowToPreset(row) : undefined;
+    }
+    const [preset] = await db
+      .select()
+      .from(presets)
+      .where(eq(presets.id, id));
     return preset || undefined;
   }
 

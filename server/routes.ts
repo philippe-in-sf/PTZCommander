@@ -308,39 +308,40 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       
-      const cameras = await storage.getAllCameras();
-      for (const cam of cameras) {
-        const presets = await storage.getPresetsForCamera(cam.id);
-        const preset = presets.find(p => p.id === id);
-        
-        if (preset) {
-          const client = cameraManager.getClient(cam.id);
-          if (client && client.isConnected()) {
-            // Track for undo — find previously active preset if any
-            const previousPreset = req.body?.previousPresetId;
-            if (previousPreset) {
-              pushUndo({
-                type: "preset_recall",
-                description: `Recall preset "${preset.name || preset.presetNumber + 1}" on ${cam.name}`,
-                timestamp: Date.now(),
-                undo: async () => {
-                  const prevP = presets.find(p => p.id === previousPreset);
-                  if (prevP) {
-                    const c = cameraManager.getClient(cam.id);
-                    if (c && c.isConnected()) c.recallPreset(prevP.presetNumber);
-                  }
-                },
-              });
-            }
-
-            client.recallPreset(preset.presetNumber);
-            addSessionLog("preset", "Recall Preset", `Preset ${preset.presetNumber + 1}${preset.name ? ` (${preset.name})` : ""} on ${cam.name}`);
-            return res.json({ success: true });
-          }
-        }
+      const preset = await storage.getPresetById(id);
+      if (!preset) {
+        return res.status(404).json({ message: "Preset not found" });
       }
-      
-      res.status(404).json({ message: "Preset not found or camera offline" });
+
+      const cam = await storage.getCamera(preset.cameraId);
+      if (!cam) {
+        return res.status(404).json({ message: "Camera not found" });
+      }
+
+      const client = cameraManager.getClient(cam.id);
+      if (!client || !client.isConnected()) {
+        return res.status(404).json({ message: "Camera offline" });
+      }
+
+      const previousPreset = req.body?.previousPresetId;
+      if (previousPreset) {
+        pushUndo({
+          type: "preset_recall",
+          description: `Recall preset "${preset.name || preset.presetNumber + 1}" on ${cam.name}`,
+          timestamp: Date.now(),
+          undo: async () => {
+            const prevP = await storage.getPresetById(previousPreset);
+            if (prevP) {
+              const c = cameraManager.getClient(cam.id);
+              if (c && c.isConnected()) c.recallPreset(prevP.presetNumber);
+            }
+          },
+        });
+      }
+
+      client.recallPreset(preset.presetNumber);
+      addSessionLog("preset", "Recall Preset", `Preset ${preset.presetNumber + 1}${preset.name ? ` (${preset.name})` : ""} on ${cam.name}`);
+      return res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to recall preset" });
     }

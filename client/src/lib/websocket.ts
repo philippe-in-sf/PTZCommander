@@ -12,7 +12,9 @@ export type WebSocketMessageHandler = (message: any) => void;
 export class PTZWebSocket {
   private ws: WebSocket | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
-  private reconnectDelay = 2000;
+  private reconnectDelay = 1000;
+  private reconnectAttempts = 0;
+  private maxReconnectDelay = 30000;
   private messageHandlers: Set<WebSocketMessageHandler> = new Set();
 
   constructor(private url: string) {}
@@ -26,6 +28,8 @@ export class PTZWebSocket {
 
     this.ws.onopen = () => {
       console.log("[WebSocket] Connected");
+      this.reconnectAttempts = 0;
+      this.reconnectDelay = 1000;
       onOpen?.();
     };
 
@@ -33,10 +37,13 @@ export class PTZWebSocket {
       console.log("[WebSocket] Disconnected");
       onClose?.();
       
-      // Auto-reconnect after delay
+      this.reconnectAttempts++;
+      const jitter = Math.random() * 500;
+      const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay) + jitter;
+      console.log(`[WebSocket] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})`);
       this.reconnectTimeout = setTimeout(() => {
         this.connect(onOpen, onClose);
-      }, this.reconnectDelay);
+      }, delay);
     };
 
     this.ws.onerror = (error) => {

@@ -130,6 +130,12 @@ if (useSqlite) {
     );
   `);
 
+  try {
+    sqlite.exec("CREATE INDEX IF NOT EXISTS idx_presets_camera_id ON presets(camera_id)");
+    sqlite.exec("CREATE INDEX IF NOT EXISTS idx_audit_logs_category_timestamp ON audit_logs(category, timestamp)");
+  } catch {
+  }
+
   // Migrate existing scene_buttons table to add hue_actions column if missing
   try {
     sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN hue_actions TEXT");
@@ -143,6 +149,9 @@ if (useSqlite) {
   pool = new Pool({ connectionString: process.env.DATABASE_URL });
   db = drizzlePg(pool, { schema });
   console.log("[Database] Using PostgreSQL database");
+
+  pool.query("CREATE INDEX IF NOT EXISTS idx_presets_camera_id ON presets(camera_id)").catch(() => {});
+  pool.query("CREATE INDEX IF NOT EXISTS idx_audit_logs_category_timestamp ON audit_logs(category, timestamp)").catch(() => {});
 }
 
 export { db, pool, sqlite, useSqlite };
