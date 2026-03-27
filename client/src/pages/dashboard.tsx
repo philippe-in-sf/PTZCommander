@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraSelector } from "@/components/ptz/camera-selector";
@@ -14,6 +14,8 @@ import { SessionLog } from "@/components/logs/session-log";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { ConnectionHealth } from "@/components/ptz/connection-health";
 import { ChangelogDialog } from "@/components/changelog-dialog";
+import { SkinSelector } from "@/components/skin-selector";
+import { useSkin } from "@/lib/skin-context";
 import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal, Undo2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -27,8 +29,13 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import type { Camera } from "@shared/schema";
 
+const BroadcastConsole = lazy(() => import("@/components/skins/broadcast-console"));
+const StudioGlass = lazy(() => import("@/components/skins/studio-glass"));
+const CommandCenter = lazy(() => import("@/components/skins/command-center"));
+
 export default function Dashboard() {
   const queryClient = useQueryClient();
+  const { skin } = useSkin();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addCameraOpen, setAddCameraOpen] = useState(false);
   const [newCamera, setNewCamera] = useState({ name: "", ip: "", port: 52381, streamUrl: "" });
@@ -38,7 +45,6 @@ export default function Dashboard() {
   const { data: cameras = [], isLoading } = useQuery({
     queryKey: ["cameras"],
     queryFn: cameraApi.getAll,
-    refetchInterval: 5000,
   });
 
   const { data: presets = [] } = useQuery({
@@ -56,7 +62,6 @@ export default function Dashboard() {
   const { data: undoStatus } = useQuery({
     queryKey: ["undo-status"],
     queryFn: undoApi.getStatus,
-    refetchInterval: 3000,
   });
 
   const undoMutation = useMutation({
@@ -187,6 +192,34 @@ export default function Dashboard() {
     );
   }
 
+  const skinProps = {
+    cameras,
+    presets,
+    selectedCameraId: selectedId,
+    onSelectCamera: handleSelect,
+    onRecallPreset: handleRecallPreset,
+    onStorePreset: handleStorePreset,
+    onJoystickMove: handleJoystickMove,
+    onJoystickStop: handleJoystickStop,
+    onZoom: (v: number) => ws?.zoom(selectedId!, v / 50 - 1, 0.5),
+    onFocusAuto: () => ws?.focusAuto(selectedId!),
+    selectedCamera: selectedCam,
+    ws,
+  };
+
+  if (skin !== "classic") {
+    const SkinComponent = skin === "broadcast" ? BroadcastConsole : skin === "glass" ? StudioGlass : CommandCenter;
+    return (
+      <Suspense fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }>
+        <SkinComponent {...skinProps} />
+      </Suspense>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
       <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
@@ -255,6 +288,7 @@ export default function Dashboard() {
           )}
           <ConnectionHealth />
           <SessionLog />
+          <SkinSelector />
           <ThemeToggle />
           <LayoutSelector />
           <LogViewer />

@@ -3,18 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cameraApi, sceneButtonApi, macroApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
 import { useTheme } from "@/components/theme-provider";
+import { useAtemControl } from "@/hooks/use-atem-control";
 import { APP_VERSION } from "@shared/version";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Sun, Moon, Play, Loader2 } from "lucide-react";
 import type { Camera, Preset, SceneButton } from "@shared/schema";
-
-interface AtemState {
-  connected: boolean;
-  programInput: number;
-  previewInput: number;
-  inputs: { inputId: number; shortName: string; longName: string }[];
-}
 
 interface HueBridge {
   id: number;
@@ -543,15 +537,14 @@ export default function MobilePage() {
   const queryClient = useQueryClient();
   const ws = useWebSocket();
   const { theme, setTheme } = useTheme();
+  const { atemState, cut: atemCut, auto: atemAuto, setProgramInput: atemSetProgram, setPreviewInput: atemSetPreview } = useAtemControl();
   const [selectedCameraId, setSelectedCameraId] = useState<number | null>(null);
-  const [atemState, setAtemState] = useState<AtemState | null>(null);
   const [activeTab, setActiveTab] = useState<"control" | "scenes" | "macros" | "switcher" | "lighting">("control");
   const [ptSpeed, setPtSpeed] = useState(0.5);
 
   const { data: cameras = [] } = useQuery({
     queryKey: ["cameras"],
     queryFn: cameraApi.getAll,
-    refetchInterval: 3000,
   });
 
   const { data: sceneButtons = [] } = useQuery({
@@ -592,15 +585,6 @@ export default function MobilePage() {
 
   // Handle paired Hue bridge auto-select (done inside LightingTab)
 
-  // ATEM state via WebSocket
-  useEffect(() => {
-    const handler = (msg: any) => {
-      if (msg.type === "atem_state") setAtemState(msg);
-    };
-    ws.addMessageHandler(handler);
-    return () => ws.removeMessageHandler(handler);
-  }, [ws]);
-
   const executeScene = async (btn: SceneButton) => {
     try {
       const res = await fetch(`/api/scene-buttons/${btn.id}/execute`, { method: "POST" });
@@ -614,11 +598,6 @@ export default function MobilePage() {
       toast.error(`Error: ${err.message || "Connection failed"}`);
     }
   };
-
-  const atemCut = () => ws.send({ type: "atem_cut" });
-  const atemAuto = () => ws.send({ type: "atem_auto" });
-  const atemSetProgram = (id: number) => ws.send({ type: "atem_program", inputId: id });
-  const atemSetPreview = (id: number) => ws.send({ type: "atem_preview", inputId: id });
 
   const selectedCamera = cameras.find((c: Camera) => c.id === selectedCameraId);
 

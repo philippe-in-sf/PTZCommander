@@ -100,6 +100,16 @@ The server handles:
 - `start.sh` — Mac/Linux startup script (`./start.sh`)
 - Both scripts: check Node.js installation, run `npm install` for updates, auto-open browser at correct URL, start the server
 
+### Real-time Cache Invalidation
+- Server broadcasts `{ type: "invalidate", keys: [...] }` via WebSocket after every mutation (create/update/delete)
+- Client `useWsInvalidation()` hook (in `client/src/lib/ws-invalidation.ts`) listens and calls `queryClient.invalidateQueries` per key
+- The `WsSync` wrapper component in `App.tsx` activates this globally
+- Data queries use `staleTime: Infinity` with no polling; freshness is driven by WS invalidation
+- Polling retained only for logs, health checks, and Hue lighting (external hardware state)
+
+### Shared Hooks
+- `useAtemControl` (`client/src/hooks/use-atem-control.ts`): Shared ATEM state management, WS listener, initial status fetch, and action helpers (cut, auto, setProgramInput, setPreviewInput, send). Used by switcher page, atem-panel, and mobile page.
+
 ### Project Structure
 ```
 ├── client/          # React frontend
@@ -110,10 +120,16 @@ The server handles:
 │   │   ├── components/layouts/  # Production layout components
 │   │   ├── components/logs/     # Log viewer components
 │   │   ├── components/ui/       # shadcn/ui components
+│   │   ├── hooks/               # Shared hooks (use-atem-control, use-toast, etc.)
 │   │   ├── pages/               # Route pages (dashboard, scenes, switcher, mixer)
-│   │   └── lib/                 # API clients, utilities
+│   │   └── lib/                 # API clients, utilities, ws-invalidation
 ├── server/          # Express backend
-│   ├── routes.ts    # API endpoints + WebSocket setup
+│   ├── routes.ts    # WebSocket handler + route orchestrator (~530 lines)
+│   ├── routes/      # Domain-specific route files
+│   │   ├── camera.ts, mixer.ts, switcher.ts, scene.ts
+│   │   ├── layout.ts, macro.ts, lighting.ts, system.ts
+│   │   ├── types.ts             # RouteContext interface
+│   │   └── index.ts             # Route registration barrel
 │   ├── storage.ts   # Database operations (IStorage interface + DatabaseStorage)
 │   ├── db.ts        # Database connection (PostgreSQL/SQLite auto-detection)
 │   ├── visca.ts     # VISCA protocol implementation

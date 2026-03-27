@@ -63,7 +63,6 @@ export default function MixerPage() {
   const { data: mixers = [] } = useQuery({
     queryKey: ["mixers"],
     queryFn: mixerApi.getAll,
-    refetchInterval: 5000,
   });
 
   const mixer = mixers[0];

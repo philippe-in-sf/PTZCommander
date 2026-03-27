@@ -4,6 +4,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SkinProvider } from "@/lib/skin-context";
+import { useWsInvalidation } from "@/lib/ws-invalidation";
 import Dashboard from "@/pages/dashboard";
 import MixerPage from "@/pages/mixer";
 import SwitcherPage from "@/pages/switcher";
@@ -12,6 +14,11 @@ import MacrosPage from "@/pages/macros";
 import MobilePage from "@/pages/mobile";
 import LightingPage from "@/pages/lighting";
 import NotFound from "@/pages/not-found";
+
+function WsSync({ children }: { children: React.ReactNode }) {
+  useWsInvalidation();
+  return <>{children}</>;
+}
 
 function Router() {
   return (
@@ -31,12 +38,16 @@ function Router() {
 function App() {
   return (
     <ThemeProvider defaultTheme="dark">
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <SkinProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <WsSync>
+              <Toaster />
+              <Router />
+            </WsSync>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </SkinProvider>
     </ThemeProvider>
   );
 }

@@ -35,7 +35,6 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   const { data: mixers = [] } = useQuery({
     queryKey: ["mixers"],
     queryFn: mixerApi.getAll,
-    refetchInterval: 5000,
   });
 
   const mixer = mixers[0];

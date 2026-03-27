@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { switcherApi } from "@/lib/api";
-import { useWebSocket } from "@/lib/websocket";
+import { useAtemControl } from "@/hooks/use-atem-control";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,16 +9,6 @@ import { Label } from "@/components/ui/label";
 import { MonitorPlay, Plus, Wifi, WifiOff, ArrowRightLeft, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Switcher } from "@shared/schema";
-
-interface AtemState {
-  connected: boolean;
-  programInput: number;
-  previewInput: number;
-  inTransition: boolean;
-  transitionPosition: number;
-  inputs: Array<{ inputId: number; shortName: string; longName: string }>;
-}
 
 interface AtemPanelProps {
   collapsed?: boolean;
@@ -26,57 +16,9 @@ interface AtemPanelProps {
 
 export function AtemPanel({ collapsed = false }: AtemPanelProps) {
   const queryClient = useQueryClient();
-  const ws = useWebSocket();
+  const { atemState, switcher, cut, auto, setProgramInput, setPreviewInput } = useAtemControl();
   const [addSwitcherOpen, setAddSwitcherOpen] = useState(false);
   const [newSwitcher, setNewSwitcher] = useState({ name: "ATEM Extreme", ip: "", type: "atem" });
-  const [atemState, setAtemState] = useState<AtemState>({
-    connected: false,
-    programInput: 0,
-    previewInput: 0,
-    inTransition: false,
-    transitionPosition: 0,
-    inputs: [],
-  });
-
-  const { data: switchers = [] } = useQuery({
-    queryKey: ["switchers"],
-    queryFn: switcherApi.getAll,
-    refetchInterval: 5000,
-  });
-
-  const switcher = switchers[0];
-
-  const handleAtemState = useCallback((message: any) => {
-    if (message.type === "atem_state") {
-      setAtemState({
-        connected: message.connected,
-        programInput: message.programInput || 0,
-        previewInput: message.previewInput || 0,
-        inTransition: message.inTransition || false,
-        transitionPosition: message.transitionPosition || 0,
-        inputs: message.inputs || [],
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (ws) {
-      ws.addMessageHandler(handleAtemState);
-      return () => {
-        ws.removeMessageHandler(handleAtemState);
-      };
-    }
-  }, [ws, handleAtemState]);
-
-  useEffect(() => {
-    if (switcher && switcher.status === "online") {
-      switcherApi.getStatus(switcher.id).then((status) => {
-        if (status.connected) {
-          setAtemState(status);
-        }
-      }).catch(console.error);
-    }
-  }, [switcher]);
 
   const createSwitcherMutation = useMutation({
     mutationFn: switcherApi.create,
@@ -105,38 +47,6 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
       toast.error(error.message);
     },
   });
-
-  const handleCut = () => {
-    if (switcher && ws?.isConnected()) {
-      ws.send({ type: "atem_cut" });
-    } else {
-      toast.error("Not connected to switcher");
-    }
-  };
-
-  const handleAuto = () => {
-    if (switcher && ws?.isConnected()) {
-      ws.send({ type: "atem_auto" });
-    } else {
-      toast.error("Not connected to switcher");
-    }
-  };
-
-  const handleSetProgram = (inputId: number) => {
-    if (ws?.isConnected()) {
-      ws.send({ type: "atem_program", inputId });
-    } else {
-      toast.error("Not connected to switcher");
-    }
-  };
-
-  const handleSetPreview = (inputId: number) => {
-    if (ws?.isConnected()) {
-      ws.send({ type: "atem_preview", inputId });
-    } else {
-      toast.error("Not connected to switcher");
-    }
-  };
 
   if (collapsed) {
     return (
@@ -245,7 +155,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                     key={input}
                     variant="outline"
                     size="sm"
-                    onClick={() => handleSetPreview(input)}
+                    onClick={() => setPreviewInput(input)}
                     className={cn(
                       "h-10 font-mono",
                       atemState.previewInput === input && "bg-green-600 border-green-500 text-white"
@@ -265,7 +175,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                     key={input}
                     variant="outline"
                     size="sm"
-                    onClick={() => handleSetProgram(input)}
+                    onClick={() => setProgramInput(input)}
                     className={cn(
                       "h-10 font-mono",
                       atemState.programInput === input && "bg-red-600 border-red-500 text-white"
@@ -286,7 +196,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                 "flex-1 h-14 text-lg font-bold",
                 atemState.inTransition && "animate-pulse"
               )}
-              onClick={handleCut}
+              onClick={cut}
               data-testid="button-atem-cut"
             >
               <Zap className="h-5 w-5 mr-2" />
@@ -298,7 +208,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                 "flex-1 h-14 text-lg font-bold",
                 atemState.inTransition && "bg-amber-600 border-amber-500"
               )}
-              onClick={handleAuto}
+              onClick={auto}
               data-testid="button-atem-auto"
             >
               <ArrowRightLeft className="h-5 w-5 mr-2" />
