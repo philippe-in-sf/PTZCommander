@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
+import { SkinSelector } from "@/components/skin-selector";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function BroadcastConsole(props: DashboardSkinProps) {
   const [location] = useLocation();
@@ -62,6 +64,8 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
           <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div><span>X32: OK</span></div>
           <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div><span>HUE: WARN</span></div>
           <span className="ml-4 tabular-nums">14:02:45:12</span>
+          <ThemeToggle />
+          <SkinSelector />
         </div>
       </header>
 

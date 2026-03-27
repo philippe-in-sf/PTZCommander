@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
+import { SkinSelector } from "@/components/skin-selector";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // FAKE DATA for secondary panels
 const TERMINAL_LOGS = [
@@ -137,6 +139,8 @@ export default function CommandCenter(props: DashboardSkinProps) {
             </span>
             SYSTEM ONLINE
           </div>
+          <ThemeToggle />
+          <SkinSelector />
         </div>
       </header>
 
