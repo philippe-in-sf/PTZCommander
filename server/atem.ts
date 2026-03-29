@@ -1,4 +1,4 @@
-import { Atem, AtemState } from "atem-connection";
+import { Atem } from "atem-connection";
 
 export interface AtemConfig {
   ip: string;
@@ -10,6 +10,59 @@ export interface AtemInputInfo {
   longName: string;
 }
 
+export interface AtemDSKState {
+  index: number;
+  onAir: boolean;
+  tie: boolean;
+  rate: number;
+  inTransition: boolean;
+  isAuto: boolean;
+  remainingFrames: number;
+}
+
+export interface AtemUSKState {
+  index: number;
+  onAir: boolean;
+  type: number;
+  fillSource: number;
+  cutSource: number;
+  flyEnabled: boolean;
+}
+
+export interface AtemFTBState {
+  isFullyBlack: boolean;
+  inTransition: boolean;
+  remainingFrames: number;
+  rate: number;
+}
+
+export interface AtemTransitionState {
+  style: number;
+  nextStyle: number;
+  inTransition: boolean;
+  position: number;
+  remainingFrames: number;
+  mixRate: number;
+  dipRate: number;
+  wipeRate: number;
+  dveRate: number;
+  previewEnabled: boolean;
+}
+
+export interface AtemMacroState {
+  index: number;
+  name: string;
+  isUsed: boolean;
+  hasUnsupportedOps: boolean;
+}
+
+export interface AtemMacroPlayerState {
+  isRunning: boolean;
+  isWaiting: boolean;
+  loop: boolean;
+  macroIndex: number;
+}
+
 export interface AtemSwitcherState {
   connected: boolean;
   programInput: number;
@@ -17,6 +70,13 @@ export interface AtemSwitcherState {
   inTransition: boolean;
   transitionPosition: number;
   inputs: AtemInputInfo[];
+  transition: AtemTransitionState;
+  fadeToBlack: AtemFTBState;
+  downstreamKeyers: AtemDSKState[];
+  upstreamKeyers: AtemUSKState[];
+  macroPlayer: AtemMacroPlayerState;
+  macros: AtemMacroState[];
+  auxOutputs: number[];
 }
 
 export class AtemClient {
@@ -82,7 +142,7 @@ export class AtemClient {
   getState(): AtemSwitcherState {
     const state = this.atem.state;
     const mixEffect = state?.video?.mixEffects?.[0];
-    
+
     const inputs: AtemInputInfo[] = [];
     if (state?.inputs) {
       for (const [id, input] of Object.entries(state.inputs)) {
@@ -96,6 +156,90 @@ export class AtemClient {
       }
     }
 
+    const downstreamKeyers: AtemDSKState[] = [];
+    if (state?.video?.downstreamKeyers) {
+      state.video.downstreamKeyers.forEach((dsk, i) => {
+        if (dsk) {
+          downstreamKeyers.push({
+            index: i,
+            onAir: dsk.onAir ?? false,
+            tie: dsk.properties?.tie ?? false,
+            rate: dsk.properties?.rate ?? 30,
+            inTransition: dsk.inTransition ?? false,
+            isAuto: dsk.isAuto ?? false,
+            remainingFrames: dsk.remainingFrames ?? 0,
+          });
+        }
+      });
+    }
+
+    const upstreamKeyers: AtemUSKState[] = [];
+    if (mixEffect?.upstreamKeyers) {
+      mixEffect.upstreamKeyers.forEach((usk, i) => {
+        if (usk) {
+          upstreamKeyers.push({
+            index: i,
+            onAir: usk.onAir ?? false,
+            type: usk.mixEffectKeyType ?? 0,
+            fillSource: usk.fillSource ?? 0,
+            cutSource: usk.cutSource ?? 0,
+            flyEnabled: usk.flyEnabled ?? false,
+          });
+        }
+      });
+    }
+
+    const transitionProps = mixEffect?.transitionProperties;
+    const transitionSettings = mixEffect?.transitionSettings;
+    const transition: AtemTransitionState = {
+      style: transitionProps?.style ?? 0,
+      nextStyle: transitionProps?.nextStyle ?? 0,
+      inTransition: mixEffect?.transitionPosition?.inTransition ?? false,
+      position: mixEffect?.transitionPosition?.handlePosition ?? 0,
+      remainingFrames: mixEffect?.transitionPosition?.remainingFrames ?? 0,
+      mixRate: transitionSettings?.mix?.rate ?? 30,
+      dipRate: transitionSettings?.dip?.rate ?? 30,
+      wipeRate: transitionSettings?.wipe?.rate ?? 30,
+      dveRate: transitionSettings?.DVE?.rate ?? 30,
+      previewEnabled: mixEffect?.transitionPreview ?? false,
+    };
+
+    const ftb = mixEffect?.fadeToBlack;
+    const fadeToBlack: AtemFTBState = {
+      isFullyBlack: ftb?.isFullyBlack ?? false,
+      inTransition: ftb?.inTransition ?? false,
+      remainingFrames: ftb?.remainingFrames ?? 0,
+      rate: ftb?.rate ?? 30,
+    };
+
+    const macros: AtemMacroState[] = [];
+    if (state?.macro?.macroProperties) {
+      state.macro.macroProperties.forEach((macro, i) => {
+        if (macro && macro.isUsed) {
+          macros.push({
+            index: i,
+            name: macro.name || `Macro ${i + 1}`,
+            isUsed: macro.isUsed,
+            hasUnsupportedOps: macro.hasUnsupportedOps || false,
+          });
+        }
+      });
+    }
+
+    const macroPlayer: AtemMacroPlayerState = {
+      isRunning: state?.macro?.macroPlayer?.isRunning ?? false,
+      isWaiting: state?.macro?.macroPlayer?.isWaiting ?? false,
+      loop: state?.macro?.macroPlayer?.loop ?? false,
+      macroIndex: state?.macro?.macroPlayer?.macroIndex ?? 0,
+    };
+
+    const auxOutputs: number[] = [];
+    if (state?.video?.auxilliaries) {
+      state.video.auxilliaries.forEach((aux) => {
+        auxOutputs.push(aux ?? 0);
+      });
+    }
+
     return {
       connected: this.connected,
       programInput: mixEffect?.programInput ?? 0,
@@ -103,6 +247,13 @@ export class AtemClient {
       inTransition: mixEffect?.transitionPosition?.inTransition ?? false,
       transitionPosition: mixEffect?.transitionPosition?.handlePosition ?? 0,
       inputs: inputs.filter(i => i.inputId >= 1 && i.inputId <= 20),
+      transition,
+      fadeToBlack,
+      downstreamKeyers,
+      upstreamKeyers,
+      macroPlayer,
+      macros,
+      auxOutputs,
     };
   }
 
@@ -134,6 +285,81 @@ export class AtemClient {
   async setTransitionPosition(position: number): Promise<void> {
     if (!this.connected) return;
     await this.atem.setTransitionPosition(position);
+  }
+
+  async setTransitionStyle(style: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setTransitionStyle({ nextStyle: style });
+  }
+
+  async setTransitionPreview(enabled: boolean): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.previewTransition(enabled);
+  }
+
+  async setMixRate(rate: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setMixTransitionSettings({ rate });
+  }
+
+  async setDipRate(rate: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setDipTransitionSettings({ rate });
+  }
+
+  async setWipeRate(rate: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setWipeTransitionSettings({ rate });
+  }
+
+  async setFadeToBlackRate(rate: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setFadeToBlackRate(rate);
+  }
+
+  async setDSKOnAir(dskIndex: number, onAir: boolean): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setDownstreamKeyOnAir(onAir, dskIndex);
+  }
+
+  async setDSKTie(dskIndex: number, tie: boolean): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setDownstreamKeyTie(tie, dskIndex);
+  }
+
+  async autoDSK(dskIndex: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.autoDownstreamKey(dskIndex);
+  }
+
+  async setDSKRate(dskIndex: number, rate: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setDownstreamKeyRate(rate, dskIndex);
+  }
+
+  async setUSKOnAir(uskIndex: number, onAir: boolean): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setUpstreamKeyerOnAir(onAir, 0, uskIndex);
+  }
+
+  async runMacro(macroIndex: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.macroRun(macroIndex);
+  }
+
+  async stopMacro(): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.macroStop();
+  }
+
+  async continueMacro(): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.macroContinue();
+  }
+
+  async setAuxSource(auxIndex: number, sourceId: number): Promise<void> {
+    if (!this.connected) return;
+    await this.atem.setAuxSource(sourceId, auxIndex);
   }
 }
 

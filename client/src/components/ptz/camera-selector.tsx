@@ -1,113 +1,269 @@
 import { cn } from "@/lib/utils";
-import { Camera, Wifi, WifiOff } from "lucide-react";
+import { Camera, WifiOff, Settings, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export interface CameraData {
   id: number;
   name: string;
   ip: string;
+  port?: number;
+  streamUrl?: string | null;
+  atemInputId?: number | null;
+  tallyState?: string;
   status: 'online' | 'offline' | 'tally';
 }
 
 interface CameraSelectorProps {
   cameras: CameraData[];
-  previewId: number;
-  programId: number;
-  onSelectPreview: (id: number) => void;
-  onSelectProgram: (id: number) => void;
+  selectedId: number;
+  onSelect: (id: number) => void;
+  onUpdateCamera?: (id: number, updates: { name: string; ip: string; port: number; streamUrl?: string | null; atemInputId?: number | null }) => void;
+  onDeleteCamera?: (id: number) => void;
 }
 
-export function CameraSelector({ cameras, previewId, programId, onSelectPreview, onSelectProgram }: CameraSelectorProps) {
+export function CameraSelector({ 
+  cameras, 
+  selectedId, 
+  onSelect,
+  onUpdateCamera,
+  onDeleteCamera 
+}: CameraSelectorProps) {
+  const [editingCamera, setEditingCamera] = useState<CameraData | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, streamUrl: '', atemInputId: '' });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
+    e.stopPropagation();
+    setEditingCamera(cam);
+    setEditForm({ 
+      name: cam.name, 
+      ip: cam.ip, 
+      port: cam.port || 52381,
+      streamUrl: cam.streamUrl || '',
+      atemInputId: cam.atemInputId ? String(cam.atemInputId) : '',
+    });
+    setConfirmDelete(false);
+  };
+
+  const handleSave = () => {
+    if (editingCamera && onUpdateCamera) {
+      onUpdateCamera(editingCamera.id, {
+        name: editForm.name,
+        ip: editForm.ip,
+        port: editForm.port,
+        streamUrl: editForm.streamUrl || null,
+        atemInputId: editForm.atemInputId ? parseInt(editForm.atemInputId) : null,
+      });
+    }
+    setEditingCamera(null);
+  };
+
+  const handleDelete = () => {
+    if (editingCamera && onDeleteCamera) {
+      onDeleteCamera(editingCamera.id);
+    }
+    setEditingCamera(null);
+    setConfirmDelete(false);
+  };
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-      {cameras.map((cam) => {
-        const isPreview = previewId === cam.id;
-        const isProgram = programId === cam.id;
-        const isOnline = cam.status !== 'offline';
-        // Tally logic: If it's in PROGRAM, it's tally. Or if the camera reports tally.
-        const isTally = cam.status === 'tally' || isProgram;
+    <>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+        {cameras.map((cam) => {
+          const isSelected = selectedId === cam.id;
+          const isOnline = cam.status !== 'offline';
 
-        return (
-          <div
-            key={cam.id}
-            onClick={() => onSelectPreview(cam.id)}
-            className={cn(
-              "relative flex flex-col items-start p-4 h-32 rounded-lg border transition-all duration-200 group overflow-hidden cursor-pointer",
-              isProgram 
-                ? "bg-red-950/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.25)]" 
-                : isPreview
-                  ? "bg-emerald-950/20 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.25)]"
-                  : "bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50"
-            )}
-          >
-            {/* Status Indicator */}
-            <div className="absolute top-3 right-3 flex items-center gap-2">
-              <span className={cn(
-                "text-[10px] font-mono uppercase tracking-wider",
-                isTally ? "text-red-500 font-bold" : isPreview ? "text-emerald-500 font-bold" : "text-slate-500"
-              )}>
-                {isTally ? "PGM" : isPreview ? "PVW" : cam.status}
-              </span>
-              <div className={cn(
-                "w-2 h-2 rounded-full",
-                isTally ? "bg-red-500 animate-pulse shadow-[0_0_8px_red]" : 
-                isPreview ? "bg-emerald-500 shadow-[0_0_8px_emerald]" :
-                isOnline ? "bg-slate-600" : "bg-red-900"
-              )} />
-            </div>
+          return (
+            <div
+              key={cam.id}
+              data-testid={`camera-card-${cam.id}`}
+              onClick={() => onSelect(cam.id)}
+              className={cn(
+                "relative flex flex-col items-start p-4 h-32 rounded-lg border transition-all duration-200 group overflow-hidden cursor-pointer",
+                cam.tallyState === "program"
+                  ? "bg-red-50/50 dark:bg-red-950/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.25)]"
+                  : cam.tallyState === "preview"
+                  ? "bg-green-50/50 dark:bg-green-950/20 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.25)]"
+                  : isSelected
+                  ? "bg-cyan-50/50 dark:bg-cyan-950/20 border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.25)]"
+                  : "bg-slate-400/40 dark:bg-slate-900/50 border-slate-300 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
+              )}
+            >
+              <button
+                onClick={(e) => handleEditClick(e, cam)}
+                className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded bg-slate-200/80 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                data-testid={`camera-settings-${cam.id}`}
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
 
-            {/* Icon */}
-            <div className={cn(
-              "mb-auto p-2 rounded-md transition-colors",
-              isProgram ? "bg-red-500/10 text-red-400" :
-              isPreview ? "bg-emerald-500/10 text-emerald-400" : 
-              "bg-slate-800 text-slate-500"
-            )}>
-              {isOnline ? <Camera className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
-            </div>
-
-            {/* Info */}
-            <div className="text-left z-10 w-full">
-              <div className="flex justify-between items-end">
-                <div>
-                  <div className="font-mono text-xs text-slate-500 mb-0.5">{cam.ip}</div>
-                  <div className={cn(
-                    "font-bold text-lg leading-none tracking-tight",
-                    isProgram ? "text-red-100" :
-                    isPreview ? "text-emerald-100" :
-                    "text-slate-300"
-                  )}>
-                    {cam.name}
-                  </div>
-                </div>
-                
-                {/* Manual Cut Button (Direct to PGM if needed) */}
-                {!isProgram && (
-                   <button 
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       onSelectProgram(cam.id);
-                     }}
-                     className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white text-[10px] font-bold px-2 py-1 rounded border border-red-500/50 uppercase"
-                   >
-                     CUT
-                   </button>
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                {cam.tallyState === "program" && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white animate-pulse" data-testid={`tally-pgm-${cam.id}`}>PGM</span>
                 )}
+                {cam.tallyState === "preview" && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-600 text-white" data-testid={`tally-pvw-${cam.id}`}>PVW</span>
+                )}
+                <span className={cn(
+                  "text-[10px] font-mono uppercase tracking-wider",
+                  isSelected ? "text-cyan-500 font-bold" : "text-slate-600 dark:text-slate-500"
+                )}>
+                  {isSelected ? "SELECTED" : cam.status}
+                </span>
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  cam.tallyState === "program" ? "bg-red-500 shadow-[0_0_8px_red]" :
+                  cam.tallyState === "preview" ? "bg-green-500 shadow-[0_0_8px_green]" :
+                  isSelected ? "bg-cyan-500 shadow-[0_0_8px_cyan]" :
+                  isOnline ? "bg-slate-600" : "bg-red-900"
+                )} />
+              </div>
+
+              <div className={cn(
+                "mb-auto p-2 rounded-md transition-colors",
+                isSelected ? "bg-cyan-500/10 text-cyan-400" : 
+                "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-500"
+              )}>
+                {isOnline ? <Camera className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
+              </div>
+
+              <div className="text-left z-10 w-full">
+                <div className="font-mono text-xs text-slate-600 dark:text-slate-500 mb-0.5">{cam.ip}:{cam.port || 52381}</div>
+                <div className={cn(
+                  "font-bold text-lg leading-none tracking-tight",
+                  isSelected ? "text-cyan-900 dark:text-cyan-100" : "text-slate-700 dark:text-slate-300"
+                )}>
+                  {cam.name}
+                </div>
+              </div>
+
+              {isSelected && (
+                <div className={cn(
+                  "absolute bottom-0 right-0 w-4 h-4 [clip-path:polygon(100%_0,0_100%,100%_100%)]",
+                  "bg-cyan-500"
+                )} />
+              )}
+              
+              <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent" />
+            </div>
+          );
+        })}
+      </div>
+
+      <Dialog open={!!editingCamera} onOpenChange={(open) => !open && setEditingCamera(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Camera Settings</DialogTitle>
+          </DialogHeader>
+          
+          {!confirmDelete ? (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-name">Camera Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  data-testid="input-camera-name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-ip">IP Address</Label>
+                <Input
+                  id="edit-ip"
+                  value={editForm.ip}
+                  onChange={(e) => setEditForm({ ...editForm, ip: e.target.value })}
+                  data-testid="input-camera-ip"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-port">VISCA Port</Label>
+                <Input
+                  id="edit-port"
+                  type="number"
+                  value={editForm.port}
+                  onChange={(e) => setEditForm({ ...editForm, port: parseInt(e.target.value) || 52381 })}
+                  data-testid="input-camera-port"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Common ports: 5678 (Fomako), 52381 (Sony/standard), 1259
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="edit-stream">Snapshot/Stream URL</Label>
+                <Input
+                  id="edit-stream"
+                  value={editForm.streamUrl}
+                  onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
+                  placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
+                  data-testid="input-camera-stream-url"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  HTTP URL for camera snapshot (JPEG). Used for live preview on dashboard.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="edit-atem-input">ATEM Input Number</Label>
+                <Input
+                  id="edit-atem-input"
+                  type="number"
+                  value={editForm.atemInputId}
+                  onChange={(e) => setEditForm({ ...editForm, atemInputId: e.target.value })}
+                  placeholder="e.g. 1, 2, 3, 4"
+                  data-testid="input-camera-atem-input"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Maps this camera to an ATEM switcher input for automatic tally lights.
+                </p>
+              </div>
+              
+              <div className="flex gap-2">
+                <Button onClick={handleSave} className="flex-1" data-testid="button-save-camera">
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={() => setConfirmDelete(true)}
+                  data-testid="button-delete-camera"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
             </div>
-
-            {/* Selection Corner */}
-            {(isPreview || isProgram) && (
-              <div className={cn(
-                "absolute bottom-0 right-0 w-4 h-4 [clip-path:polygon(100%_0,0_100%,100%_100%)]",
-                isProgram ? "bg-red-500" : "bg-emerald-500"
-              )} />
-            )}
-            
-            {/* Background Tech Pattern */}
-            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent" />
-          </div>
-        );
-      })}
-    </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-center text-slate-700 dark:text-slate-300">
+                Are you sure you want to delete <strong>{editingCamera?.name}</strong>?
+              </p>
+              <p className="text-center text-sm text-slate-700 dark:text-slate-500">
+                This will also delete all saved presets for this camera.
+              </p>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setConfirmDelete(false)} 
+                  className="flex-1"
+                  data-testid="button-cancel-delete"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleDelete} 
+                  className="flex-1"
+                  data-testid="button-confirm-delete"
+                >
+                  Delete Camera
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

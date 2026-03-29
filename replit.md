@@ -4,7 +4,7 @@
 
 PTZ Command is a professional PTZ (Pan-Tilt-Zoom) camera controller designed for use with OBS, ATEM, and other broadcast software. The application enables control of up to 4 PTZ cameras via VISCA over IP protocol, featuring a virtual joystick for pan/tilt control, preset management with 16 presets per camera, and a standard broadcast-style program/preview workflow.
 
-The application also includes integrated control for Behringer X32 digital audio mixers via OSC protocol, providing basic channel control (faders, mute) from the same interface. Additionally, it supports Blackmagic ATEM video switchers for program/preview input selection and cut/auto transitions.
+The application also includes integrated control for Behringer X32 digital audio mixers via OSC protocol, providing basic channel control (faders, mute) from the same interface. Additionally, it supports Blackmagic ATEM video switchers for program/preview input selection and cut/auto transitions. Philips Hue lighting bridges can be managed from the dedicated Lighting page with scene activation, room/zone control, and individual light control.
 
 ## User Preferences
 
@@ -18,16 +18,17 @@ Preferred communication style: Simple, everyday language.
 - **Routing**: Wouter (lightweight React router)
 - **State Management**: TanStack React Query for server state
 - **UI Components**: Radix UI primitives with shadcn/ui component library
-- **Styling**: Tailwind CSS v4 with custom dark theme optimized for broadcast control rooms
+- **Styling**: Tailwind CSS v4 with light/dark theme toggle (dark default, optimized for broadcast control rooms)
 - **Animations**: Framer Motion for joystick interactions
 
-The frontend is a single-page application with a dashboard layout containing:
-- Camera selector grid with program/preview indicators
-- Virtual joystick component for real-time PTZ control
-- Preset grid (16 presets per camera) with recall/store modes
-- Lens controls for zoom, focus, and speed adjustments
-- Audio mixer panel with 16 channel strips and main fader
-- Video switcher panel with 8 input buttons for program/preview and transition controls
+The frontend is a multi-page application with navigation tabs:
+- **Dashboard** (`/`): Scene buttons (quick access), ATEM/Mixer summary panels, camera preview grid (with live JPEG snapshots), camera selector strip, virtual joystick, preset grid, lens controls
+- **Scenes** (`/scenes`): Full-page scene button management — create, edit, and execute programmable macro buttons that trigger combined ATEM, mixer, and PTZ actions
+- **Macros** (`/macros`): Macro builder — create, edit, and execute multi-step PTZ command sequences (preset recall, pan/tilt, zoom, focus, ATEM transitions, configurable delays)
+- **Video Switcher** (`/switcher`): Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
+- **Audio Mixer** (`/mixer`): Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
+- **Mobile Companion** (`/mobile`): Touch-optimized mobile web view with 3 tabs (Camera, Scenes, Switcher) — camera selector with tally, touch joystick, zoom, presets, scene execution, ATEM program/preview/cut/auto
+- **Lighting** (`/lighting`): Philips Hue bridge management — add bridges (IP + API key or pair via button), activate Hue scenes, control rooms/zones and individual lights with brightness sliders
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5
@@ -44,31 +45,101 @@ The server handles:
 - X32 mixer connection and OSC command handling
 - ATEM switcher connection and control via atem-connection library
 - Real-time state synchronization between hardware and UI
+- Production layout save/load with full configuration snapshots
 
 ### Data Storage
-- **Database**: PostgreSQL
+- **Database**: PostgreSQL (cloud/Replit) or SQLite (local installation)
+  - Automatically detects: Uses PostgreSQL when `DATABASE_URL` is set, otherwise falls back to SQLite
+  - SQLite file stored at `data/ptzcommand.db` for portable local installations
 - **ORM**: Drizzle ORM with drizzle-zod for schema validation
-- **Schema**: Four tables - `cameras` (connection info, status, program/preview flags), `presets` (camera positions with pan/tilt/zoom/focus values), `mixers` (audio mixer connection info), and `switchers` (ATEM switcher connection info)
-- **Migrations**: Managed via `drizzle-kit push`
+- **Schema**: Eight tables - `cameras`, `presets`, `mixers`, `switchers`, `scene_buttons`, `layouts`, `macros`, and `audit_logs`
+- **Migrations**: Managed via `drizzle-kit push` (PostgreSQL) or auto-created (SQLite)
+
+### Production Layouts
+- Save complete production setups as named layouts (e.g. "Sunday Service", "Concert", "Interview")
+- Each layout stores a JSON snapshot of all cameras, presets, scene buttons, mixer, and switcher configurations
+- Load a layout to restore the entire production configuration in one action
+- Update an active layout's snapshot after making changes
+- Active layout indicator shown in the header across all pages
+- Layout selector component: `client/src/components/layouts/layout-selector.tsx`
+
+### Tally Lights
+- Automatic tally light control driven by ATEM switcher state
+- Each camera can be mapped to an ATEM input number via `atemInputId` field
+- When ATEM program/preview inputs change, tally commands are sent to mapped cameras via VISCA
+- VISCA tally on/off commands: `81 01 7E 01 0A 00 02 FF` (on) / `81 01 7E 01 0A 00 03 FF` (off)
+- Tally state (`program`, `preview`, `off`) stored in database and reflected in UI
+- Camera cards show red border + PGM badge for program, green border + PVW badge for preview
+- Camera preview grid also shows tally-colored borders
+- Fomako cameras support single tally LED (on/off) — no separate program/preview colors on hardware
+
+### Logging System
+- Centralized logging via `server/logger.ts`
+- Categories: api, websocket, camera, mixer, switcher, database, system
+- Levels: debug, info, warn, error
+- Persistent audit logs stored in database for debugging and auditing
+- In-memory buffer for recent logs (last 1000 entries)
+- Log viewer UI accessible from header
+
+### Scene Buttons
+- Programmable macro buttons that execute combined ATEM, mixer, and PTZ actions in a single press
+- Each button stores: ATEM input + transition type, mixer channel actions (JSON array), camera + preset number
+- Active/selected scene button shows inverted colors (solid background with dark text)
+- Dashboard shows compact quick-access strip; Scenes page shows full management UI
+- Preset numbers use 0-based indexing (preset 1 = index 0) matching VISCA protocol
+
+### Versioning
+- Version defined in `shared/version.ts` as `APP_VERSION`
+- Displayed in the header of all pages (under the PTZCOMMAND logo)
+- Available via API at `GET /api/version`
+- Shown in server startup log
+- **On every deploy**: bump the version in `shared/version.ts` and add a changelog entry to `CHANGELOG.md`
+
+### Startup Scripts
+- `start.bat` — Windows startup script (double-click to launch)
+- `start.sh` — Mac/Linux startup script (`./start.sh`)
+- Both scripts: check Node.js installation, run `npm install` for updates, auto-open browser at correct URL, start the server
+
+### Real-time Cache Invalidation
+- Server broadcasts `{ type: "invalidate", keys: [...] }` via WebSocket after every mutation (create/update/delete)
+- Client `useWsInvalidation()` hook (in `client/src/lib/ws-invalidation.ts`) listens and calls `queryClient.invalidateQueries` per key
+- The `WsSync` wrapper component in `App.tsx` activates this globally
+- Data queries use `staleTime: Infinity` with no polling; freshness is driven by WS invalidation
+- Polling retained only for logs, health checks, and Hue lighting (external hardware state)
+
+### Shared Hooks
+- `useAtemControl` (`client/src/hooks/use-atem-control.ts`): Shared ATEM state management, WS listener, initial status fetch, and action helpers (cut, auto, setProgramInput, setPreviewInput, send). Used by switcher page, atem-panel, and mobile page.
 
 ### Project Structure
 ```
 ├── client/          # React frontend
 │   ├── src/
-│   │   ├── components/ptz/     # PTZ-specific components
-│   │   ├── components/mixer/   # Audio mixer components
+│   │   ├── components/ptz/      # PTZ-specific components
+│   │   ├── components/mixer/    # Audio mixer components
 │   │   ├── components/switcher/ # Video switcher components
-│   │   ├── components/ui/    # shadcn/ui components
-│   │   ├── pages/            # Route pages
-│   │   └── lib/              # API clients, utilities
+│   │   ├── components/layouts/  # Production layout components
+│   │   ├── components/logs/     # Log viewer components
+│   │   ├── components/ui/       # shadcn/ui components
+│   │   ├── hooks/               # Shared hooks (use-atem-control, use-toast, etc.)
+│   │   ├── pages/               # Route pages (dashboard, scenes, switcher, mixer)
+│   │   └── lib/                 # API clients, utilities, ws-invalidation
 ├── server/          # Express backend
-│   ├── routes.ts    # API endpoints + WebSocket setup
-│   ├── storage.ts   # Database operations
+│   ├── routes.ts    # WebSocket handler + route orchestrator (~530 lines)
+│   ├── routes/      # Domain-specific route files
+│   │   ├── camera.ts, mixer.ts, switcher.ts, scene.ts
+│   │   ├── layout.ts, macro.ts, lighting.ts, system.ts
+│   │   ├── types.ts             # RouteContext interface
+│   │   └── index.ts             # Route registration barrel
+│   ├── storage.ts   # Database operations (IStorage interface + DatabaseStorage)
+│   ├── db.ts        # Database connection (PostgreSQL/SQLite auto-detection)
 │   ├── visca.ts     # VISCA protocol implementation
 │   ├── x32.ts       # X32 OSC protocol implementation
-│   └── atem.ts      # ATEM switcher protocol implementation
+│   ├── atem.ts      # ATEM switcher protocol implementation
+│   └── logger.ts    # Centralized logging service
 ├── shared/          # Shared TypeScript types and schemas
-│   └── schema.ts    # Drizzle schema definitions
+│   └── schema.ts    # Drizzle schema definitions (7 tables)
+├── start.bat        # Windows startup script
+├── start.sh         # Mac/Linux startup script
 ```
 
 ## External Dependencies

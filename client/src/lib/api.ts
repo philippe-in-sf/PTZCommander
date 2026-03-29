@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -140,7 +140,7 @@ export const mixerApi = {
     return res.json();
   },
 
-  getStatus: async (id: number): Promise<{ connected: boolean; channels: any[] }> => {
+  getStatus: async (id: number): Promise<{ connected: boolean; channels: any[]; sections?: Record<string, any[]> }> => {
     const res = await fetch(`${API_BASE}/mixers/${id}/status`);
     if (!res.ok) throw new Error("Failed to get mixer status");
     return res.json();
@@ -232,5 +232,217 @@ export const switcherApi = {
       body: JSON.stringify({ inputId }),
     });
     if (!res.ok) throw new Error("Failed to set preview input");
+  },
+};
+
+export const sceneButtonApi = {
+  getAll: async (): Promise<SceneButton[]> => {
+    const res = await fetch(`${API_BASE}/scene-buttons`);
+    if (!res.ok) throw new Error("Failed to fetch scene buttons");
+    return res.json();
+  },
+
+  create: async (button: InsertSceneButton): Promise<SceneButton> => {
+    const res = await fetch(`${API_BASE}/scene-buttons`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(button),
+    });
+    if (!res.ok) throw new Error("Failed to create scene button");
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<SceneButton>): Promise<SceneButton> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update scene button");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete scene button");
+  },
+
+  execute: async (id: number): Promise<{ success: boolean; results: string[] }> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/${id}/execute`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to execute scene button");
+    return res.json();
+  },
+};
+
+export const macroApi = {
+  getAll: async (): Promise<Macro[]> => {
+    const res = await fetch(`${API_BASE}/macros`);
+    if (!res.ok) throw new Error("Failed to fetch macros");
+    return res.json();
+  },
+
+  getOne: async (id: number): Promise<Macro> => {
+    const res = await fetch(`${API_BASE}/macros/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch macro");
+    return res.json();
+  },
+
+  create: async (macro: InsertMacro): Promise<Macro> => {
+    const res = await fetch(`${API_BASE}/macros`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(macro),
+    });
+    if (!res.ok) throw new Error("Failed to create macro");
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<Macro>): Promise<Macro> => {
+    const res = await fetch(`${API_BASE}/macros/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update macro");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/macros/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete macro");
+  },
+
+  execute: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/macros/${id}/execute`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to execute macro");
+    return res.json();
+  },
+};
+
+export const undoApi = {
+  getStatus: async (): Promise<{ canUndo: boolean; count: number; lastAction: any }> => {
+    const res = await fetch(`${API_BASE}/undo/status`);
+    if (!res.ok) throw new Error("Failed to get undo status");
+    return res.json();
+  },
+  undo: async (): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/undo`, { method: "POST" });
+    if (!res.ok) throw new Error("Failed to undo");
+    return res.json();
+  },
+};
+
+export const sessionLogApi = {
+  getAll: async (): Promise<any[]> => {
+    const res = await fetch(`${API_BASE}/session-log`);
+    if (!res.ok) throw new Error("Failed to get session log");
+    return res.json();
+  },
+  clear: async (): Promise<void> => {
+    await fetch(`${API_BASE}/session-log`, { method: "DELETE" });
+  },
+};
+
+export const healthApi = {
+  getDevices: async (): Promise<any> => {
+    const res = await fetch(`${API_BASE}/health/devices`);
+    if (!res.ok) throw new Error("Failed to get device health");
+    return res.json();
+  },
+};
+
+export const layoutApi = {
+  getAll: async (): Promise<Layout[]> => {
+    const res = await fetch(`${API_BASE}/layouts`);
+    if (!res.ok) throw new Error("Failed to fetch layouts");
+    return res.json();
+  },
+
+  getActive: async (): Promise<Layout | null> => {
+    const res = await fetch(`${API_BASE}/layouts/active`);
+    if (!res.ok) throw new Error("Failed to fetch active layout");
+    return res.json();
+  },
+
+  getOne: async (id: number): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch layout");
+    return res.json();
+  },
+
+  saveCurrent: async (data: { name: string; description?: string; color?: string }): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/save-current`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to save layout");
+    return res.json();
+  },
+
+  load: async (id: number): Promise<{ success: boolean; message: string }> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}/load`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to load layout");
+    return res.json();
+  },
+
+  updateSnapshot: async (id: number): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}/update-snapshot`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error("Failed to update layout snapshot");
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<Layout>): Promise<Layout> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update layout");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete layout");
+  },
+
+  exportLayout: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/layouts/${id}/export`);
+    if (!res.ok) throw new Error("Failed to export layout");
+    const data = await res.json();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `layout-${data.layout.name.replace(/[^a-z0-9]/gi, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  importLayout: async (file: File): Promise<Layout> => {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const res = await fetch(`${API_BASE}/layouts/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parsed),
+    });
+    if (!res.ok) throw new Error("Failed to import layout");
+    return res.json();
   },
 };

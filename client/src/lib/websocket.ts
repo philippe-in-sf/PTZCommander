@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type MixerChannelState = {
   channel: number;
@@ -12,7 +12,9 @@ export type WebSocketMessageHandler = (message: any) => void;
 export class PTZWebSocket {
   private ws: WebSocket | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
-  private reconnectDelay = 2000;
+  private reconnectDelay = 1000;
+  private reconnectAttempts = 0;
+  private maxReconnectDelay = 30000;
   private messageHandlers: Set<WebSocketMessageHandler> = new Set();
 
   constructor(private url: string) {}
@@ -26,6 +28,8 @@ export class PTZWebSocket {
 
     this.ws.onopen = () => {
       console.log("[WebSocket] Connected");
+      this.reconnectAttempts = 0;
+      this.reconnectDelay = 1000;
       onOpen?.();
     };
 
@@ -33,10 +37,13 @@ export class PTZWebSocket {
       console.log("[WebSocket] Disconnected");
       onClose?.();
       
-      // Auto-reconnect after delay
+      this.reconnectAttempts++;
+      const jitter = Math.random() * 500;
+      const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay) + jitter;
+      console.log(`[WebSocket] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})`);
       this.reconnectTimeout = setTimeout(() => {
         this.connect(onOpen, onClose);
-      }, this.reconnectDelay);
+      }, delay);
     };
 
     this.ws.onerror = (error) => {
@@ -85,6 +92,7 @@ export class PTZWebSocket {
   }
 
   panTilt(cameraId: number, pan: number, tilt: number, speed: number = 0.5): void {
+    console.log(`[PTZ] Sending pan_tilt: camera=${cameraId}, pan=${pan.toFixed(2)}, tilt=${tilt.toFixed(2)}`);
     this.send({
       type: "pan_tilt",
       cameraId,
@@ -117,6 +125,18 @@ export class PTZWebSocket {
     });
   }
 
+  focusFar(cameraId: number, speed: number = 0.5): void {
+    this.send({ type: "focus_far", cameraId, speed });
+  }
+
+  focusNear(cameraId: number, speed: number = 0.5): void {
+    this.send({ type: "focus_near", cameraId, speed });
+  }
+
+  focusStop(cameraId: number): void {
+    this.send({ type: "focus_stop", cameraId });
+  }
+
   recallPreset(cameraId: number, presetNumber: number): void {
     this.send({
       type: "recall_preset",
@@ -132,22 +152,34 @@ export function buildWebSocketUrl(path: string = "/ws"): string {
   return `${protocol}//${window.location.host}${path}`;
 }
 
+// Singleton WebSocket instance
+let globalWsInstance: PTZWebSocket | null = null;
+
+function getWebSocketInstance(): PTZWebSocket {
+  if (!globalWsInstance) {
+    const url = buildWebSocketUrl("/ws");
+    globalWsInstance = new PTZWebSocket(url);
+    globalWsInstance.connect();
+  }
+  return globalWsInstance;
+}
+
 // Hook for using WebSocket in components
-export function useWebSocket(): PTZWebSocket | null {
-  const wsRef = useRef<PTZWebSocket | null>(null);
+export function useWebSocket(): PTZWebSocket {
+  const [, forceUpdate] = useState(0);
+  
+  // Get or create the singleton instance immediately
+  const ws = getWebSocketInstance();
 
   useEffect(() => {
-    if (!wsRef.current) {
-      const url = buildWebSocketUrl("/ws");
-      wsRef.current = new PTZWebSocket(url);
-      wsRef.current.connect();
-    }
-
+    // Add a handler to force re-render on connection state changes
+    const handler = () => forceUpdate(n => n + 1);
+    ws.addMessageHandler(handler);
+    
     return () => {
-      wsRef.current?.disconnect();
-      wsRef.current = null;
+      ws.removeMessageHandler(handler);
     };
-  }, []);
+  }, [ws]);
 
-  return wsRef.current;
+  return ws;
 }

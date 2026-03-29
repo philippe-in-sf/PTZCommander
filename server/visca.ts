@@ -106,6 +106,7 @@ export class VISCAClient {
       0xFF
     ]);
 
+    console.log(`[VISCA] Sending pan/tilt to ${this.host}:${this.port}: speed=${panSpeed}/${tiltSpeed}, dir=${panDirection}/${tiltDirection}`);
     this.sendCommand(cmd);
   }
 
@@ -157,6 +158,25 @@ export class VISCAClient {
     this.sendCommand(cmd);
   }
 
+  focusFar(speed: number = 0.5): void {
+    const s = Math.max(0, Math.min(1, speed));
+    const spd = Math.round(s * 7);
+    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x20 | spd, 0xFF]);
+    this.sendCommand(cmd);
+  }
+
+  focusNear(speed: number = 0.5): void {
+    const s = Math.max(0, Math.min(1, speed));
+    const spd = Math.round(s * 7);
+    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x30 | spd, 0xFF]);
+    this.sendCommand(cmd);
+  }
+
+  focusStop(): void {
+    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x00, 0xFF]);
+    this.sendCommand(cmd);
+  }
+
   // Recall preset
   recallPreset(presetNumber: number): void {
     if (presetNumber < 0 || presetNumber > 254) {
@@ -186,6 +206,20 @@ export class VISCAClient {
       0xFF
     ]);
     
+    this.sendCommand(cmd);
+  }
+
+  // Tally light control
+  // state: "program" (red), "preview" (green), "off"
+  tallyOn(): void {
+    const cmd = Buffer.from([0x81, 0x01, 0x7E, 0x01, 0x0A, 0x00, 0x02, 0xFF]);
+    console.log(`[VISCA] Tally ON for ${this.host}:${this.port}`);
+    this.sendCommand(cmd);
+  }
+
+  tallyOff(): void {
+    const cmd = Buffer.from([0x81, 0x01, 0x7E, 0x01, 0x0A, 0x00, 0x03, 0xFF]);
+    console.log(`[VISCA] Tally OFF for ${this.host}:${this.port}`);
     this.sendCommand(cmd);
   }
 
@@ -221,6 +255,10 @@ export class CameraConnectionManager {
 
   getClient(id: number): VISCAClient | undefined {
     return this.connections.get(id);
+  }
+
+  getConnectedCameraIds(): number[] {
+    return Array.from(this.connections.keys());
   }
 
   disconnectAll(): void {

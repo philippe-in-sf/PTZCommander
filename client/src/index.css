@@ -7,33 +7,33 @@
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  --color-background: hsl(220 15% 10%); /* Deep charcoal */
-  --color-foreground: hsl(210 20% 90%); /* Off-white */
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
 
-  --color-card: hsl(220 15% 13%);
-  --color-card-foreground: hsl(210 20% 90%);
+  --color-card: var(--card-bg);
+  --color-card-foreground: var(--card-fg);
 
-  --color-popover: hsl(220 15% 13%);
-  --color-popover-foreground: hsl(210 20% 90%);
+  --color-popover: var(--popover-bg);
+  --color-popover-foreground: var(--popover-fg);
 
-  --color-primary: hsl(180 100% 50%); /* Cyan Neon */
-  --color-primary-foreground: hsl(220 20% 10%);
+  --color-primary: var(--primary-bg);
+  --color-primary-foreground: var(--primary-fg);
 
-  --color-secondary: hsl(220 10% 20%);
-  --color-secondary-foreground: hsl(210 20% 90%);
+  --color-secondary: var(--secondary-bg);
+  --color-secondary-foreground: var(--secondary-fg);
 
-  --color-muted: hsl(220 10% 20%);
-  --color-muted-foreground: hsl(210 10% 60%);
+  --color-muted: var(--muted-bg);
+  --color-muted-foreground: var(--muted-fg);
 
-  --color-accent: hsl(180 100% 50%);
-  --color-accent-foreground: hsl(220 20% 10%);
+  --color-accent: var(--accent-bg);
+  --color-accent-foreground: var(--accent-fg);
 
   --color-destructive: hsl(0 80% 60%);
   --color-destructive-foreground: hsl(210 20% 98%);
 
-  --color-border: hsl(220 10% 25%);
-  --color-input: hsl(220 10% 20%);
-  --color-ring: hsl(180 100% 50%);
+  --color-border: var(--border-color);
+  --color-input: var(--input-bg);
+  --color-ring: var(--ring-color);
 
   --radius-sm: 2px;
   --radius-md: 4px;
@@ -41,39 +41,100 @@
 }
 
 :root {
+  color-scheme: light;
+
+  --bg: hsl(218 25% 78%);
+  --fg: hsl(220 25% 12%);
+
+  --card-bg: hsl(218 22% 82%);
+  --card-fg: hsl(220 25% 12%);
+
+  --popover-bg: hsl(218 22% 82%);
+  --popover-fg: hsl(220 25% 12%);
+
+  --primary-bg: hsl(192 90% 35%);
+  --primary-fg: hsl(0 0% 100%);
+
+  --secondary-bg: hsl(218 20% 74%);
+  --secondary-fg: hsl(220 20% 15%);
+
+  --muted-bg: hsl(218 20% 74%);
+  --muted-fg: hsl(220 12% 38%);
+
+  --accent-bg: hsl(192 90% 35%);
+  --accent-fg: hsl(0 0% 100%);
+
+  --border-color: hsl(218 18% 68%);
+  --input-bg: hsl(218 20% 74%);
+  --ring-color: hsl(192 90% 35%);
+}
+
+.dark {
   color-scheme: dark;
+
+  --bg: hsl(220 15% 10%);
+  --fg: hsl(210 20% 90%);
+
+  --card-bg: hsl(220 15% 13%);
+  --card-fg: hsl(210 20% 90%);
+
+  --popover-bg: hsl(220 15% 13%);
+  --popover-fg: hsl(210 20% 90%);
+
+  --primary-bg: hsl(180 100% 50%);
+  --primary-fg: hsl(220 20% 10%);
+
+  --secondary-bg: hsl(220 10% 20%);
+  --secondary-fg: hsl(210 20% 90%);
+
+  --muted-bg: hsl(220 10% 20%);
+  --muted-fg: hsl(210 10% 60%);
+
+  --accent-bg: hsl(180 100% 50%);
+  --accent-fg: hsl(220 20% 10%);
+
+  --border-color: hsl(220 10% 25%);
+  --input-bg: hsl(220 10% 20%);
+  --ring-color: hsl(180 100% 50%);
 }
 
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+}
+
+.dark body {
   background-image: radial-gradient(circle at 50% 50%, rgba(0, 255, 255, 0.03) 0%, transparent 50%);
 }
 
-/* Custom Scrollbar for "Mission Control" feel */
-::-webkit-scrollbar {
+.dark ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-::-webkit-scrollbar-track {
+.dark ::-webkit-scrollbar-track {
   background: hsl(220 15% 10%);
 }
 
-::-webkit-scrollbar-thumb {
+.dark ::-webkit-scrollbar-thumb {
   background: hsl(220 10% 30%);
   border-radius: 4px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+.dark ::-webkit-scrollbar-thumb:hover {
   background: hsl(180 100% 50% / 0.5);
 }
 
-/* Utility for glass panels */
 .glass-panel {
-  background: rgba(30, 35, 45, 0.7);
+  background: rgba(160, 175, 200, 0.5);
   backdrop-filter: blur(12px);
+  border: 1px solid rgba(80, 100, 140, 0.25);
+  box-shadow: 0 4px 30px rgba(40, 60, 100, 0.12);
+}
+
+.dark .glass-panel {
+  background: rgba(30, 35, 45, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }

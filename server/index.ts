@@ -78,26 +78,30 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  if (nodeEnv === "production") {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  const defaultPort = process.env.REPL_ID ? "5000" : "3478";
+  const port = parseInt(process.env.PORT || defaultPort, 10);
+  
+  httpServer.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`\n[Error] Port ${port} is already in use.`);
+      console.error(`\nPossible solutions:`);
+      console.error(`  1. Use a different port: PORT=4000 npm run dev`);
+      console.error(`  2. Kill the process using port ${port}`);
+      console.error(`  3. On Mac: Disable AirPlay Receiver in System Settings\n`);
+      process.exit(1);
+    }
+    throw err;
+  });
+
+  httpServer.listen(port, "0.0.0.0", () => {
+    log(`serving on port ${port}`);
+  });
 })();

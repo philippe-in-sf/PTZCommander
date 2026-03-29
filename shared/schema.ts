@@ -11,6 +11,9 @@ export const cameras = pgTable("cameras", {
   protocol: text("protocol").notNull().default("visca"),
   username: text("username"),
   password: text("password"),
+  streamUrl: text("stream_url"),
+  atemInputId: integer("atem_input_id"),
+  tallyState: text("tally_state").notNull().default("off"),
   status: text("status").notNull().default("offline"),
   isProgramOutput: boolean("is_program_output").notNull().default(false),
   isPreviewOutput: boolean("is_preview_output").notNull().default(false),
@@ -22,6 +25,7 @@ export const presets = pgTable("presets", {
   cameraId: integer("camera_id").notNull().references(() => cameras.id, { onDelete: "cascade" }),
   presetNumber: integer("preset_number").notNull(),
   name: text("name"),
+  thumbnail: text("thumbnail"),
   pan: integer("pan"),
   tilt: integer("tilt"),
   zoom: integer("zoom"),
@@ -48,6 +52,50 @@ export const switchers = pgTable("switchers", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const sceneButtons = pgTable("scene_buttons", {
+  id: serial("id").primaryKey(),
+  buttonNumber: integer("button_number").notNull(),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#06b6d4"),
+  atemInputId: integer("atem_input_id"),
+  atemTransitionType: text("atem_transition_type").default("cut"),
+  cameraId: integer("camera_id"),
+  presetNumber: integer("preset_number"),
+  mixerActions: text("mixer_actions"),
+  hueActions: text("hue_actions"),
+});
+
+export const layouts = pgTable("layouts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").notNull().default("#06b6d4"),
+  snapshot: text("snapshot").notNull(),
+  isActive: boolean("is_active").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const macros = pgTable("macros", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  notes: text("notes"),
+  color: text("color").notNull().default("#06b6d4"),
+  steps: text("steps").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const hueBridges = pgTable("hue_bridges", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  ip: text("ip").notNull(),
+  apiKey: text("api_key"),
+  status: text("status").notNull().default("offline"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
@@ -63,6 +111,7 @@ export const insertCameraSchema = createInsertSchema(cameras).omit({
   id: true,
   createdAt: true,
   status: true,
+  tallyState: true,
   isProgramOutput: true,
   isPreviewOutput: true,
 });
@@ -85,6 +134,29 @@ export const insertSwitcherSchema = createInsertSchema(switchers).omit({
   status: true,
 });
 
+export const insertSceneButtonSchema = createInsertSchema(sceneButtons).omit({
+  id: true,
+});
+
+export const insertLayoutSchema = createInsertSchema(layouts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  isActive: true,
+});
+
+export const insertMacroSchema = createInsertSchema(macros).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertHueBridgeSchema = createInsertSchema(hueBridges).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+});
+
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
 });
@@ -97,5 +169,13 @@ export type Mixer = typeof mixers.$inferSelect;
 export type InsertMixer = z.infer<typeof insertMixerSchema>;
 export type Switcher = typeof switchers.$inferSelect;
 export type InsertSwitcher = z.infer<typeof insertSwitcherSchema>;
+export type SceneButton = typeof sceneButtons.$inferSelect;
+export type InsertSceneButton = z.infer<typeof insertSceneButtonSchema>;
+export type Layout = typeof layouts.$inferSelect;
+export type InsertLayout = z.infer<typeof insertLayoutSchema>;
+export type Macro = typeof macros.$inferSelect;
+export type InsertMacro = z.infer<typeof insertMacroSchema>;
+export type HueBridge = typeof hueBridges.$inferSelect;
+export type InsertHueBridge = z.infer<typeof insertHueBridgeSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
