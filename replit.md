@@ -107,6 +107,12 @@ The server handles:
 - Data queries use `staleTime: Infinity` with no polling; freshness is driven by WS invalidation
 - Polling retained only for logs, health checks, and Hue lighting (external hardware state)
 
+### Auto-Update on New Releases
+- Server sends `{ type: "version", version: APP_VERSION }` to each client on WebSocket connect
+- Client stores the version from the first connection; on reconnect, if the version differs, the page reloads automatically
+- This ensures all connected clients pick up new code after a deploy without manual refresh
+- Version is defined in `shared/version.ts`
+
 ### Shared Hooks
 - `useAtemControl` (`client/src/hooks/use-atem-control.ts`): Shared ATEM state management, WS listener, initial status fetch, and action helpers (cut, auto, setProgramInput, setPreviewInput, send). Used by switcher page, atem-panel, and mobile page.
 

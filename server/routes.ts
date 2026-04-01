@@ -171,6 +171,8 @@ export async function registerRoutes(
   wss.on("connection", (ws: WebSocket) => {
     console.log("[WebSocket] Client connected");
 
+    ws.send(JSON.stringify({ type: "version", version: APP_VERSION }));
+
     const mixerClient = x32Manager.getClient();
     if (mixerClient && mixerClient.isConnected()) {
       ws.send(JSON.stringify({
