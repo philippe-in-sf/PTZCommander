@@ -2,6 +2,14 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.15.0] - 2026-04-01
+
+### Added
+- **Auto-Update on New Releases** — connected clients automatically reload when a new version is deployed; server sends version over WebSocket on connect, client detects mismatch and refreshes
+- **UI Skin Selector Fix** — skin selector and theme toggle now always visible in Command Center (header z-index fix) and Studio Glass (moved to top of sidebar)
+- **Studio Glass Dark Mode** — full dark mode support with proper dark: variants throughout the entire skin
+- **README Overhaul** — removed stale merge conflict markers, added missing feature documentation (Lighting, Scenes, Macros, Layouts, Tally, Undo, Mobile, Skins), corrected port info for Replit vs local
+
 ## [0.14.0] - 2026-03-27
 
 ### Added
