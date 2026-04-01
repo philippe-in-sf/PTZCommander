@@ -81,7 +81,7 @@ export default function CommandCenter(props: DashboardSkinProps) {
            style={{ backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
 
       {/* HEADER / TOP NAV */}
-      <header className="h-14 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur flex items-center justify-between px-4 z-10 shrink-0">
+      <header className="h-14 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur flex items-center justify-between px-4 z-50 shrink-0 relative">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2 text-amber-500 font-bold tracking-widest text-lg">
             <Radio className="w-5 h-5 animate-pulse" />
