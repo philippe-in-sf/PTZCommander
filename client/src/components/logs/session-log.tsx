@@ -50,7 +50,7 @@ export function SessionLog() {
 
   useEffect(() => {
     if (!ws) return;
-    const handler = (msg: any) => {
+    const handler = (msg: Record<string, unknown>) => {
       if (msg.type === "session_log" && msg.entry) {
         setEntries(prev => [...prev, msg.entry]);
       }

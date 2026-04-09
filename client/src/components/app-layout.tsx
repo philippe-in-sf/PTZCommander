@@ -24,11 +24,9 @@ export function AppLayout({ activePage, headerRight, children }: AppLayoutProps)
   })();
 
   return (
-    <div className={`min-h-screen flex flex-col ${bgClass}`}>
+    <div className={`min-h-screen flex flex-col overflow-hidden ${bgClass}`}>
       <AppHeader activePage={activePage} rightContent={headerRight} />
-      <div className="flex-1 overflow-auto">
-        {children}
-      </div>
+      {children}
     </div>
   );
 }

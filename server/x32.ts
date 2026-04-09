@@ -27,7 +27,7 @@ const SECTION_CONFIG: Record<MixerSection, { count: number; oscPrefix: string; p
 };
 
 export class X32Client {
-  private udpPort: any;
+  private udpPort: InstanceType<typeof osc.UDPPort> | null = null;
   private connected: boolean = false;
   private keepAliveInterval: NodeJS.Timeout | null = null;
   private config: X32Config;
@@ -67,7 +67,7 @@ export class X32Client {
           resolve(false);
         });
 
-        this.udpPort.on("message", (oscMsg: any) => {
+        this.udpPort.on("message", (oscMsg: { address: string; args: Array<{ value: unknown }> }) => {
           this.handleMessage(oscMsg);
         });
 
@@ -77,7 +77,7 @@ export class X32Client {
           if (!this.connected) {
             resolve(false);
           }
-        }, 5000);
+        }, X32Client.CONNECTION_TIMEOUT_MS);
       } catch (error: any) {
         logger.error("mixer", `X32 connection exception: ${error.message}`, { action: "x32_connect_exception", details: { error: error.message } });
         resolve(false);
@@ -101,12 +101,15 @@ export class X32Client {
     return this.connected;
   }
 
+  private static readonly KEEP_ALIVE_INTERVAL_MS = 9000;
+  private static readonly CONNECTION_TIMEOUT_MS = 5000;
+
   private startKeepAlive() {
     this.keepAliveInterval = setInterval(() => {
       if (this.connected) {
         this.send("/xremote", []);
       }
-    }, 9000);
+    }, X32Client.KEEP_ALIVE_INTERVAL_MS);
   }
 
   private stateKey(section: MixerSection, channel: number): string {
@@ -136,7 +139,7 @@ export class X32Client {
     }
   }
 
-  private handleMessage(oscMsg: any) {
+  private handleMessage(oscMsg: { address: string; args: Array<{ value: unknown }> }) {
     const { address, args } = oscMsg;
     const value = args[0]?.value;
 
@@ -222,7 +225,7 @@ export class X32Client {
     }
   }
 
-  private send(address: string, args: any[]) {
+  private send(address: string, args: Array<{ type: string; value: unknown } | Record<string, never>>) {
     if (!this.connected || !this.udpPort) return;
     
     try {

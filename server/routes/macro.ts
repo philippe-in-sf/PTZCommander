@@ -1,5 +1,5 @@
 import type { RouteContext } from "./types";
-import { insertMacroSchema } from "@shared/schema";
+import { insertMacroSchema, patchMacroSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { getHueClient } from "../hue";
@@ -45,13 +45,18 @@ export function registerMacroRoutes(ctx: RouteContext) {
   app.patch("/api/macros/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const macro = await storage.updateMacro(id, req.body);
+      const result = patchMacroSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: fromError(result.error).toString() });
+      }
+      const macro = await storage.updateMacro(id, result.data);
       if (!macro) return res.status(404).json({ message: "Macro not found" });
       logger.info("system", `Macro updated: ${macro.name}`, { action: "macro:update" });
       broadcast({ type: "invalidate", keys: ["macros"] });
       res.json(macro);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to update macro" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update macro";
+      res.status(500).json({ message });
     }
   });
 

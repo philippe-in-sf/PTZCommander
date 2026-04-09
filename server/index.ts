@@ -62,11 +62,11 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    log(`Internal Server Error: ${message}`, "error");
 
     if (res.headersSent) {
       return next(err);
@@ -91,11 +91,8 @@ app.use((req, res, next) => {
   
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
-      console.error(`\n[Error] Port ${port} is already in use.`);
-      console.error(`\nPossible solutions:`);
-      console.error(`  1. Use a different port: PORT=4000 npm run dev`);
-      console.error(`  2. Kill the process using port ${port}`);
-      console.error(`  3. On Mac: Disable AirPlay Receiver in System Settings\n`);
+      log(`Port ${port} is already in use.`, "error");
+      log(`Possible solutions: 1. Use a different port: PORT=4000 npm run dev  2. Kill the process using port ${port}  3. On Mac: Disable AirPlay Receiver`, "error");
       process.exit(1);
     }
     throw err;

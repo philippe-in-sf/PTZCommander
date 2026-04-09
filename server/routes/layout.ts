@@ -1,5 +1,5 @@
 import type { RouteContext } from "./types";
-import { insertLayoutSchema } from "@shared/schema";
+import { insertLayoutSchema, patchLayoutSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { APP_VERSION } from "@shared/version";
@@ -199,12 +199,17 @@ export function registerLayoutRoutes(ctx: RouteContext) {
   app.patch("/api/layouts/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const layout = await storage.updateLayout(id, req.body);
+      const result = patchLayoutSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: fromError(result.error).toString() });
+      }
+      const layout = await storage.updateLayout(id, result.data);
       if (!layout) return res.status(404).json({ message: "Layout not found" });
       broadcast({ type: "invalidate", keys: ["layouts"] });
       res.json(layout);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to update layout" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update layout";
+      res.status(500).json({ message });
     }
   });
 

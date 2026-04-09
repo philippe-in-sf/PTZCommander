@@ -13,6 +13,28 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Mixer } from "@shared/schema";
 
+type MixerSection = "ch" | "bus" | "dca";
+
+interface SectionChannelState {
+  channel: number;
+  section: string;
+  fader: number;
+  muted: boolean;
+  name: string;
+}
+
+const PANEL_SECTIONS: { key: MixerSection; label: string; count: number }[] = [
+  { key: "ch", label: "Channels", count: 16 },
+  { key: "bus", label: "Bus", count: 16 },
+  { key: "dca", label: "DCA", count: 8 },
+];
+
+const SECTION_LABELS: Record<MixerSection, string> = {
+  ch: "Ch",
+  bus: "Bus",
+  dca: "DCA",
+};
+
 interface MixerPanelProps {
   collapsed?: boolean;
 }
@@ -20,6 +42,7 @@ interface MixerPanelProps {
 export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   const queryClient = useQueryClient();
   const ws = useWebSocket();
+  const [activeSection, setActiveSection] = useState<MixerSection>("ch");
   const [addMixerOpen, setAddMixerOpen] = useState(false);
   const [editMixerOpen, setEditMixerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -28,9 +51,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   const [mainFader, setMainFader] = useState(0.75);
   const [mainMuted, setMainMuted] = useState(false);
 
-  const [channelStates, setChannelStates] = useState<Map<number, { fader: number; muted: boolean; name: string }>>(
-    new Map(Array.from({ length: 16 }, (_, i) => [i + 1, { fader: 0.75, muted: false, name: `Ch ${i + 1}` }]))
-  );
+  const [sectionStates, setSectionStates] = useState<Map<string, SectionChannelState>>(new Map());
 
   const { data: mixers = [] } = useQuery({
     queryKey: ["mixers"],
@@ -39,16 +60,19 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
 
   const mixer = mixers[0];
 
-  const handleMixerState = useCallback((message: any) => {
+  const handleMixerState = useCallback((message: Record<string, unknown>) => {
     if (message.type === "mixer_state" && Array.isArray(message.channels)) {
-      setChannelStates(prev => {
+      const section = (message.section as string) || "ch";
+      setSectionStates(prev => {
         const newMap = new Map(prev);
-        (message.channels as MixerChannelState[]).forEach((ch) => {
-          newMap.set(ch.channel, {
-            fader: ch.fader,
-            muted: ch.muted,
-            name: ch.name || `Ch ${ch.channel}`
-          });
+        (message.channels as SectionChannelState[]).forEach((ch) => {
+          const key = `${section}:${ch.channel}`;
+          newMap.set(key, { ...ch, section });
+
+          if (section === "main" && ch.channel === 1) {
+            setMainFader(ch.fader);
+            setMainMuted(ch.muted);
+          }
         });
         return newMap;
       });
@@ -67,22 +91,43 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   useEffect(() => {
     if (mixer && mixer.status === "online") {
       mixerApi.getStatus(mixer.id).then((status) => {
-        if (status.channels && status.channels.length > 0) {
-          setChannelStates(prev => {
+        if (status.sections) {
+          setSectionStates(prev => {
+            const newMap = new Map(prev);
+            const sections = status.sections!;
+            for (const [section, channels] of Object.entries(sections)) {
+              (channels as SectionChannelState[]).forEach((ch) => {
+                const key = `${section}:${ch.channel}`;
+                newMap.set(key, { ...ch, section });
+              });
+            }
+            if (sections.main?.[0]) {
+              setMainFader(sections.main[0].fader);
+              setMainMuted(sections.main[0].muted);
+            }
+            return newMap;
+          });
+        } else if (status.channels && status.channels.length > 0) {
+          setSectionStates(prev => {
             const newMap = new Map(prev);
             status.channels.forEach((ch: MixerChannelState) => {
-              newMap.set(ch.channel, {
-                fader: ch.fader,
-                muted: ch.muted,
-                name: ch.name || `Ch ${ch.channel}`
-              });
+              const key = `ch:${ch.channel}`;
+              newMap.set(key, { ...ch, section: "ch" });
             });
             return newMap;
           });
         }
-      }).catch(console.error);
+      }).catch(() => {});
+
+      ws?.send({ type: "mixer_query_section", section: activeSection });
     }
   }, [mixer]);
+
+  useEffect(() => {
+    if (mixer && mixer.status === "online") {
+      ws?.send({ type: "mixer_query_section", section: activeSection });
+    }
+  }, [activeSection, mixer]);
 
   const createMixerMutation = useMutation({
     mutationFn: mixerApi.create,
@@ -162,30 +207,36 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   };
 
   const handleFaderChange = (channel: number, value: number) => {
-    setChannelStates(prev => {
+    const key = `${activeSection}:${channel}`;
+    setSectionStates(prev => {
       const newMap = new Map(prev);
-      const current = newMap.get(channel) || { fader: 0.75, muted: false, name: `Ch ${channel}` };
-      newMap.set(channel, { ...current, fader: value });
+      const label = SECTION_LABELS[activeSection];
+      const current = newMap.get(key) || { channel, section: activeSection, fader: 0.75, muted: false, name: `${label} ${channel}` };
+      newMap.set(key, { ...current, fader: value });
       return newMap;
     });
 
     ws?.send({
-      type: "mixer_fader",
+      type: "mixer_section_fader",
+      section: activeSection,
       channel,
       value,
     });
   };
 
   const handleMuteToggle = (channel: number, muted: boolean) => {
-    setChannelStates(prev => {
+    const key = `${activeSection}:${channel}`;
+    setSectionStates(prev => {
       const newMap = new Map(prev);
-      const current = newMap.get(channel) || { fader: 0.75, muted: false, name: `Ch ${channel}` };
-      newMap.set(channel, { ...current, muted });
+      const label = SECTION_LABELS[activeSection];
+      const current = newMap.get(key) || { channel, section: activeSection, fader: 0.75, muted: false, name: `${label} ${channel}` };
+      newMap.set(key, { ...current, muted });
       return newMap;
     });
 
     ws?.send({
-      type: "mixer_mute",
+      type: "mixer_section_mute",
+      section: activeSection,
       channel,
       muted,
     });
@@ -194,7 +245,9 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   const handleMainFaderChange = (value: number[]) => {
     setMainFader(value[0]);
     ws?.send({
-      type: "mixer_main_fader",
+      type: "mixer_section_fader",
+      section: "main",
+      channel: 1,
       value: value[0],
     });
   };
@@ -203,10 +256,20 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
     const newMuted = !mainMuted;
     setMainMuted(newMuted);
     ws?.send({
-      type: "mixer_main_mute",
+      type: "mixer_section_mute",
+      section: "main",
+      channel: 1,
       muted: newMuted,
     });
   };
+
+  const activeSectionConfig = PANEL_SECTIONS.find(s => s.key === activeSection)!;
+  const channels = Array.from({ length: activeSectionConfig.count }, (_, i) => {
+    const ch = i + 1;
+    const key = `${activeSection}:${ch}`;
+    const label = SECTION_LABELS[activeSection];
+    return sectionStates.get(key) || { channel: ch, section: activeSection, fader: 0.75, muted: false, name: `${label} ${ch}` };
+  });
 
   if (collapsed) {
     return (
@@ -406,16 +469,33 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
         </div>
       ) : (
         <div className="space-y-4">
+          <div className="flex gap-1 mb-2">
+            {PANEL_SECTIONS.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveSection(tab.key)}
+                className={cn(
+                  "px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  activeSection === tab.key
+                    ? "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/30 dark:hover:bg-slate-800"
+                )}
+                data-testid={`tab-panel-section-${tab.key}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex gap-1 overflow-x-auto pb-2">
-            {Array.from({ length: 16 }, (_, i) => i + 1).map((ch) => {
-              const state = channelStates.get(ch) || { fader: 0.75, muted: false, name: `Ch ${ch}` };
+            {channels.map((ch) => {
               return (
                 <ChannelStrip
-                  key={ch}
-                  channel={ch}
-                  name={state.name}
-                  fader={state.fader}
-                  muted={state.muted}
+                  key={`${activeSection}-${ch.channel}`}
+                  channel={ch.channel}
+                  name={ch.name}
+                  fader={ch.fader}
+                  muted={ch.muted}
                   onFaderChange={handleFaderChange}
                   onMuteToggle={handleMuteToggle}
                 />

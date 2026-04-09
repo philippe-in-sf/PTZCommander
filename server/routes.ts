@@ -33,7 +33,7 @@ function pushUndo(action: UndoAction) {
 let sessionLogId = 0;
 const sessionLog: SessionLogEntry[] = [];
 const MAX_SESSION_LOG = 500;
-let broadcastFn: ((msg: any) => void) | null = null;
+let broadcastFn: ((msg: Record<string, unknown>) => void) | null = null;
 
 async function captureSnapshot(url: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -83,7 +83,7 @@ export async function registerRoutes(
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
-  function broadcast(message: any) {
+  function broadcast(message: Record<string, unknown>) {
     const data = JSON.stringify(message);
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
@@ -142,7 +142,7 @@ export async function registerRoutes(
         const previousState = previousTallyMap.get(camera.id) || "off";
 
         if (tallyState !== previousState) {
-          console.log(`[Tally] Camera ${camera.name} (ID:${camera.id}): ${previousState} → ${tallyState}`);
+          logger.info("camera", `Tally: ${camera.name} (ID:${camera.id}): ${previousState} → ${tallyState}`, { action: "tally_change", details: { cameraId: camera.id, from: previousState, to: tallyState } });
 
           await storage.updateCamera(camera.id, { tallyState });
 
@@ -159,7 +159,7 @@ export async function registerRoutes(
 
       previousTallyMap = newTallyMap;
     } catch (error) {
-      console.error("[Tally] Error updating tally lights:", error);
+      logger.error("camera", `Error updating tally lights: ${error instanceof Error ? error.message : String(error)}`, { action: "tally_error" });
     }
   }
 
@@ -169,7 +169,7 @@ export async function registerRoutes(
   });
 
   wss.on("connection", (ws: WebSocket) => {
-    console.log("[WebSocket] Client connected");
+    logger.info("websocket", "Client connected", { action: "ws_connect" });
 
     ws.send(JSON.stringify({ type: "version", version: APP_VERSION }));
 
@@ -191,46 +191,39 @@ export async function registerRoutes(
 
     ws.on("message", async (data: Buffer) => {
       try {
-        const message = JSON.parse(data.toString());
+        const message = JSON.parse(data.toString()) as { type: string; [key: string]: unknown };
 
         switch (message.type) {
           case "pan_tilt": {
-            const { cameraId, pan, tilt, speed } = message;
-            console.log(`[WebSocket] pan_tilt received: camera=${cameraId}, pan=${pan.toFixed(2)}, tilt=${tilt.toFixed(2)}`);
-            console.log(`[WebSocket] Available camera IDs in manager: ${cameraManager.getConnectedCameraIds().join(', ') || 'none'}`);
+            const { cameraId, pan, tilt, speed } = message as { cameraId: number; pan: number; tilt: number; speed?: number; type: string };
+            logger.debug("websocket", `pan_tilt received: camera=${cameraId}, pan=${(pan as number).toFixed(2)}, tilt=${(tilt as number).toFixed(2)}`, { action: "ws_pan_tilt" });
             const client = cameraManager.getClient(cameraId);
-            console.log(`[WebSocket] Got client for camera ${cameraId}: ${client ? 'YES' : 'NO'}`);
-            if (!client) {
-              console.log(`[WebSocket] Camera ${cameraId} has no VISCA client (not found in cameraManager)`);
-            } else if (!client.isConnected()) {
-              console.log(`[WebSocket] Camera ${cameraId} VISCA client exists but isConnected=${client.isConnected()}`);
-            } else {
-              console.log(`[WebSocket] Calling panTilt on camera ${cameraId}`);
+            if (client && client.isConnected()) {
               client.panTilt(pan, tilt, speed || 0.5);
+            } else {
+              logger.debug("websocket", `Camera ${cameraId} not connected for pan_tilt`, { action: "ws_pan_tilt_skip" });
             }
             break;
           }
 
           case "pan_tilt_stop": {
-            const stopClient = cameraManager.getClient(message.cameraId);
+            const stopClient = cameraManager.getClient(message.cameraId as number);
             if (stopClient && stopClient.isConnected()) {
               stopClient.panTiltStop();
-            } else {
-              console.log(`[WebSocket] Camera ${message.cameraId} not connected, skipping pan_tilt_stop`);
             }
             break;
           }
 
           case "zoom": {
-            const zoomClient = cameraManager.getClient(message.cameraId);
+            const zoomClient = cameraManager.getClient(message.cameraId as number);
             if (zoomClient && zoomClient.isConnected()) {
-              zoomClient.zoom(message.zoom, message.speed || 0.5);
+              zoomClient.zoom(message.zoom as number, (message.speed as number) || 0.5);
             }
             break;
           }
 
           case "focus_auto": {
-            const focusClient = cameraManager.getClient(message.cameraId);
+            const focusClient = cameraManager.getClient(message.cameraId as number);
             if (focusClient && focusClient.isConnected()) {
               focusClient.focusAuto();
             }
@@ -238,23 +231,23 @@ export async function registerRoutes(
           }
 
           case "focus_far": {
-            const focusFarClient = cameraManager.getClient(message.cameraId);
+            const focusFarClient = cameraManager.getClient(message.cameraId as number);
             if (focusFarClient && focusFarClient.isConnected()) {
-              focusFarClient.focusFar(message.speed ?? 0.5);
+              focusFarClient.focusFar((message.speed as number) ?? 0.5);
             }
             break;
           }
 
           case "focus_near": {
-            const focusNearClient = cameraManager.getClient(message.cameraId);
+            const focusNearClient = cameraManager.getClient(message.cameraId as number);
             if (focusNearClient && focusNearClient.isConnected()) {
-              focusNearClient.focusNear(message.speed ?? 0.5);
+              focusNearClient.focusNear((message.speed as number) ?? 0.5);
             }
             break;
           }
 
           case "focus_stop": {
-            const focusStopClient = cameraManager.getClient(message.cameraId);
+            const focusStopClient = cameraManager.getClient(message.cameraId as number);
             if (focusStopClient && focusStopClient.isConnected()) {
               focusStopClient.focusStop();
             }
@@ -262,67 +255,79 @@ export async function registerRoutes(
           }
 
           case "recall_preset": {
-            const recallClient = cameraManager.getClient(message.cameraId);
+            const recallClient = cameraManager.getClient(message.cameraId as number);
             if (recallClient && recallClient.isConnected()) {
-              recallClient.recallPreset(message.presetNumber);
+              recallClient.recallPreset(message.presetNumber as number);
             }
             break;
           }
 
           case "mixer_section_fader": {
             const secFaderClient = x32Manager.getClient();
+            const section = message.section as string;
+            const channel = message.channel as number;
+            const value = message.value as number;
             if (secFaderClient && secFaderClient.isConnected()) {
-              secFaderClient.setSectionFader(message.section, message.channel, message.value);
-              logger.debug("mixer", `${message.section}/${message.channel} fader set to ${message.value.toFixed(2)}`, { action: "fader_change", details: { section: message.section, channel: message.channel, value: message.value } });
+              secFaderClient.setSectionFader(section as import("./x32").MixerSection, channel, value);
+              logger.debug("mixer", `${section}/${channel} fader set to ${value.toFixed(2)}`, { action: "fader_change", details: { section, channel, value } });
             } else {
-              logger.warn("mixer", `Fader change ignored - mixer not connected`, { action: "fader_no_connection", details: { section: message.section, channel: message.channel } });
+              logger.warn("mixer", `Fader change ignored - mixer not connected`, { action: "fader_no_connection", details: { section, channel } });
             }
             break;
           }
 
           case "mixer_section_mute": {
             const secMuteClient = x32Manager.getClient();
+            const section = message.section as string;
+            const channel = message.channel as number;
+            const muted = message.muted as boolean;
             if (secMuteClient && secMuteClient.isConnected()) {
-              secMuteClient.setSectionMute(message.section, message.channel, message.muted);
-              logger.info("mixer", `${message.section}/${message.channel} ${message.muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { section: message.section, channel: message.channel, muted: message.muted } });
+              secMuteClient.setSectionMute(section as import("./x32").MixerSection, channel, muted);
+              logger.info("mixer", `${section}/${channel} ${muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { section, channel, muted } });
             } else {
-              logger.warn("mixer", `Mute toggle ignored - mixer not connected`, { action: "mute_no_connection", details: { section: message.section, channel: message.channel } });
+              logger.warn("mixer", `Mute toggle ignored - mixer not connected`, { action: "mute_no_connection", details: { section, channel } });
             }
             break;
           }
 
           case "mixer_fader": {
             const mixerClient = x32Manager.getClient();
+            const channel = message.channel as number;
+            const value = message.value as number;
             if (mixerClient && mixerClient.isConnected()) {
-              mixerClient.setChannelFader(message.channel, message.value);
-              logger.debug("mixer", `Channel ${message.channel} fader set to ${message.value.toFixed(2)}`, { action: "fader_change", details: { channel: message.channel, value: message.value } });
+              mixerClient.setChannelFader(channel, value);
+              logger.debug("mixer", `Channel ${channel} fader set to ${value.toFixed(2)}`, { action: "fader_change", details: { channel, value } });
             }
             break;
           }
 
           case "mixer_mute": {
             const muteClient = x32Manager.getClient();
+            const channel = message.channel as number;
+            const muted = message.muted as boolean;
             if (muteClient && muteClient.isConnected()) {
-              muteClient.setChannelMute(message.channel, message.muted);
-              logger.info("mixer", `Channel ${message.channel} ${message.muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { channel: message.channel, muted: message.muted } });
+              muteClient.setChannelMute(channel, muted);
+              logger.info("mixer", `Channel ${channel} ${muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { channel, muted } });
             }
             break;
           }
 
           case "mixer_main_fader": {
             const mainClient = x32Manager.getClient();
+            const value = message.value as number;
             if (mainClient && mainClient.isConnected()) {
-              mainClient.setMainFader(message.value);
-              logger.debug("mixer", `Main fader set to ${message.value.toFixed(2)}`, { action: "main_fader_change", details: { value: message.value } });
+              mainClient.setMainFader(value);
+              logger.debug("mixer", `Main fader set to ${value.toFixed(2)}`, { action: "main_fader_change", details: { value } });
             }
             break;
           }
 
           case "mixer_main_mute": {
             const mainMuteClient = x32Manager.getClient();
+            const muted = message.muted as boolean;
             if (mainMuteClient && mainMuteClient.isConnected()) {
-              mainMuteClient.setMainMute(message.muted);
-              logger.info("mixer", `Main output ${message.muted ? "muted" : "unmuted"}`, { action: "main_mute_toggle", details: { muted: message.muted } });
+              mainMuteClient.setMainMute(muted);
+              logger.info("mixer", `Main output ${muted ? "muted" : "unmuted"}`, { action: "main_mute_toggle", details: { muted } });
             }
             break;
           }
@@ -330,7 +335,7 @@ export async function registerRoutes(
           case "mixer_query_section": {
             const queryClient2 = x32Manager.getClient();
             if (queryClient2 && queryClient2.isConnected()) {
-              queryClient2.querySectionState(message.section);
+              queryClient2.querySectionState(message.section as import("./x32").MixerSection);
             }
             break;
           }
@@ -356,7 +361,7 @@ export async function registerRoutes(
           case "atem_program": {
             const atemPgmClient = atemManager.getClient();
             if (atemPgmClient && atemPgmClient.isConnected()) {
-              atemPgmClient.setProgramInput(message.inputId);
+              atemPgmClient.setProgramInput(message.inputId as number);
               addSessionLog("switcher", "ATEM Program", `Program input set to ${message.inputId}`);
             }
             break;
@@ -365,7 +370,7 @@ export async function registerRoutes(
           case "atem_preview": {
             const atemPvwClient = atemManager.getClient();
             if (atemPvwClient && atemPvwClient.isConnected()) {
-              atemPvwClient.setPreviewInput(message.inputId);
+              atemPvwClient.setPreviewInput(message.inputId as number);
               addSessionLog("switcher", "ATEM Preview", `Preview input set to ${message.inputId}`);
             }
             break;
@@ -382,7 +387,7 @@ export async function registerRoutes(
           case "atem_transition_style": {
             const atemStyleClient = atemManager.getClient();
             if (atemStyleClient && atemStyleClient.isConnected()) {
-              atemStyleClient.setTransitionStyle(message.style);
+              atemStyleClient.setTransitionStyle(message.style as number);
             }
             break;
           }
@@ -390,7 +395,7 @@ export async function registerRoutes(
           case "atem_transition_preview": {
             const atemPrevClient = atemManager.getClient();
             if (atemPrevClient && atemPrevClient.isConnected()) {
-              atemPrevClient.setTransitionPreview(message.enabled);
+              atemPrevClient.setTransitionPreview(message.enabled as boolean);
             }
             break;
           }
@@ -398,7 +403,7 @@ export async function registerRoutes(
           case "atem_transition_position": {
             const atemPosClient = atemManager.getClient();
             if (atemPosClient && atemPosClient.isConnected()) {
-              atemPosClient.setTransitionPosition(message.position);
+              atemPosClient.setTransitionPosition(message.position as number);
             }
             break;
           }
@@ -406,7 +411,7 @@ export async function registerRoutes(
           case "atem_mix_rate": {
             const atemMixRateClient = atemManager.getClient();
             if (atemMixRateClient && atemMixRateClient.isConnected()) {
-              atemMixRateClient.setMixRate(message.rate);
+              atemMixRateClient.setMixRate(message.rate as number);
             }
             break;
           }
@@ -414,7 +419,7 @@ export async function registerRoutes(
           case "atem_ftb_rate": {
             const atemFtbRateClient = atemManager.getClient();
             if (atemFtbRateClient && atemFtbRateClient.isConnected()) {
-              atemFtbRateClient.setFadeToBlackRate(message.rate);
+              atemFtbRateClient.setFadeToBlackRate(message.rate as number);
             }
             break;
           }
@@ -422,7 +427,7 @@ export async function registerRoutes(
           case "atem_dsk_on_air": {
             const atemDskAirClient = atemManager.getClient();
             if (atemDskAirClient && atemDskAirClient.isConnected()) {
-              atemDskAirClient.setDSKOnAir(message.index, message.onAir);
+              atemDskAirClient.setDSKOnAir(message.index as number, message.onAir as boolean);
             }
             break;
           }
@@ -430,7 +435,7 @@ export async function registerRoutes(
           case "atem_dsk_tie": {
             const atemDskTieClient = atemManager.getClient();
             if (atemDskTieClient && atemDskTieClient.isConnected()) {
-              atemDskTieClient.setDSKTie(message.index, message.tie);
+              atemDskTieClient.setDSKTie(message.index as number, message.tie as boolean);
             }
             break;
           }
@@ -438,7 +443,7 @@ export async function registerRoutes(
           case "atem_dsk_auto": {
             const atemDskAutoClient = atemManager.getClient();
             if (atemDskAutoClient && atemDskAutoClient.isConnected()) {
-              atemDskAutoClient.autoDSK(message.index);
+              atemDskAutoClient.autoDSK(message.index as number);
             }
             break;
           }
@@ -446,7 +451,7 @@ export async function registerRoutes(
           case "atem_dsk_rate": {
             const atemDskRateClient = atemManager.getClient();
             if (atemDskRateClient && atemDskRateClient.isConnected()) {
-              atemDskRateClient.setDSKRate(message.index, message.rate);
+              atemDskRateClient.setDSKRate(message.index as number, message.rate as number);
             }
             break;
           }
@@ -454,7 +459,7 @@ export async function registerRoutes(
           case "atem_usk_on_air": {
             const atemUskClient = atemManager.getClient();
             if (atemUskClient && atemUskClient.isConnected()) {
-              atemUskClient.setUSKOnAir(message.index, message.onAir);
+              atemUskClient.setUSKOnAir(message.index as number, message.onAir as boolean);
             }
             break;
           }
@@ -462,7 +467,7 @@ export async function registerRoutes(
           case "atem_macro_run": {
             const atemMacroRunClient = atemManager.getClient();
             if (atemMacroRunClient && atemMacroRunClient.isConnected()) {
-              atemMacroRunClient.runMacro(message.index);
+              atemMacroRunClient.runMacro(message.index as number);
             }
             break;
           }
@@ -486,18 +491,18 @@ export async function registerRoutes(
           case "atem_aux_source": {
             const atemAuxClient = atemManager.getClient();
             if (atemAuxClient && atemAuxClient.isConnected()) {
-              atemAuxClient.setAuxSource(message.auxIndex, message.sourceId);
+              atemAuxClient.setAuxSource(message.auxIndex as number, message.sourceId as number);
             }
             break;
           }
         }
-      } catch (error) {
-        console.error("[WebSocket] Error processing message:", error);
+      } catch (error: unknown) {
+        logger.error("websocket", `Error processing message: ${error instanceof Error ? error.message : String(error)}`, { action: "ws_message_error" });
       }
     });
 
     ws.on("close", () => {
-      console.log("[WebSocket] Client disconnected");
+      logger.info("websocket", "Client disconnected", { action: "ws_disconnect" });
     });
   });
 
@@ -508,9 +513,9 @@ export async function registerRoutes(
         const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
         await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
       }
-      console.log(`[VISCA] Initialized ${cameras.length} camera connection(s)`);
-    } catch (error) {
-      console.error("[VISCA] Error initializing camera connections:", error);
+      logger.info("camera", `Initialized ${cameras.length} camera connection(s)`, { action: "visca_init" });
+    } catch (error: unknown) {
+      logger.error("camera", `Error initializing camera connections: ${error instanceof Error ? error.message : String(error)}`, { action: "visca_init_error" });
     }
     try {
       const bridges = await storage.getAllHueBridges();
@@ -521,8 +526,8 @@ export async function registerRoutes(
           await storage.updateHueBridge(bridge.id, { status: online ? "online" : "offline" });
         }
       }
-    } catch (error) {
-      console.error("[Hue] Error initializing bridges:", error);
+    } catch (error: unknown) {
+      logger.error("system", `Error initializing Hue bridges: ${error instanceof Error ? error.message : String(error)}`, { action: "hue_init_error" });
     }
   }, 1000);
 

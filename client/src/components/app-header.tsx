@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Video, Radio } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";

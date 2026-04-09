@@ -62,7 +62,7 @@ export default function MixerPage() {
 
   const mixer = mixers[0];
 
-  const handleMixerState = useCallback((message: any) => {
+  const handleMixerState = useCallback((message: Record<string, unknown>) => {
     if (message.type === "mixer_state" && Array.isArray(message.channels)) {
       const section = message.section || "ch";
       setSectionStates(prev => {

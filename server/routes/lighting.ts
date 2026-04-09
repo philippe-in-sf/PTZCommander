@@ -1,5 +1,5 @@
 import type { RouteContext } from "./types";
-import { insertHueBridgeSchema } from "@shared/schema";
+import { insertHueBridgeSchema, patchHueBridgeSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 import { pairBridge, getHueClient, setHueClient, removeHueClient } from "../hue";
 
@@ -22,6 +22,20 @@ export function registerLightingRoutes(ctx: RouteContext) {
       bridge.status = online ? "online" : "offline";
     }
     res.json(bridge);
+  });
+
+  app.patch("/api/hue/bridges/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = patchHueBridgeSchema.safeParse(req.body);
+      if (!result.success) return res.status(400).json({ error: fromError(result.error).message });
+      const bridge = await storage.updateHueBridge(id, result.data);
+      if (!bridge) return res.status(404).json({ error: "Bridge not found" });
+      res.json(bridge);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update bridge";
+      res.status(500).json({ error: message });
+    }
   });
 
   app.delete("/api/hue/bridges/:id", async (req, res) => {

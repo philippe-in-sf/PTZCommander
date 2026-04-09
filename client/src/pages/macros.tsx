@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Play, Clock, Camera, Monitor, ArrowUpDown, ZoomIn, Focus, Clapperboard, ChevronUp, ChevronDown, Copy, Pencil, Lightbulb } from "lucide-react";
+import { Plus, Trash2, Play, GripVertical, Clock, Camera, Monitor, ArrowUpDown, ZoomIn, Focus, Clapperboard, ChevronUp, ChevronDown, Copy, Pencil, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";

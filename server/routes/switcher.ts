@@ -1,5 +1,5 @@
 import type { RouteContext } from "./types";
-import { insertSwitcherSchema } from "@shared/schema";
+import { patchSwitcherSchema, insertSwitcherSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 
 export function registerSwitcherRoutes(ctx: RouteContext) {
@@ -46,7 +46,7 @@ export function registerSwitcherRoutes(ctx: RouteContext) {
   app.patch("/api/switchers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const result = insertSwitcherSchema.partial().safeParse(req.body);
+      const result = patchSwitcherSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }

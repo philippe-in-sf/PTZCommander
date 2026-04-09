@@ -1,5 +1,5 @@
 import type { RouteContext } from "./types";
-import { insertSceneButtonSchema } from "@shared/schema";
+import { insertSceneButtonSchema, patchSceneButtonSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { getHueClient } from "../hue";
@@ -34,7 +34,11 @@ export function registerSceneRoutes(ctx: RouteContext) {
   app.patch("/api/scene-buttons/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const button = await storage.updateSceneButton(id, req.body);
+      const result = patchSceneButtonSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: fromError(result.error).toString() });
+      }
+      const button = await storage.updateSceneButton(id, result.data);
       if (!button) {
         return res.status(404).json({ message: "Scene button not found" });
       }
