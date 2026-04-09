@@ -2,6 +2,16 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.16.0] - 2026-04-09
+
+### Added
+- **README Screenshots** — added generated UI screenshots (Dashboard, Video Switcher, Audio Mixer, Scenes, Mobile Companion) to the README for potential re-users
+
+### Changed
+- **Shared AppLayout** — all pages (Mixer, Switcher, Lighting, Macros) now use the unified AppLayout/AppHeader component for consistent skin support across every view
+- **Scroll behavior** — AppLayout now provides a proper scrollable content area so long pages (e.g. Lighting) are no longer clipped
+- **Unused import cleanup** — removed leftover imports from header migration across all pages
+
 ## [0.15.0] - 2026-04-01
 
 ### Added
