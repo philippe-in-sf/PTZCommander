@@ -1,8 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Volume2, VolumeX } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 
 interface ChannelStripProps {
   channel: number;
@@ -23,10 +20,13 @@ export function ChannelStrip({
 }: ChannelStripProps) {
   const [localFader, setLocalFader] = useState(fader);
 
-  const handleFaderChange = useCallback((value: number[]) => {
-    const newValue = value[0];
-    setLocalFader(newValue);
-    onFaderChange(channel, newValue);
+  useEffect(() => {
+    setLocalFader(fader);
+  }, [fader]);
+
+  const handleFaderChange = useCallback((value: number) => {
+    setLocalFader(value);
+    onFaderChange(channel, value);
   }, [channel, onFaderChange]);
 
   const dbValue = faderToDb(localFader);
@@ -34,43 +34,136 @@ export function ChannelStrip({
   return (
     <div 
       className={cn(
-        "flex flex-col items-center gap-2 p-2 rounded-lg bg-slate-300/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700",
-        muted && "opacity-60"
+        "flex flex-col items-center flex-shrink-0 bg-[#1e1e32] border border-[#2a2a3e] px-1 py-2",
+        muted && "opacity-50"
       )}
+      style={{ width: 52 }}
       data-testid={`channel-strip-${channel}`}
     >
-      <span className="text-[10px] text-slate-700 dark:text-slate-400 font-mono truncate w-full text-center">
+      <span className="text-[9px] font-bold text-slate-300 truncate w-full text-center mb-1 tracking-wide" title={name}>
         {name}
       </span>
+
+      <span className="text-[8px] font-mono text-green-400 mb-1">
+        {dbValue}
+      </span>
       
-      <div className="h-32 flex items-center justify-center">
-        <Slider
-          orientation="vertical"
-          value={[localFader]}
-          onValueChange={handleFaderChange}
-          min={0}
-          max={1}
-          step={0.01}
-          className="h-28"
-          data-testid={`fader-${channel}`}
+      <div className="flex items-center justify-center flex-1 my-1">
+        <PanelFader
+          value={localFader}
+          onChange={handleFaderChange}
+          height={140}
         />
       </div>
 
-      <span className="text-[10px] text-slate-600 dark:text-slate-500 font-mono">
-        {dbValue}
-      </span>
-
-      <Button
-        variant={muted ? "destructive" : "outline"}
-        size="sm"
-        className="w-full h-7 text-[10px]"
+      <button
         onClick={() => onMuteToggle(channel, !muted)}
+        className={cn(
+          "w-full py-1 text-[8px] font-bold tracking-wider border transition-colors mt-1",
+          muted
+            ? "bg-red-600 border-red-500 text-white"
+            : "bg-[#2a2a3e] border-[#3a3a4e] text-slate-500 hover:text-slate-300 hover:bg-[#3a3a4e]"
+        )}
         data-testid={`mute-${channel}`}
       >
-        {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
-      </Button>
+        MUTE
+      </button>
 
-      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
+      <span className="text-[9px] font-bold text-slate-400 mt-1">{channel}</span>
+    </div>
+  );
+}
+
+interface PanelFaderProps {
+  value: number;
+  onChange: (value: number) => void;
+  height?: number;
+}
+
+function PanelFader({ value, onChange, height = 140 }: PanelFaderProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const knobHeight = 22;
+  const trackPadding = 4;
+  const usableHeight = height - knobHeight - trackPadding * 2;
+  const knobTop = trackPadding + (1 - value) * usableHeight;
+
+  const updateValue = useCallback((e: React.PointerEvent) => {
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top - trackPadding - knobHeight / 2;
+    const ratio = 1 - Math.max(0, Math.min(1, y / usableHeight));
+    onChange(Math.round(ratio * 100) / 100);
+  }, [usableHeight, onChange]);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    isDragging.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    updateValue(e);
+  }, [updateValue]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (isDragging.current) updateValue(e);
+  }, [updateValue]);
+
+  const handlePointerUp = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  const fillHeight = value * usableHeight;
+
+  return (
+    <div
+      ref={trackRef}
+      className="relative cursor-pointer select-none touch-none"
+      style={{ width: 32, height }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      <div
+        className="absolute left-1/2 -translate-x-1/2 rounded-sm"
+        style={{
+          width: 4,
+          top: trackPadding,
+          bottom: trackPadding,
+          background: 'linear-gradient(to bottom, #1a1a2e, #0f0f1a)',
+          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)',
+        }}
+      />
+
+      <div
+        className="absolute left-1/2 -translate-x-1/2 rounded-sm"
+        style={{
+          width: 4,
+          bottom: trackPadding,
+          height: fillHeight,
+          background: 'linear-gradient(to top, #22c55e, #16a34a)',
+          opacity: 0.7,
+        }}
+      />
+
+      <div
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          width: 26,
+          height: knobHeight,
+          top: knobTop,
+          background: 'linear-gradient(to bottom, #5a5a6e, #3a3a4e, #2a2a3e)',
+          borderRadius: 2,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)',
+        }}
+      >
+        <div
+          className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2"
+          style={{
+            width: 16,
+            height: 2,
+            background: 'rgba(255,255,255,0.3)',
+            borderRadius: 1,
+          }}
+        />
+      </div>
     </div>
   );
 }
