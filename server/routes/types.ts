@@ -25,7 +25,7 @@ export interface RouteContext {
   cameraManager: typeof cameraManager;
   x32Manager: typeof x32Manager;
   atemManager: typeof atemManager;
-  broadcast: (msg: any) => void;
+  broadcast: (msg: Record<string, unknown>) => void;
   pushUndo: (action: UndoAction) => void;
   addSessionLog: (category: SessionLogEntry["category"], action: string, details: string) => void;
   captureSnapshot: (url: string) => Promise<string | null>;

@@ -1,4 +1,5 @@
 import { Atem } from "atem-connection";
+import { logger } from "./logger";
 
 export interface AtemConfig {
   ip: string;
@@ -90,13 +91,13 @@ export class AtemClient {
     this.atem = new Atem();
 
     this.atem.on("connected", () => {
-      console.log(`[ATEM] Connected to ${this.config.ip}`);
+      logger.info("switcher", `ATEM connected to ${this.config.ip}`, { action: "atem_connected", details: { ip: this.config.ip } });
       this.connected = true;
       this.notifyStateChange();
     });
 
     this.atem.on("disconnected", () => {
-      console.log("[ATEM] Disconnected");
+      logger.info("switcher", "ATEM disconnected", { action: "atem_disconnected" });
       this.connected = false;
       this.notifyStateChange();
     });
@@ -105,8 +106,8 @@ export class AtemClient {
       this.notifyStateChange();
     });
 
-    this.atem.on("error", (error) => {
-      console.error("[ATEM] Error:", error);
+    this.atem.on("error", (error: Error) => {
+      logger.error("switcher", `ATEM error: ${error.message}`, { action: "atem_error", details: { error: error.message } });
     });
   }
 
@@ -124,8 +125,9 @@ export class AtemClient {
     try {
       await this.atem.connect(this.config.ip);
       return true;
-    } catch (error) {
-      console.error("[ATEM] Connection error:", error);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("switcher", `ATEM connection error: ${message}`, { action: "atem_connect_error", details: { error: message } });
       return false;
     }
   }

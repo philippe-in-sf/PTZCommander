@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 export type MixerChannelState = {
   channel: number;
@@ -7,11 +7,19 @@ export type MixerChannelState = {
   name: string;
 };
 
-export type WebSocketMessageHandler = (message: any) => void;
+export type WsMessageInbound =
+  | { type: "version"; version: string }
+  | { type: "invalidate"; keys: string[] }
+  | { type: "atem_state"; [key: string]: unknown }
+  | { type: "mixer_state"; section?: string; channels: MixerChannelState[] }
+  | { type: "mixer_section_state"; section: string; channels: MixerChannelState[] }
+  | { type: string; [key: string]: unknown };
+
+export type WebSocketMessageHandler = (message: WsMessageInbound) => void;
 
 export class PTZWebSocket {
   private ws: WebSocket | null = null;
-  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 1000;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 30000;
@@ -27,35 +35,29 @@ export class PTZWebSocket {
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      console.log("[WebSocket] Connected");
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
       onOpen?.();
     };
 
     this.ws.onclose = () => {
-      console.log("[WebSocket] Disconnected");
       onClose?.();
       
       this.reconnectAttempts++;
       const jitter = Math.random() * 500;
       const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay) + jitter;
-      console.log(`[WebSocket] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})`);
       this.reconnectTimeout = setTimeout(() => {
         this.connect(onOpen, onClose);
       }, delay);
     };
 
-    this.ws.onerror = (error) => {
-      console.error("[WebSocket] Error:", error);
-    };
+    this.ws.onerror = () => {};
 
     this.ws.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data);
+        const message = JSON.parse(event.data) as WsMessageInbound;
         this.messageHandlers.forEach(handler => handler(message));
-      } catch (error) {
-        console.error("[WebSocket] Error parsing message:", error);
+      } catch {
       }
     };
   }
@@ -83,16 +85,13 @@ export class PTZWebSocket {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  send(data: any): void {
+  send(data: Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
-    } else {
-      console.warn("[WebSocket] Cannot send, not connected");
     }
   }
 
   panTilt(cameraId: number, pan: number, tilt: number, speed: number = 0.5): void {
-    console.log(`[PTZ] Sending pan_tilt: camera=${cameraId}, pan=${pan.toFixed(2)}, tilt=${tilt.toFixed(2)}`);
     this.send({
       type: "pan_tilt",
       cameraId,
@@ -146,13 +145,11 @@ export class PTZWebSocket {
   }
 }
 
-// Build WebSocket URL based on current protocol (ws:// or wss://)
 export function buildWebSocketUrl(path: string = "/ws"): string {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.host}${path}`;
 }
 
-// Singleton WebSocket instance
 let globalWsInstance: PTZWebSocket | null = null;
 
 function getWebSocketInstance(): PTZWebSocket {
@@ -164,22 +161,22 @@ function getWebSocketInstance(): PTZWebSocket {
   return globalWsInstance;
 }
 
-// Hook for using WebSocket in components
 export function useWebSocket(): PTZWebSocket {
-  const [, forceUpdate] = useState(0);
-  
-  // Get or create the singleton instance immediately
-  const ws = getWebSocketInstance();
+  const wsRef = useRef<PTZWebSocket>(getWebSocketInstance());
+  return wsRef.current;
+}
+
+export function useWsMessage(handler: WebSocketMessageHandler): void {
+  const savedHandler = useRef(handler);
+  savedHandler.current = handler;
+
+  const ws = useWebSocket();
 
   useEffect(() => {
-    // Add a handler to force re-render on connection state changes
-    const handler = () => forceUpdate(n => n + 1);
-    ws.addMessageHandler(handler);
-    
+    const stableHandler: WebSocketMessageHandler = (msg) => savedHandler.current(msg);
+    ws.addMessageHandler(stableHandler);
     return () => {
-      ws.removeMessageHandler(handler);
+      ws.removeMessageHandler(stableHandler);
     };
   }, [ws]);
-
-  return ws;
 }

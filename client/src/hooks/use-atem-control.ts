@@ -92,7 +92,7 @@ export function useAtemControl() {
 
   const switcher = switchers[0] ?? null;
 
-  const handleAtemState = useCallback((message: any) => {
+  const handleAtemState = useCallback((message: Record<string, unknown>) => {
     if (message.type === "atem_state") {
       setAtemState({
         connected: message.connected,

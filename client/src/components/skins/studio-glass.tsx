@@ -82,13 +82,15 @@ export default function StudioGlass(props: DashboardSkinProps) {
           <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
             <Radio className="w-6 h-6" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">PTZCOMMAND</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">System Online</span>
             </div>
           </div>
+          <ThemeToggle />
+          <SkinSelector />
         </div>
 
         <nav className="flex-1 space-y-2">
@@ -106,11 +108,6 @@ export default function StudioGlass(props: DashboardSkinProps) {
             );
           })}
         </nav>
-
-        <div className="flex items-center gap-2 px-2 mb-2">
-          <ThemeToggle />
-          <SkinSelector />
-        </div>
 
         <div className="mt-auto">
           <GlassPanel className="p-4 flex items-center gap-3">

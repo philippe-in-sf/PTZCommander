@@ -22,6 +22,7 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const hasStream = !!camera.streamUrl;
 
@@ -29,9 +30,15 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
     if (!hasStream) return;
 
     const loadImage = () => {
+      if (imgRef.current) {
+        imgRef.current.onload = null;
+        imgRef.current.onerror = null;
+      }
+
       const timestamp = Date.now();
       const url = `/api/cameras/${camera.id}/snapshot?t=${timestamp}`;
       const img = new Image();
+      imgRef.current = img;
       img.onload = () => {
         setImgSrc(url);
         setError(false);
@@ -49,6 +56,11 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (imgRef.current) {
+        imgRef.current.onload = null;
+        imgRef.current.onerror = null;
+        imgRef.current = null;
+      }
     };
   }, [camera.id, camera.streamUrl, refreshInterval, hasStream]);
 

@@ -1,5 +1,5 @@
 import type { RouteContext } from "./types";
-import { insertCameraSchema, insertPresetSchema } from "@shared/schema";
+import { insertCameraSchema, insertPresetSchema, patchCameraSchema, patchPresetSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 
@@ -48,7 +48,11 @@ export function registerCameraRoutes(ctx: RouteContext) {
   app.patch("/api/cameras/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const camera = await storage.updateCamera(id, req.body);
+      const result = patchCameraSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: fromError(result.error).toString() });
+      }
+      const camera = await storage.updateCamera(id, result.data);
       if (!camera) {
         return res.status(404).json({ message: "Camera not found" });
       }
@@ -56,6 +60,25 @@ export function registerCameraRoutes(ctx: RouteContext) {
       res.json(camera);
     } catch (error) {
       res.status(500).json({ message: "Failed to update camera" });
+    }
+  });
+
+  app.patch("/api/presets/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const result = patchPresetSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: fromError(result.error).toString() });
+      }
+      const preset = await storage.getPresetById(id);
+      if (!preset) {
+        return res.status(404).json({ message: "Preset not found" });
+      }
+      const updated = await storage.savePreset({ ...preset, ...result.data });
+      broadcast({ type: "invalidate", keys: ["presets"] });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update preset" });
     }
   });
 

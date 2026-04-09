@@ -1,5 +1,5 @@
 import type { RouteContext } from "./types";
-import { insertMixerSchema } from "@shared/schema";
+import { patchMixerSchema, insertMixerSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 
@@ -59,7 +59,7 @@ export function registerMixerRoutes(ctx: RouteContext) {
   app.patch("/api/mixers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const result = insertMixerSchema.partial().safeParse(req.body);
+      const result = patchMixerSchema.safeParse(req.body);
       if (!result.success) {
         logger.warn("mixer", `Failed to update mixer ${id}: validation error`, { details: { error: fromError(result.error).toString() } });
         return res.status(400).json({ message: fromError(result.error).toString() });
@@ -74,8 +74,9 @@ export function registerMixerRoutes(ctx: RouteContext) {
       logger.info("mixer", `Mixer updated: ${mixer.name}`, { action: "update", details: { mixerId: id, updates: result.data } });
       broadcast({ type: "invalidate", keys: ["mixers"] });
       res.json(mixer);
-    } catch (error: any) {
-      logger.error("mixer", `Failed to update mixer: ${error.message}`, { action: "update_error", details: { error: error.message } });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("mixer", `Failed to update mixer: ${message}`, { action: "update_error", details: { error: message } });
       res.status(500).json({ message: "Failed to update mixer" });
     }
   });

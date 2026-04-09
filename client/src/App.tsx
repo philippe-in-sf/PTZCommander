@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SkinProvider } from "@/lib/skin-context";
 import { useWsInvalidation } from "@/lib/ws-invalidation";
+import { ErrorBoundary } from "@/components/error-boundary";
 import Dashboard from "@/pages/dashboard";
 import MixerPage from "@/pages/mixer";
 import SwitcherPage from "@/pages/switcher";
@@ -37,18 +38,20 @@ function Router() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark">
-      <SkinProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <WsSync>
-              <Toaster />
-              <Router />
-            </WsSync>
-          </TooltipProvider>
-        </QueryClientProvider>
-      </SkinProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider defaultTheme="dark">
+        <SkinProvider>
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider>
+              <WsSync>
+                <Toaster />
+                <Router />
+              </WsSync>
+            </TooltipProvider>
+          </QueryClientProvider>
+        </SkinProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

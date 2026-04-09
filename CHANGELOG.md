@@ -2,6 +2,24 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [0.16.0] - 2026-04-09
+
+### Added
+- **README Screenshots** — added generated UI screenshots (Dashboard, Video Switcher, Audio Mixer, Scenes, Mobile Companion) to the README for potential re-users
+
+### Changed
+- **Shared AppLayout** — all pages (Mixer, Switcher, Lighting, Macros) now use the unified AppLayout/AppHeader component for consistent skin support across every view
+- **Scroll behavior** — AppLayout now provides a proper scrollable content area so long pages (e.g. Lighting) are no longer clipped
+- **Unused import cleanup** — removed leftover imports from header migration across all pages
+
+## [0.15.0] - 2026-04-01
+
+### Added
+- **Auto-Update on New Releases** — connected clients automatically reload when a new version is deployed; server sends version over WebSocket on connect, client detects mismatch and refreshes
+- **UI Skin Selector Fix** — skin selector and theme toggle now always visible in Command Center (header z-index fix) and Studio Glass (moved to top of sidebar)
+- **Studio Glass Dark Mode** — full dark mode support with proper dark: variants throughout the entire skin
+- **README Overhaul** — removed stale merge conflict markers, added missing feature documentation (Lighting, Scenes, Macros, Layouts, Tally, Undo, Mobile, Skins), corrected port info for Replit vs local
+
 ## [0.14.0] - 2026-03-27
 
 ### Added

@@ -7,11 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { LayoutSelector } from "@/components/layouts/layout-selector";
-import { LogViewer } from "@/components/logs/log-viewer";
-import { ChangelogDialog } from "@/components/changelog-dialog";
-import { Link } from "wouter";
+import { AppLayout } from "@/components/app-layout";
 import { Plus, Trash2, Wifi, WifiOff, Lightbulb, Layers, Palette, RefreshCw, Power, PowerOff, LinkIcon } from "lucide-react";
 import type { HueBridge } from "@shared/schema";
 
@@ -405,31 +401,7 @@ export default function LightingPage() {
   const selectedBridge = bridges.find(b => b.id === selectedBridgeId) ?? bridges.find(b => b.status === "online") ?? null;
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-50 bg-slate-200/90 dark:bg-slate-900/90 border-b border-slate-300/60 dark:border-slate-700/60 backdrop-blur-sm px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="font-bold tracking-tight text-lg leading-none">
-              PTZ<span className="text-cyan-500 font-light">COMMAND</span>
-            </h1>
-            <ChangelogDialog />
-          </div>
-          <nav className="flex items-center gap-1 ml-6">
-            <Link href="/"><button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">Dashboard</button></Link>
-            <Link href="/scenes"><button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">Scenes</button></Link>
-            <Link href="/macros"><button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-macros">Macros</button></Link>
-            <Link href="/switcher"><button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">Video Switcher</button></Link>
-            <Link href="/mixer"><button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">Audio Mixer</button></Link>
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-lighting">Lighting</button>
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
-          <LayoutSelector />
-          <LogViewer />
-          <ThemeToggle />
-        </div>
-      </header>
-
+    <AppLayout activePage="/lighting">
       <div className="p-4 max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between pt-2">
           <div>
@@ -488,6 +460,6 @@ export default function LightingPage() {
           <BridgeSetup onAdded={() => setShowAddDialog(false)} />
         </DialogContent>
       </Dialog>
-    </div>
+    </AppLayout>
   );
 }

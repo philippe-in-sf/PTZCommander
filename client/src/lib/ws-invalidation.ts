@@ -1,14 +1,23 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useWebSocket } from "./websocket";
+import { useWebSocket, type WsMessageInbound } from "./websocket";
+
+let knownVersion: string | null = null;
 
 export function useWsInvalidation() {
   const ws = useWebSocket();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const handler = (message: any) => {
+    const handler = (message: WsMessageInbound) => {
       switch (message.type) {
+        case "version":
+          if (knownVersion === null) {
+            knownVersion = message.version;
+          } else if (message.version !== knownVersion) {
+            window.location.reload();
+          }
+          break;
         case "invalidate":
           if (Array.isArray(message.keys)) {
             for (const key of message.keys) {

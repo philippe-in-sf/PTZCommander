@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -32,7 +32,9 @@ export const presets = pgTable("presets", {
   focus: integer("focus"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("presets_camera_id_idx").on(table.cameraId),
+]);
 
 export const mixers = pgTable("mixers", {
   id: serial("id").primaryKey(),
@@ -59,11 +61,13 @@ export const sceneButtons = pgTable("scene_buttons", {
   color: text("color").notNull().default("#06b6d4"),
   atemInputId: integer("atem_input_id"),
   atemTransitionType: text("atem_transition_type").default("cut"),
-  cameraId: integer("camera_id"),
+  cameraId: integer("camera_id").references(() => cameras.id, { onDelete: "set null" }),
   presetNumber: integer("preset_number"),
   mixerActions: text("mixer_actions"),
   hueActions: text("hue_actions"),
-});
+}, (table) => [
+  index("scene_buttons_camera_id_idx").on(table.cameraId),
+]);
 
 export const layouts = pgTable("layouts", {
   id: serial("id").primaryKey(),
@@ -160,6 +164,15 @@ export const insertHueBridgeSchema = createInsertSchema(hueBridges).omit({
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
 });
+
+export const patchCameraSchema = insertCameraSchema.partial();
+export const patchPresetSchema = createInsertSchema(presets).omit({ id: true, createdAt: true, updatedAt: true, cameraId: true, presetNumber: true }).partial();
+export const patchSceneButtonSchema = insertSceneButtonSchema.partial();
+export const patchLayoutSchema = insertLayoutSchema.partial();
+export const patchMacroSchema = insertMacroSchema.partial();
+export const patchHueBridgeSchema = insertHueBridgeSchema.partial();
+export const patchMixerSchema = insertMixerSchema.partial();
+export const patchSwitcherSchema = insertSwitcherSchema.partial();
 
 export type Camera = typeof cameras.$inferSelect;
 export type InsertCamera = z.infer<typeof insertCameraSchema>;

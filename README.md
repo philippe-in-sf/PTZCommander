@@ -2,6 +2,33 @@
 
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, a Behringer X32 audio mixer via OSC, and a Blackmagic ATEM video switcher — all from a single interface.
 
+## Screenshots
+
+### Dashboard
+Camera selection, virtual joystick, presets, zoom/focus controls, and connection status — all in one view.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Video Switcher
+Full ATEM switcher control with program/preview rows, transition styles, upstream/downstream keyers, and macro management.
+
+![Video Switcher](docs/screenshots/video-switcher.png)
+
+### Audio Mixer
+Behringer X32/M32 mixer control with faders, mute buttons, and tabbed sections for all channel types.
+
+![Audio Mixer](docs/screenshots/audio-mixer.png)
+
+### Scenes
+Programmable scene buttons that combine camera presets, ATEM inputs, and mixer actions into a single press.
+
+![Scenes](docs/screenshots/scenes.png)
+
+### Mobile Companion
+Touch-optimized mobile web view with camera control, scene execution, and switcher access from any phone or tablet.
+
+![Mobile Companion](docs/screenshots/mobile-companion.png)
+
 ## Features
 
 ### Camera Control

@@ -1,4 +1,40 @@
 import net from "net";
+import { logger } from "./logger";
+
+const CONNECTION_TIMEOUT_MS = 5000;
+
+const VISCA_HEADER = 0x81;
+const VISCA_TERMINATOR = 0xFF;
+
+const PAN_TILT_CMD = [0x01, 0x06, 0x01];
+const ZOOM_CMD = [0x01, 0x04, 0x07];
+const FOCUS_CMD = [0x01, 0x04, 0x08];
+const FOCUS_AUTO_CMD = [0x01, 0x04, 0x38, 0x02];
+const FOCUS_MANUAL_CMD = [0x01, 0x04, 0x38, 0x03];
+const PRESET_RECALL_CMD = [0x01, 0x04, 0x3F, 0x02];
+const PRESET_STORE_CMD = [0x01, 0x04, 0x3F, 0x01];
+const TALLY_ON_CMD = [0x01, 0x7E, 0x01, 0x0A, 0x00, 0x02];
+const TALLY_OFF_CMD = [0x01, 0x7E, 0x01, 0x0A, 0x00, 0x03];
+const HOME_CMD = [0x01, 0x06, 0x04];
+
+const PAN_MAX_SPEED = 24;
+const TILT_MAX_SPEED = 20;
+const ZOOM_MAX_SPEED = 7;
+const ZOOM_MIN_SPEED = 2;
+const FOCUS_MAX_SPEED = 7;
+
+const DIR_LEFT = 0x01;
+const DIR_RIGHT = 0x02;
+const DIR_STOP = 0x03;
+const DIR_UP = 0x01;
+const DIR_DOWN = 0x02;
+
+const ZOOM_TELE = 0x20;
+const ZOOM_WIDE = 0x30;
+const FOCUS_FAR = 0x20;
+const FOCUS_NEAR = 0x30;
+
+const DEADZONE = 0.05;
 
 export interface VISCACommand {
   pan: number;
@@ -21,22 +57,31 @@ export class VISCAClient {
   async connect(): Promise<boolean> {
     return new Promise((resolve) => {
       this.socket = new net.Socket();
-      
+
+      const timeout = setTimeout(() => {
+        logger.warn("camera", `VISCA connection timeout to ${this.host}:${this.port}`, { action: "visca_timeout", details: { host: this.host, port: this.port } });
+        this.socket?.destroy();
+        this.connected = false;
+        resolve(false);
+      }, CONNECTION_TIMEOUT_MS);
+
       this.socket.on("connect", () => {
+        clearTimeout(timeout);
         this.connected = true;
-        console.log(`[VISCA] Connected to ${this.host}:${this.port}`);
+        logger.info("camera", `VISCA connected to ${this.host}:${this.port}`, { action: "visca_connected", details: { host: this.host, port: this.port } });
         resolve(true);
       });
 
       this.socket.on("error", (err) => {
-        console.error(`[VISCA] Connection error to ${this.host}:${this.port}:`, err.message);
+        clearTimeout(timeout);
+        logger.error("camera", `VISCA connection error to ${this.host}:${this.port}: ${err.message}`, { action: "visca_error", details: { host: this.host, port: this.port, error: err.message } });
         this.connected = false;
         resolve(false);
       });
 
       this.socket.on("close", () => {
         this.connected = false;
-        console.log(`[VISCA] Disconnected from ${this.host}:${this.port}`);
+        logger.info("camera", `VISCA disconnected from ${this.host}:${this.port}`, { action: "visca_disconnected", details: { host: this.host, port: this.port } });
       });
 
       this.socket.connect(this.port, this.host);
@@ -55,193 +100,171 @@ export class VISCAClient {
     return this.connected;
   }
 
-  // Send raw VISCA command
   private sendCommand(command: Buffer): void {
     if (!this.socket || !this.connected) {
-      console.warn("[VISCA] Not connected, cannot send command");
+      logger.warn("camera", `VISCA not connected to ${this.host}, cannot send command`, { action: "visca_send_fail" });
       return;
     }
     this.socket.write(command);
   }
 
-  // Pan/Tilt velocity control for joystick
-  // pan: -1.0 (left) to 1.0 (right)
-  // tilt: -1.0 (down) to 1.0 (up)
   panTilt(pan: number, tilt: number, speed: number = 0.5): void {
-    // VISCA PanTilt Drive command: 8x 01 06 01 VV WW XX YY FF
-    // VV = pan speed (01-18 hex, 0x18 = 24 max)
-    // WW = tilt speed (01-14 hex, 0x14 = 20 max)
-    // XX = pan direction: 01 = left, 02 = right, 03 = stop
-    // YY = tilt direction: 01 = up, 02 = down, 03 = stop
-    
-    // Calculate speeds based on joystick magnitude
-    const panSpeed = Math.max(1, Math.min(24, Math.floor(Math.abs(pan) * 24 * speed)));
-    const tiltSpeed = Math.max(1, Math.min(20, Math.floor(Math.abs(tilt) * 20 * speed)));
-    
-    // Determine direction bytes
+    const panSpeed = Math.max(1, Math.min(PAN_MAX_SPEED, Math.floor(Math.abs(pan) * PAN_MAX_SPEED * speed)));
+    const tiltSpeed = Math.max(1, Math.min(TILT_MAX_SPEED, Math.floor(Math.abs(tilt) * TILT_MAX_SPEED * speed)));
+
     let panDirection: number;
-    if (Math.abs(pan) < 0.05) {
-      panDirection = 0x03; // Stop
+    if (Math.abs(pan) < DEADZONE) {
+      panDirection = DIR_STOP;
     } else if (pan < 0) {
-      panDirection = 0x01; // Left
+      panDirection = DIR_LEFT;
     } else {
-      panDirection = 0x02; // Right
+      panDirection = DIR_RIGHT;
     }
-    
+
     let tiltDirection: number;
-    if (Math.abs(tilt) < 0.05) {
-      tiltDirection = 0x03; // Stop
+    if (Math.abs(tilt) < DEADZONE) {
+      tiltDirection = DIR_STOP;
     } else if (tilt > 0) {
-      tiltDirection = 0x01; // Up
+      tiltDirection = DIR_UP;
     } else {
-      tiltDirection = 0x02; // Down
+      tiltDirection = DIR_DOWN;
     }
-    
+
     const cmd = Buffer.from([
-      0x81, 0x01, 0x06, 0x01,
+      VISCA_HEADER, ...PAN_TILT_CMD,
       panSpeed,
       tiltSpeed,
       panDirection,
       tiltDirection,
-      0xFF
+      VISCA_TERMINATOR
     ]);
 
-    console.log(`[VISCA] Sending pan/tilt to ${this.host}:${this.port}: speed=${panSpeed}/${tiltSpeed}, dir=${panDirection}/${tiltDirection}`);
+    logger.debug("camera", `VISCA pan/tilt to ${this.host}: speed=${panSpeed}/${tiltSpeed}, dir=${panDirection}/${tiltDirection}`, { action: "visca_pantilt", details: { host: this.host, panSpeed, tiltSpeed, panDirection, tiltDirection } });
     this.sendCommand(cmd);
   }
 
-  // Stop pan/tilt movement
   panTiltStop(): void {
     const cmd = Buffer.from([
-      0x81, 0x01, 0x06, 0x01,
-      0x00, 0x00, 0x03, 0x03, // Speed and stop
-      0xFF
+      VISCA_HEADER, ...PAN_TILT_CMD,
+      0x00, 0x00, DIR_STOP, DIR_STOP,
+      VISCA_TERMINATOR
     ]);
     this.sendCommand(cmd);
   }
 
-  // Zoom control
-  // zoom: -1.0 (wide) to 1.0 (tele)
   zoom(zoom: number, speed: number = 0.5): void {
     if (zoom === 0) {
       this.zoomStop();
       return;
     }
 
-    const zoomSpeed = Math.floor(Math.abs(zoom) * 7 * speed);
-    const clampedSpeed = Math.max(2, Math.min(7, zoomSpeed));
-    
-    const direction = zoom > 0 ? 0x20 : 0x30; // Tele or Wide
-    
+    const zoomSpeed = Math.floor(Math.abs(zoom) * ZOOM_MAX_SPEED * speed);
+    const clampedSpeed = Math.max(ZOOM_MIN_SPEED, Math.min(ZOOM_MAX_SPEED, zoomSpeed));
+
+    const direction = zoom > 0 ? ZOOM_TELE : ZOOM_WIDE;
+
     const cmd = Buffer.from([
-      0x81, 0x01, 0x04, 0x07,
+      VISCA_HEADER, ...ZOOM_CMD,
       direction | clampedSpeed,
-      0xFF
+      VISCA_TERMINATOR
     ]);
-    
+
     this.sendCommand(cmd);
   }
 
   zoomStop(): void {
-    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x07, 0x00, 0xFF]);
+    const cmd = Buffer.from([VISCA_HEADER, ...ZOOM_CMD, 0x00, VISCA_TERMINATOR]);
     this.sendCommand(cmd);
   }
 
-  // Focus control
   focusAuto(): void {
-    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x38, 0x02, 0xFF]);
+    const cmd = Buffer.from([VISCA_HEADER, ...FOCUS_AUTO_CMD, VISCA_TERMINATOR]);
     this.sendCommand(cmd);
   }
 
   focusManual(): void {
-    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x38, 0x03, 0xFF]);
+    const cmd = Buffer.from([VISCA_HEADER, ...FOCUS_MANUAL_CMD, VISCA_TERMINATOR]);
     this.sendCommand(cmd);
   }
 
   focusFar(speed: number = 0.5): void {
     const s = Math.max(0, Math.min(1, speed));
-    const spd = Math.round(s * 7);
-    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x20 | spd, 0xFF]);
+    const spd = Math.round(s * FOCUS_MAX_SPEED);
+    const cmd = Buffer.from([VISCA_HEADER, ...FOCUS_CMD, FOCUS_FAR | spd, VISCA_TERMINATOR]);
     this.sendCommand(cmd);
   }
 
   focusNear(speed: number = 0.5): void {
     const s = Math.max(0, Math.min(1, speed));
-    const spd = Math.round(s * 7);
-    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x30 | spd, 0xFF]);
+    const spd = Math.round(s * FOCUS_MAX_SPEED);
+    const cmd = Buffer.from([VISCA_HEADER, ...FOCUS_CMD, FOCUS_NEAR | spd, VISCA_TERMINATOR]);
     this.sendCommand(cmd);
   }
 
   focusStop(): void {
-    const cmd = Buffer.from([0x81, 0x01, 0x04, 0x08, 0x00, 0xFF]);
+    const cmd = Buffer.from([VISCA_HEADER, ...FOCUS_CMD, 0x00, VISCA_TERMINATOR]);
     this.sendCommand(cmd);
   }
 
-  // Recall preset
   recallPreset(presetNumber: number): void {
     if (presetNumber < 0 || presetNumber > 254) {
-      console.warn("[VISCA] Invalid preset number:", presetNumber);
+      logger.warn("camera", `VISCA invalid preset number: ${presetNumber}`, { action: "visca_invalid_preset", details: { presetNumber } });
       return;
     }
 
     const cmd = Buffer.from([
-      0x81, 0x01, 0x04, 0x3F, 0x02,
+      VISCA_HEADER, ...PRESET_RECALL_CMD,
       presetNumber,
-      0xFF
+      VISCA_TERMINATOR
     ]);
-    
+
     this.sendCommand(cmd);
   }
 
-  // Store current position as preset
   storePreset(presetNumber: number): void {
     if (presetNumber < 0 || presetNumber > 254) {
-      console.warn("[VISCA] Invalid preset number:", presetNumber);
+      logger.warn("camera", `VISCA invalid preset number: ${presetNumber}`, { action: "visca_invalid_preset", details: { presetNumber } });
       return;
     }
 
     const cmd = Buffer.from([
-      0x81, 0x01, 0x04, 0x3F, 0x01,
+      VISCA_HEADER, ...PRESET_STORE_CMD,
       presetNumber,
-      0xFF
+      VISCA_TERMINATOR
     ]);
-    
+
     this.sendCommand(cmd);
   }
 
-  // Tally light control
-  // state: "program" (red), "preview" (green), "off"
   tallyOn(): void {
-    const cmd = Buffer.from([0x81, 0x01, 0x7E, 0x01, 0x0A, 0x00, 0x02, 0xFF]);
-    console.log(`[VISCA] Tally ON for ${this.host}:${this.port}`);
+    const cmd = Buffer.from([VISCA_HEADER, ...TALLY_ON_CMD, VISCA_TERMINATOR]);
+    logger.debug("camera", `VISCA tally ON for ${this.host}:${this.port}`, { action: "visca_tally_on", details: { host: this.host } });
     this.sendCommand(cmd);
   }
 
   tallyOff(): void {
-    const cmd = Buffer.from([0x81, 0x01, 0x7E, 0x01, 0x0A, 0x00, 0x03, 0xFF]);
-    console.log(`[VISCA] Tally OFF for ${this.host}:${this.port}`);
+    const cmd = Buffer.from([VISCA_HEADER, ...TALLY_OFF_CMD, VISCA_TERMINATOR]);
+    logger.debug("camera", `VISCA tally OFF for ${this.host}:${this.port}`, { action: "visca_tally_off", details: { host: this.host } });
     this.sendCommand(cmd);
   }
 
-  // Home position
   home(): void {
-    const cmd = Buffer.from([0x81, 0x01, 0x06, 0x04, 0xFF]);
+    const cmd = Buffer.from([VISCA_HEADER, ...HOME_CMD, VISCA_TERMINATOR]);
     this.sendCommand(cmd);
   }
 }
 
-// Camera connection manager
 export class CameraConnectionManager {
   private connections: Map<number, VISCAClient> = new Map();
 
   async connectCamera(id: number, ip: string, port: number = 52381): Promise<boolean> {
     const client = new VISCAClient(ip, port);
     const connected = await client.connect();
-    
+
     if (connected) {
       this.connections.set(id, client);
     }
-    
+
     return connected;
   }
 
@@ -262,7 +285,7 @@ export class CameraConnectionManager {
   }
 
   disconnectAll(): void {
-    Array.from(this.connections.entries()).forEach(([id, client]) => {
+    Array.from(this.connections.entries()).forEach(([_id, client]) => {
       client.disconnect();
     });
     this.connections.clear();
