@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "7V1A4kFto6CCCfnDMCSEW"
+uri = "file://docs/screenshots/dashboard.png"
+type = "image"
+title = "Dashboard camera control view"
+
+[[generated]]
+id = "srNwCbIJ7trhrxhIs776x"
+uri = "file://docs/screenshots/audio-mixer.png"
+type = "image"
+title = "Audio mixer channel strips"
+
+[[generated]]
+id = "FRjSz8UPD7v20l_4UBkO6"
+uri = "file://docs/screenshots/video-switcher.png"
+type = "image"
+title = "Video switcher ATEM control"
+
+[[generated]]
+id = "ETQyRyXgQB_99LWtzuY4M"
+uri = "file://docs/screenshots/scenes.png"
+type = "image"
+title = "Scene buttons management page"
+
+[[generated]]
+id = "Kp0NmF4SJPvZFPNGoCNvw"
+uri = "file://docs/screenshots/mobile-companion.png"
+type = "image"
+title = "Mobile companion touch view"

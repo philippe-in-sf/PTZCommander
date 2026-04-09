@@ -8,14 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { MonitorPlay, Plus, Wifi, WifiOff, Zap, ArrowRightLeft, Settings, Trash2, AlertTriangle, Play, Square, SkipForward, Repeat } from "lucide-react";
-import { ChangelogDialog } from "@/components/changelog-dialog";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { LogViewer } from "@/components/logs/log-viewer";
-import { LayoutSelector } from "@/components/layouts/layout-selector";
-import { Video } from "lucide-react";
-import { Link } from "wouter";
+import { AppLayout } from "@/components/app-layout";
 import type { Switcher } from "@shared/schema";
 
 type SwitcherTab = "me" | "transition" | "keyers" | "dsk" | "macros";
@@ -85,78 +80,24 @@ export default function SwitcherPage() {
   });
 
 
+  const switcherHeaderRight = switcher ? (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-slate-500 dark:text-slate-400">{switcher.name}</span>
+      {atemState.connected ? (
+        <Wifi className="h-4 w-4 text-green-500" />
+      ) : (
+        <Button variant="ghost" size="sm" onClick={() => connectSwitcherMutation.mutate(switcher.id)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" data-testid="button-connect-switcher-full">
+          <WifiOff className="h-4 w-4 mr-1" /> Connect
+        </Button>
+      )}
+      <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5" data-testid="button-edit-switcher">
+        <Settings className="h-4 w-4" />
+      </Button>
+    </div>
+  ) : null;
+
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
-                <Video className="text-white w-4 h-4" />
-              </div>
-              <div>
-                <h1 className="font-bold tracking-tight text-lg leading-none">
-                  PTZ<span className="text-cyan-500 font-light">COMMAND</span>
-                </h1>
-                <ChangelogDialog />
-              </div>
-            </div>
-          </Link>
-
-          <nav className="flex items-center gap-1 ml-6">
-            <Link href="/">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
-                Dashboard
-              </button>
-            </Link>
-            <Link href="/scenes">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
-                Scenes
-              </button>
-            </Link>
-            <Link href="/macros">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-macros">
-                Macros
-              </button>
-            </Link>
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-switcher">
-              Video Switcher
-            </button>
-            <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
-                Audio Mixer
-              </button>
-            </Link>
-            <Link href="/lighting">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-lighting">
-                Lighting
-              </button>
-            </Link>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {switcher ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500 dark:text-slate-400">{switcher.name}</span>
-              {atemState.connected ? (
-                <Wifi className="h-4 w-4 text-green-500" />
-              ) : (
-                <Button variant="ghost" size="sm" onClick={() => connectSwitcherMutation.mutate(switcher.id)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" data-testid="button-connect-switcher-full">
-                  <WifiOff className="h-4 w-4 mr-1" /> Connect
-                </Button>
-              )}
-              <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5" data-testid="button-edit-switcher">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : null}
-          <ThemeToggle />
-          <LayoutSelector />
-          <LogViewer />
-        </div>
-      </header>
-
+    <AppLayout activePage="/switcher" headerRight={switcherHeaderRight}>
       {!switcher ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-4">
@@ -257,7 +198,7 @@ export default function SwitcherPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </AppLayout>
   );
 }
 

@@ -8,13 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Plus, Trash2, Settings, Zap, Play, Video, Lightbulb } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { ChangelogDialog } from "@/components/changelog-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { LogViewer } from "@/components/logs/log-viewer";
-import { LayoutSelector } from "@/components/layouts/layout-selector";
-import { Link } from "wouter";
+import { AppLayout } from "@/components/app-layout";
 import type { SceneButton, Camera } from "@shared/schema";
 
 interface MixerAction {
@@ -270,62 +266,7 @@ export default function ScenesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-3">
-          <Link href="/">
-            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
-                <Video className="text-white w-4 h-4" />
-              </div>
-              <div>
-                <h1 className="font-bold tracking-tight text-lg leading-none">
-                  PTZ<span className="text-cyan-500 font-light">COMMAND</span>
-                </h1>
-                <ChangelogDialog />
-              </div>
-            </div>
-          </Link>
-
-          <nav className="flex items-center gap-1 ml-6">
-            <Link href="/">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-dashboard">
-                Dashboard
-              </button>
-            </Link>
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-scenes">
-              Scenes
-            </button>
-            <Link href="/macros">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-macros">
-                Macros
-              </button>
-            </Link>
-            <Link href="/switcher">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
-                Video Switcher
-              </button>
-            </Link>
-            <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
-                Audio Mixer
-              </button>
-            </Link>
-            <Link href="/lighting">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-lighting">
-                Lighting
-              </button>
-            </Link>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          <LayoutSelector />
-          <LogViewer />
-        </div>
-      </header>
-
+    <AppLayout activePage="/scenes">
       <main className="flex-1 p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
         <div className="flex items-center justify-between">
           <div>
@@ -663,6 +604,6 @@ export default function ScenesPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppLayout>
   );
 }
