@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { mixerApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
@@ -24,7 +23,7 @@ interface SectionChannelState {
 }
 
 const SECTION_TABS: { key: MixerSection; label: string; count: number }[] = [
-  { key: "ch", label: "Channels 1-32", count: 32 },
+  { key: "ch", label: "Channels", count: 32 },
   { key: "bus", label: "Mix Bus", count: 16 },
   { key: "auxin", label: "Aux In", count: 8 },
   { key: "fxrtn", label: "FX Returns", count: 8 },
@@ -207,9 +206,9 @@ export default function MixerPage() {
     ws?.send({ type: "mixer_section_mute", section, channel, muted });
   };
 
-  const handleMainFaderChange = (value: number[]) => {
-    setMainFader(value[0]);
-    ws?.send({ type: "mixer_section_fader", section: "main", channel: 1, value: value[0] });
+  const handleMainFaderChange = (value: number) => {
+    setMainFader(value);
+    ws?.send({ type: "mixer_section_fader", section: "main", channel: 1, value });
   };
 
   const handleMainMuteToggle = () => {
@@ -280,19 +279,18 @@ export default function MixerPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Section Tabs */}
-          <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-400/30 dark:bg-slate-950/30 px-6">
-            <div className="flex gap-1 py-2">
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#1a1a2e] dark:bg-[#1a1a2e]">
+          <div className="border-b border-[#2a2a3e] bg-[#12121f] px-4">
+            <div className="flex items-center gap-1 py-2">
               {SECTION_TABS.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveSection(tab.key)}
                   className={cn(
-                    "px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                    "px-5 py-2.5 text-sm font-semibold tracking-wide transition-colors border border-transparent",
                     activeSection === tab.key
-                      ? "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800"
+                      ? "bg-[#2563eb] text-white border-[#3b82f6]"
+                      : "text-slate-400 hover:text-white hover:bg-[#2a2a3e]"
                   )}
                   data-testid={`tab-section-${tab.key}`}
                 >
@@ -302,55 +300,51 @@ export default function MixerPage() {
             </div>
           </div>
 
-          {/* Fader Section */}
-          <div className="flex-1 overflow-auto p-6">
-            <div className="flex gap-2 flex-wrap justify-center">
-              {channels.map((ch) => (
-                <MixerChannelStrip
-                  key={`${activeSection}-${ch.channel}`}
-                  channel={ch.channel}
-                  name={ch.name}
-                  fader={ch.fader}
-                  muted={ch.muted}
-                  onFaderChange={(val) => handleFaderChange(activeSection, ch.channel, val)}
-                  onMuteToggle={(muted) => handleMuteToggle(activeSection, ch.channel, muted)}
-                />
-              ))}
-            </div>
+          <div className="flex-1 overflow-auto">
+            <div className="flex h-full">
+              <div className="flex-1 flex gap-0 overflow-x-auto p-3 pb-4">
+                {channels.map((ch) => (
+                  <ConsoleChannelStrip
+                    key={`${activeSection}-${ch.channel}`}
+                    channel={ch.channel}
+                    name={ch.name}
+                    fader={ch.fader}
+                    muted={ch.muted}
+                    sectionLabel={SECTION_LABELS[activeSection]}
+                    onFaderChange={(val) => handleFaderChange(activeSection, ch.channel, val)}
+                    onMuteToggle={(muted) => handleMuteToggle(activeSection, ch.channel, muted)}
+                  />
+                ))}
+              </div>
 
-            {/* Main Fader */}
-            <div className="mt-6 max-w-2xl mx-auto">
-              <div className="flex items-center gap-4 p-4 bg-slate-300/50 dark:bg-slate-800/50 rounded-lg border border-slate-300 dark:border-slate-600">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-cyan-600 dark:text-cyan-400">MAIN LR</span>
-                  <Button
-                    variant={mainMuted ? "destructive" : "outline"}
-                    size="sm"
-                    onClick={handleMainMuteToggle}
-                    data-testid="mute-main-full"
-                  >
-                    {mainMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                  </Button>
+              <div className="w-[80px] flex-shrink-0 border-l border-[#2a2a3e] p-2 flex flex-col items-center">
+                <div className="text-[10px] font-bold text-cyan-400 mb-1 tracking-wider">MAIN</div>
+                <div className="text-[10px] text-slate-400 font-mono mb-2">{faderToDb(mainFader)}</div>
+                <div className="flex-1 flex items-center justify-center w-full">
+                  <ConsoleFader
+                    value={mainFader}
+                    onChange={handleMainFaderChange}
+                    height={280}
+                  />
                 </div>
-                <Slider
-                  value={[mainFader]}
-                  onValueChange={handleMainFaderChange}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  className="flex-1"
-                  data-testid="fader-main-full"
-                />
-                <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-16 text-right">
-                  {faderToDb(mainFader)}
-                </span>
+                <button
+                  onClick={handleMainMuteToggle}
+                  className={cn(
+                    "w-full mt-2 py-1.5 text-[10px] font-bold tracking-wider border transition-colors",
+                    mainMuted
+                      ? "bg-red-600 border-red-500 text-white"
+                      : "bg-[#2a2a3e] border-[#3a3a4e] text-slate-400 hover:text-white hover:bg-[#3a3a4e]"
+                  )}
+                  data-testid="mute-main-full"
+                >
+                  MUTE
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Edit Mixer Dialog */}
       <Dialog open={editMixerOpen} onOpenChange={(open) => { setEditMixerOpen(open); if (!open) setConfirmDelete(false); }}>
         <DialogContent className="bg-slate-300 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
           <DialogHeader><DialogTitle>Mixer Settings</DialogTitle></DialogHeader>
@@ -400,77 +394,190 @@ export default function MixerPage() {
   );
 }
 
-interface MixerChannelStripProps {
+interface ConsoleFaderProps {
+  value: number;
+  onChange: (value: number) => void;
+  height?: number;
+}
+
+function ConsoleFader({ value, onChange, height = 240 }: ConsoleFaderProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const knobHeight = 28;
+  const trackPadding = 6;
+  const usableHeight = height - knobHeight - trackPadding * 2;
+  const knobTop = trackPadding + (1 - value) * usableHeight;
+
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    isDragging.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    updateValue(e);
+  }, []);
+
+  const updateValue = useCallback((e: React.PointerEvent) => {
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const y = e.clientY - rect.top - trackPadding - knobHeight / 2;
+    const ratio = 1 - Math.max(0, Math.min(1, y / usableHeight));
+    onChange(Math.round(ratio * 100) / 100);
+  }, [usableHeight, onChange]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (isDragging.current) updateValue(e);
+  }, [updateValue]);
+
+  const handlePointerUp = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  const fillHeight = value * usableHeight;
+
+  return (
+    <div
+      ref={trackRef}
+      className="relative cursor-pointer select-none touch-none"
+      style={{ width: 40, height }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    >
+      <div
+        className="absolute left-1/2 -translate-x-1/2 rounded-sm"
+        style={{
+          width: 6,
+          top: trackPadding,
+          bottom: trackPadding,
+          background: 'linear-gradient(to bottom, #1a1a2e, #0f0f1a)',
+          boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)',
+        }}
+      />
+
+      <div
+        className="absolute left-1/2 -translate-x-1/2 rounded-sm"
+        style={{
+          width: 6,
+          bottom: trackPadding,
+          height: fillHeight,
+          background: 'linear-gradient(to top, #22c55e, #16a34a)',
+          opacity: 0.7,
+        }}
+      />
+
+      {[0, 0.25, 0.5, 0.75, 1].map((mark) => (
+        <div
+          key={mark}
+          className="absolute"
+          style={{
+            left: 2,
+            right: 2,
+            top: trackPadding + (1 - mark) * usableHeight + knobHeight / 2 - 0.5,
+            height: 1,
+            background: 'rgba(255,255,255,0.08)',
+          }}
+        />
+      ))}
+
+      <div
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          width: 32,
+          height: knobHeight,
+          top: knobTop,
+          background: 'linear-gradient(to bottom, #5a5a6e, #3a3a4e, #2a2a3e)',
+          borderRadius: 3,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)',
+        }}
+      >
+        <div
+          className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2"
+          style={{
+            width: 20,
+            height: 2,
+            background: 'rgba(255,255,255,0.3)',
+            borderRadius: 1,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface ConsoleChannelStripProps {
   channel: number;
   name: string;
   fader: number;
   muted: boolean;
+  sectionLabel: string;
   onFaderChange: (value: number) => void;
   onMuteToggle: (muted: boolean) => void;
 }
 
-function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteToggle }: MixerChannelStripProps) {
+function ConsoleChannelStrip({ channel, name, fader, muted, sectionLabel, onFaderChange, onMuteToggle }: ConsoleChannelStripProps) {
   const [localFader, setLocalFader] = useState(fader);
 
   useEffect(() => {
     setLocalFader(fader);
   }, [fader]);
 
-  const handleFaderChange = (value: number[]) => {
-    const newValue = value[0];
-    setLocalFader(newValue);
-    onFaderChange(newValue);
+  const handleFaderChange = (value: number) => {
+    setLocalFader(value);
+    onFaderChange(value);
   };
+
+  const dbStr = faderToDb(localFader);
 
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-300/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700 w-[72px]",
-        muted && "opacity-60"
+        "flex flex-col items-center flex-shrink-0 bg-[#1e1e32] border border-[#2a2a3e] px-1 py-2",
+        muted && "opacity-50"
       )}
+      style={{ width: 62 }}
       data-testid={`mixer-strip-${channel}`}
     >
-      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate w-full text-center" title={name}>
+      <div className="text-[9px] font-bold text-slate-300 truncate w-full text-center mb-1 tracking-wide" title={name}>
         {name}
-      </span>
+      </div>
 
-      <div className="h-40 flex items-center justify-center">
-        <Slider
-          orientation="vertical"
-          value={[localFader]}
-          onValueChange={handleFaderChange}
-          min={0}
-          max={1}
-          step={0.01}
-          className="h-36"
+      <div className="text-[9px] font-mono text-green-400 mb-1">
+        {dbStr}
+      </div>
+
+      <div className="w-full flex items-center justify-center flex-1 my-1">
+        <ConsoleFader
+          value={localFader}
+          onChange={handleFaderChange}
+          height={220}
         />
       </div>
 
-      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-        {faderToDb(localFader)}
-      </span>
-
-      <Button
-        variant={muted ? "destructive" : "outline"}
-        size="sm"
-        className="w-full h-7 text-[10px]"
+      <button
         onClick={() => onMuteToggle(!muted)}
+        className={cn(
+          "w-full py-1 text-[9px] font-bold tracking-wider border transition-colors mt-1",
+          muted
+            ? "bg-red-600 border-red-500 text-white"
+            : "bg-[#2a2a3e] border-[#3a3a4e] text-slate-500 hover:text-slate-300 hover:bg-[#3a3a4e]"
+        )}
+        data-testid={`mute-ch-${channel}`}
       >
-        {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
-      </Button>
+        MUTE
+      </button>
 
-      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
+      <div className="text-[10px] font-bold text-slate-400 mt-1">
+        {sectionLabel} {channel}
+      </div>
     </div>
   );
 }
 
 function faderToDb(value: number): string {
   if (value <= 0) return "-inf";
-  if (value >= 1) return "+10 dB";
+  if (value >= 1) return "+10";
   if (value >= 0.75) {
     const db = ((value - 0.75) / 0.25) * 10;
-    return db >= 0 ? `+${db.toFixed(0)} dB` : `${db.toFixed(0)} dB`;
+    return db >= 0 ? `+${db.toFixed(0)}` : `${db.toFixed(0)}`;
   }
   const db = -60 + (value / 0.75) * 60;
-  return `${db.toFixed(0)} dB`;
+  return `${db.toFixed(0)}`;
 }
