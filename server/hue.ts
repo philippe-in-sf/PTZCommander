@@ -81,6 +81,10 @@ function assertHueSuccess<T>(response: T): T {
   return response;
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class HueClient {
   constructor(private ip: string, private apiKey: string) {}
 
@@ -180,6 +184,31 @@ export async function pairBridge(ip: string): Promise<string | null> {
     return null;
   } catch {
     return null;
+  }
+}
+
+export async function pairBridgeWithDetails(ip: string): Promise<{ apiKey: string | null; error?: string }> {
+  const deadline = Date.now() + 30000;
+  let lastError: string | undefined;
+
+  try {
+    do {
+      const res = await hueRequest("POST", ip, "/api", { devicetype: "ptzcommand#replit" });
+      if (Array.isArray(res) && res[0]?.success?.username) {
+        return { apiKey: res[0].success.username };
+      }
+
+      lastError = hueErrorMessage(res) ?? "Unexpected response from Hue bridge";
+      if (!lastError.toLowerCase().includes("link button not pressed")) {
+        return { apiKey: null, error: lastError };
+      }
+
+      await wait(1000);
+    } while (Date.now() < deadline);
+
+    return { apiKey: null, error: lastError ?? "Timed out waiting for Hue bridge link button" };
+  } catch (error: unknown) {
+    return { apiKey: null, error: error instanceof Error ? error.message : "Failed to contact Hue bridge" };
   }
 }
 
