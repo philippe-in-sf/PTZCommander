@@ -67,6 +67,20 @@ function hueRequest(
   });
 }
 
+function hueErrorMessage(response: unknown): string | null {
+  if (!Array.isArray(response)) return null;
+  const messages = response
+    .map((entry) => entry?.error?.description)
+    .filter((description): description is string => typeof description === "string");
+  return messages.length > 0 ? messages.join("; ") : null;
+}
+
+function assertHueSuccess<T>(response: T): T {
+  const message = hueErrorMessage(response);
+  if (message) throw new Error(message);
+  return response;
+}
+
 export class HueClient {
   constructor(private ip: string, private apiKey: string) {}
 
@@ -75,7 +89,7 @@ export class HueClient {
   }
 
   async getLights(): Promise<HueLight[]> {
-    const raw = await hueRequest("GET", this.ip, this.apiPath("/lights"));
+    const raw = assertHueSuccess(await hueRequest("GET", this.ip, this.apiPath("/lights")));
     return Object.entries(raw).map(([id, data]: [string, any]) => ({
       id,
       name: data.name,
@@ -90,7 +104,7 @@ export class HueClient {
   }
 
   async getGroups(): Promise<HueGroup[]> {
-    const raw = await hueRequest("GET", this.ip, this.apiPath("/groups"));
+    const raw = assertHueSuccess(await hueRequest("GET", this.ip, this.apiPath("/groups")));
     return Object.entries(raw).map(([id, data]: [string, any]) => ({
       id,
       name: data.name,
@@ -102,7 +116,7 @@ export class HueClient {
   }
 
   async getScenes(): Promise<HueScene[]> {
-    const raw = await hueRequest("GET", this.ip, this.apiPath("/scenes"));
+    const raw = assertHueSuccess(await hueRequest("GET", this.ip, this.apiPath("/scenes")));
     return Object.entries(raw).map(([id, data]: [string, any]) => ({
       id,
       name: data.name,
@@ -118,7 +132,7 @@ export class HueClient {
     hue?: number;
     sat?: number;
   }) {
-    return hueRequest("PUT", this.ip, this.apiPath(`/lights/${lightId}/state`), state);
+    return assertHueSuccess(await hueRequest("PUT", this.ip, this.apiPath(`/lights/${lightId}/state`), state));
   }
 
   async setGroupState(groupId: string, state: {
@@ -127,7 +141,7 @@ export class HueClient {
     ct?: number;
     scene?: string;
   }) {
-    return hueRequest("PUT", this.ip, this.apiPath(`/groups/${groupId}/action`), state);
+    return assertHueSuccess(await hueRequest("PUT", this.ip, this.apiPath(`/groups/${groupId}/action`), state));
   }
 
   async activateScene(sceneId: string, groupId?: string) {

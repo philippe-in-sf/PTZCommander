@@ -194,7 +194,7 @@ export class X32Client {
       if (cfg.namePath) {
         const nameRegex = new RegExp(`^${cfg.oscPrefix.replace(/\//g, "\\/")}\\/${chPattern}\\/${cfg.namePath.replace(/\//g, "\\/")}$`);
         const nameMatch = address.match(nameRegex);
-        if (nameMatch && args[0]?.value) {
+        if (nameMatch && typeof args[0]?.value === "string") {
           const ch = parseInt(nameMatch[1]);
           const key = this.stateKey(section, ch);
           const state = this.sectionStates.get(key) || this.defaultState(section, ch);

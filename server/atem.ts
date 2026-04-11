@@ -106,8 +106,9 @@ export class AtemClient {
       this.notifyStateChange();
     });
 
-    this.atem.on("error", (error: Error) => {
-      logger.error("switcher", `ATEM error: ${error.message}`, { action: "atem_error", details: { error: error.message } });
+    this.atem.on("error", (error: string | Error) => {
+      const message = error instanceof Error ? error.message : error;
+      logger.error("switcher", `ATEM error: ${message}`, { action: "atem_error", details: { error: message } });
     });
   }
 

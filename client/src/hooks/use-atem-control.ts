@@ -94,20 +94,21 @@ export function useAtemControl() {
 
   const handleAtemState = useCallback((message: Record<string, unknown>) => {
     if (message.type === "atem_state") {
+      const stateMessage = message as Partial<AtemState>;
       setAtemState({
-        connected: message.connected,
-        programInput: message.programInput || 0,
-        previewInput: message.previewInput || 0,
-        inTransition: message.inTransition || false,
-        transitionPosition: message.transitionPosition || 0,
-        inputs: message.inputs || [],
-        transition: message.transition || DEFAULT_TRANSITION,
-        fadeToBlack: message.fadeToBlack || DEFAULT_FTB,
-        downstreamKeyers: message.downstreamKeyers || [],
-        upstreamKeyers: message.upstreamKeyers || [],
-        macroPlayer: message.macroPlayer || DEFAULT_MACRO_PLAYER,
-        macros: message.macros || [],
-        auxOutputs: message.auxOutputs || [],
+        connected: stateMessage.connected ?? false,
+        programInput: stateMessage.programInput ?? 0,
+        previewInput: stateMessage.previewInput ?? 0,
+        inTransition: stateMessage.inTransition ?? false,
+        transitionPosition: stateMessage.transitionPosition ?? 0,
+        inputs: stateMessage.inputs ?? [],
+        transition: stateMessage.transition ?? DEFAULT_TRANSITION,
+        fadeToBlack: stateMessage.fadeToBlack ?? DEFAULT_FTB,
+        downstreamKeyers: stateMessage.downstreamKeyers ?? [],
+        upstreamKeyers: stateMessage.upstreamKeyers ?? [],
+        macroPlayer: stateMessage.macroPlayer ?? DEFAULT_MACRO_PLAYER,
+        macros: stateMessage.macros ?? [],
+        auxOutputs: stateMessage.auxOutputs ?? [],
       });
     }
   }, []);

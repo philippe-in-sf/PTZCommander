@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addCameraOpen, setAddCameraOpen] = useState(false);
   const [newCamera, setNewCamera] = useState({ name: "", ip: "", port: 52381, streamUrl: "" });
+  const [panTiltSpeed, setPanTiltSpeed] = useState(0.5);
 
   const ws = useWebSocket();
 
@@ -133,7 +134,7 @@ export default function Dashboard() {
 
   const handleJoystickMove = (x: number, y: number) => {
     if (selectedId) {
-      ws.panTilt(selectedId, x, y, 0.5);
+      ws.panTilt(selectedId, x, y, panTiltSpeed);
     }
   };
 
@@ -442,9 +443,14 @@ export default function Dashboard() {
               <div className="bg-slate-100/30 dark:bg-slate-900/30 border border-slate-300 dark:border-slate-800 rounded-xl p-4 flex-1">
                  <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest mb-4 font-bold">Optical Controls</h3>
                  <LensControls 
-                   onZoomChange={(v) => ws?.zoom(selectedId!, v / 50 - 1, 0.5)}
-                   onFocusChange={(v) => console.log('Focus', v)}
-                   onSpeedChange={(v) => console.log('Speed', v)}
+                   panTiltSpeed={panTiltSpeed}
+                   onZoomStart={(direction, speed) => selectedId && ws.zoom(selectedId, direction, speed)}
+                   onZoomStop={() => selectedId && ws.zoom(selectedId, 0, 0)}
+                   onFocusFarStart={(speed) => selectedId && ws.focusFar(selectedId, speed)}
+                   onFocusNearStart={(speed) => selectedId && ws.focusNear(selectedId, speed)}
+                   onFocusStop={() => selectedId && ws.focusStop(selectedId)}
+                   onFocusAuto={() => selectedId && ws.focusAuto(selectedId)}
+                   onPanTiltSpeedChange={setPanTiltSpeed}
                  />
                  
                  <div className="mt-6 grid grid-cols-2 gap-2">

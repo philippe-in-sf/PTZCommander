@@ -29,14 +29,18 @@ interface HueGroup {
   id: string;
   name: string;
   type: string;
-  state: { all_on: boolean; any_on: boolean };
-  action: { on: boolean; bri: number };
+  lights: string[];
+  on: boolean;
+  brightness: number;
 }
 
 interface HueLight {
   id: string;
   name: string;
-  state: { on: boolean; bri?: number; reachable: boolean };
+  on: boolean;
+  brightness: number;
+  reachable: boolean;
+  type: string;
 }
 
 // ── Joystick ─────────────────────────────────────────────────────────────────
@@ -280,9 +284,9 @@ function LightingTab() {
       fetch(`/api/hue/bridges/${selectedBridgeId}/groups`).then((r) => r.json()).catch(() => []),
       fetch(`/api/hue/bridges/${selectedBridgeId}/lights`).then((r) => r.json()).catch(() => []),
     ]).then(([s, g, l]) => {
-      setScenes(s);
-      setGroups(g);
-      setLights(l);
+      setScenes(Array.isArray(s) ? s : []);
+      setGroups(Array.isArray(g) ? g : []);
+      setLights(Array.isArray(l) ? l : []);
       setLoadingBridge(false);
     });
   }, [selectedBridgeId]);
@@ -306,39 +310,54 @@ function LightingTab() {
 
   const toggleGroup = async (groupId: string, on: boolean) => {
     if (!selectedBridgeId) return;
-    await fetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
+    const res = await fetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
     });
+    if (!res.ok) {
+      toast.error("Failed to update room");
+      return;
+    }
     setGroups((prev) =>
       prev.map((g) =>
-        g.id === groupId
-          ? { ...g, state: { all_on: on, any_on: on }, action: { ...g.action, on } }
-          : g
+        g.id === groupId ? { ...g, on } : g
       )
     );
   };
 
   const setGroupBrightness = async (groupId: string, bri: number) => {
     if (!selectedBridgeId) return;
-    await fetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
+    const res = await fetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on: true, bri }),
     });
+    if (!res.ok) {
+      toast.error("Failed to update room brightness");
+      return;
+    }
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId ? { ...g, on: true, brightness: bri } : g
+      )
+    );
   };
 
   const toggleLight = async (lightId: string, on: boolean) => {
     if (!selectedBridgeId) return;
-    await fetch(`/api/hue/bridges/${selectedBridgeId}/lights/${lightId}`, {
+    const res = await fetch(`/api/hue/bridges/${selectedBridgeId}/lights/${lightId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
     });
+    if (!res.ok) {
+      toast.error("Failed to update light");
+      return;
+    }
     setLights((prev) =>
       prev.map((l) =>
-        l.id === lightId ? { ...l, state: { ...l.state, on } } : l
+        l.id === lightId ? { ...l, on } : l
       )
     );
   };
@@ -449,29 +468,29 @@ function LightingTab() {
                   className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50"
                 >
                   <button
-                    onClick={() => toggleGroup(group.id, !group.state.any_on)}
+                    onClick={() => toggleGroup(group.id, !group.on)}
                     className={cn(
                       "w-10 h-6 rounded-full relative transition-colors shrink-0",
-                      group.state.any_on ? "bg-amber-500" : "bg-slate-300 dark:bg-slate-700"
+                      group.on ? "bg-amber-500" : "bg-slate-300 dark:bg-slate-700"
                     )}
                     data-testid={`mobile-hue-group-toggle-${group.id}`}
                   >
                     <div
                       className={cn(
                         "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                        group.state.any_on ? "translate-x-4" : "translate-x-0.5"
+                        group.on ? "translate-x-4" : "translate-x-0.5"
                       )}
                     />
                   </button>
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-1 truncate">
                     {group.name}
                   </span>
-                  {group.state.any_on && (
+                  {group.on && (
                     <input
                       type="range"
                       min={1}
                       max={254}
-                      defaultValue={group.action.bri ?? 254}
+                      defaultValue={group.brightness || 254}
                       onMouseUp={(e) => setGroupBrightness(group.id, parseInt((e.target as HTMLInputElement).value))}
                       onTouchEnd={(e) => setGroupBrightness(group.id, parseInt((e.target as HTMLInputElement).value))}
                       className="w-20 accent-amber-500"
@@ -495,30 +514,31 @@ function LightingTab() {
                   key={light.id}
                   className={cn(
                     "flex items-center gap-3 p-3 rounded-lg border",
-                    light.state.reachable
+                    light.reachable
                       ? "border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50"
                       : "border-slate-100 dark:border-slate-900 opacity-50"
                   )}
                 >
                   <button
-                    onClick={() => toggleLight(light.id, !light.state.on)}
+                    onClick={() => toggleLight(light.id, !light.on)}
+                    disabled={!light.reachable}
                     className={cn(
                       "w-10 h-6 rounded-full relative transition-colors shrink-0",
-                      light.state.on ? "bg-amber-500" : "bg-slate-300 dark:bg-slate-700"
+                      light.on ? "bg-amber-500" : "bg-slate-300 dark:bg-slate-700"
                     )}
                     data-testid={`mobile-hue-light-toggle-${light.id}`}
                   >
                     <div
                       className={cn(
                         "absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                        light.state.on ? "translate-x-4" : "translate-x-0.5"
+                        light.on ? "translate-x-4" : "translate-x-0.5"
                       )}
                     />
                   </button>
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex-1 truncate">
                     {light.name}
                   </span>
-                  {!light.state.reachable && (
+                  {!light.reachable && (
                     <span className="text-[9px] text-slate-400 dark:text-slate-600">unreachable</span>
                   )}
                 </div>
