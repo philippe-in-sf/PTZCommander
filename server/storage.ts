@@ -97,6 +97,7 @@ function sqliteRowToPreset(row: any): Preset {
     cameraId: row.camera_id,
     presetNumber: row.preset_number,
     name: row.name,
+    thumbnail: row.thumbnail,
     pan: row.pan,
     tilt: row.tilt,
     zoom: row.zoom,
@@ -133,6 +134,7 @@ function sqliteRowToMacro(row: any): Macro {
     id: row.id,
     name: row.name,
     description: row.description,
+    notes: row.notes,
     color: row.color,
     steps: row.steps,
     createdAt: new Date(row.created_at),
@@ -151,6 +153,7 @@ function sqliteRowToSceneButton(row: any): SceneButton {
     cameraId: row.camera_id,
     presetNumber: row.preset_number,
     mixerActions: row.mixer_actions,
+    hueActions: row.hue_actions,
   };
 }
 

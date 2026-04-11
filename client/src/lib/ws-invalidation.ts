@@ -12,6 +12,7 @@ export function useWsInvalidation() {
     const handler = (message: WsMessageInbound) => {
       switch (message.type) {
         case "version":
+          if (typeof message.version !== "string") break;
           if (knownVersion === null) {
             knownVersion = message.version;
           } else if (message.version !== knownVersion) {
@@ -21,7 +22,9 @@ export function useWsInvalidation() {
         case "invalidate":
           if (Array.isArray(message.keys)) {
             for (const key of message.keys) {
-              queryClient.invalidateQueries({ queryKey: [key] });
+              if (typeof key === "string") {
+                queryClient.invalidateQueries({ queryKey: [key] });
+              }
             }
           }
           break;

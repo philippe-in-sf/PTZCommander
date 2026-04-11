@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,21 +148,34 @@ function LightControl({ bridgeId, light }: { bridgeId: number; light: HueLight }
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  useEffect(() => {
+    setBrightness(light.brightness);
+  }, [light.brightness]);
+
   async function setOn(on: boolean) {
-    await fetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
+    const res = await fetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
     });
+    if (!res.ok) {
+      toast({ title: "Failed to update light", variant: "destructive" });
+      return;
+    }
     qc.invalidateQueries({ queryKey: [`/api/hue/bridges/${bridgeId}/lights`] });
   }
 
   async function applyBrightness(bri: number) {
-    await fetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
+    const res = await fetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on: true, bri }),
     });
+    if (!res.ok) {
+      toast({ title: "Failed to update brightness", variant: "destructive" });
+      setBrightness(light.brightness);
+      return;
+    }
     qc.invalidateQueries({ queryKey: [`/api/hue/bridges/${bridgeId}/lights`] });
   }
 
@@ -211,23 +224,37 @@ function LightControl({ bridgeId, light }: { bridgeId: number; light: HueLight }
 
 function GroupControl({ bridgeId, group }: { bridgeId: number; group: HueGroup }) {
   const [brightness, setBrightness] = useState(group.brightness);
+  const { toast } = useToast();
   const qc = useQueryClient();
 
+  useEffect(() => {
+    setBrightness(group.brightness);
+  }, [group.brightness]);
+
   async function setOn(on: boolean) {
-    await fetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
+    const res = await fetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
     });
+    if (!res.ok) {
+      toast({ title: "Failed to update room", variant: "destructive" });
+      return;
+    }
     qc.invalidateQueries({ queryKey: [`/api/hue/bridges/${bridgeId}/groups`] });
   }
 
   async function applyBrightness(bri: number) {
-    await fetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
+    const res = await fetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on: true, bri }),
     });
+    if (!res.ok) {
+      toast({ title: "Failed to update room brightness", variant: "destructive" });
+      setBrightness(group.brightness);
+      return;
+    }
     qc.invalidateQueries({ queryKey: [`/api/hue/bridges/${bridgeId}/groups`] });
   }
 
