@@ -581,8 +581,8 @@ export class DatabaseStorage implements IStorage {
   async createSceneButton(insert: InsertSceneButton): Promise<SceneButton> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO scene_buttons (button_number, name, color, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scene_buttons (button_number, name, color, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions, hue_actions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         insert.buttonNumber,
         insert.name,
@@ -591,7 +591,8 @@ export class DatabaseStorage implements IStorage {
         insert.atemTransitionType || 'cut',
         insert.cameraId || null,
         insert.presetNumber || null,
-        insert.mixerActions || null
+        insert.mixerActions || null,
+        insert.hueActions || null
       );
       return this.getSceneButton(Number(result.lastInsertRowid)) as Promise<SceneButton>;
     }
@@ -612,6 +613,7 @@ export class DatabaseStorage implements IStorage {
       if (updates.cameraId !== undefined) { setClauses.push('camera_id = ?'); values.push(updates.cameraId); }
       if (updates.presetNumber !== undefined) { setClauses.push('preset_number = ?'); values.push(updates.presetNumber); }
       if (updates.mixerActions !== undefined) { setClauses.push('mixer_actions = ?'); values.push(updates.mixerActions); }
+      if (updates.hueActions !== undefined) { setClauses.push('hue_actions = ?'); values.push(updates.hueActions); }
 
       if (setClauses.length === 0) return this.getSceneButton(id);
 
