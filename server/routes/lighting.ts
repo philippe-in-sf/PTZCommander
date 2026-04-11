@@ -1,7 +1,7 @@
 import type { RouteContext } from "./types";
 import { insertHueBridgeSchema, patchHueBridgeSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
-import { pairBridge, getHueClient, setHueClient, removeHueClient } from "../hue";
+import { getHueClient, pairBridgeWithDetails, setHueClient, removeHueClient } from "../hue";
 
 export function registerLightingRoutes(ctx: RouteContext) {
   const { app, storage, addSessionLog } = ctx;
@@ -49,8 +49,8 @@ export function registerLightingRoutes(ctx: RouteContext) {
     const id = parseInt(req.params.id);
     const bridge = await storage.getHueBridge(id);
     if (!bridge) return res.status(404).json({ error: "Bridge not found" });
-    const apiKey = await pairBridge(bridge.ip);
-    if (!apiKey) return res.status(400).json({ error: "Pairing failed — press the link button on your Hue bridge, then try again" });
+    const { apiKey, error } = await pairBridgeWithDetails(bridge.ip);
+    if (!apiKey) return res.status(400).json({ error: error ?? "Pairing failed — press the link button on your Hue bridge, then try again" });
     await storage.updateHueBridge(id, { apiKey, status: "online" });
     setHueClient(id, bridge.ip, apiKey);
     res.json({ success: true, apiKey });
