@@ -34,22 +34,40 @@ function hueRequest(
   method: string,
   ip: string,
   path: string,
-  body?: any
+  body?: any,
+  redirectCount = 0
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : undefined;
-    const options: http.RequestOptions = {
-      hostname: ip,
-      port: 80,
-      path,
+    const baseUrl = ip.startsWith("http://") || ip.startsWith("https://") ? ip : `http://${ip}`;
+    const requestUrl = new URL(path, baseUrl);
+    const transport = requestUrl.protocol === "https:" ? https : http;
+    const options: https.RequestOptions = {
+      hostname: requestUrl.hostname,
+      port: requestUrl.port || (requestUrl.protocol === "https:" ? 443 : 80),
+      path: `${requestUrl.pathname}${requestUrl.search}`,
       method,
       timeout: 5000,
+      rejectUnauthorized: false,
       headers: {
         "Content-Type": "application/json",
         ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}),
       },
     };
-    const req = http.request(options, (res) => {
+    const req = transport.request(options, (res) => {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        if (redirectCount >= 3) {
+          reject(new Error("Too many Hue bridge redirects"));
+          return;
+        }
+
+        res.resume();
+        hueRequest(method, new URL(res.headers.location, requestUrl).toString(), "", body, redirectCount + 1)
+          .then(resolve)
+          .catch(reject);
+        return;
+      }
+
       let raw = "";
       res.on("data", (chunk) => (raw += chunk));
       res.on("end", () => {
