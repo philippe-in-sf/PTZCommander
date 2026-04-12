@@ -478,6 +478,32 @@ export default function ScenesPage() {
 
             <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
               <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Lightbulb className="w-3 h-3 text-yellow-500" />Hue Lighting Actions
+                </h4>
+                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addHueAction} data-testid="button-add-hue-action">
+                  <Plus className="w-3 h-3 mr-1" /> Add Scene
+                </Button>
+              </div>
+              {formData.hueActions.length === 0 ? (
+                <p className="text-xs text-slate-500 dark:text-slate-600">No Hue actions configured.</p>
+              ) : (
+                <div className="space-y-2">
+                  {formData.hueActions.map((action, idx) => (
+                    <HueActionRow
+                      key={idx}
+                      action={action}
+                      bridges={hueBridges}
+                      onUpdate={(u) => updateHueAction(idx, u)}
+                      onRemove={() => removeHueAction(idx)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
+              <div className="flex items-center justify-between mb-2">
                 <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400">Mixer Channel Actions</h4>
                 <Button variant="outline" size="sm" className="text-xs h-6" onClick={addMixerAction} data-testid="button-add-mixer-action">
                   <Plus className="w-3 h-3 mr-1" /> Add Channel
@@ -553,32 +579,6 @@ export default function ScenesPage() {
                         />
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <Lightbulb className="w-3 h-3 text-yellow-500" />Hue Lighting Actions
-                </h4>
-                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addHueAction} data-testid="button-add-hue-action">
-                  <Plus className="w-3 h-3 mr-1" /> Add Scene
-                </Button>
-              </div>
-              {formData.hueActions.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-600">No Hue actions configured.</p>
-              ) : (
-                <div className="space-y-2">
-                  {formData.hueActions.map((action, idx) => (
-                    <HueActionRow
-                      key={idx}
-                      action={action}
-                      bridges={hueBridges}
-                      onUpdate={(u) => updateHueAction(idx, u)}
-                      onRemove={() => removeHueAction(idx)}
-                    />
                   ))}
                 </div>
               )}
