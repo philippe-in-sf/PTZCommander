@@ -79,6 +79,7 @@ if (useSqlite) {
       button_number INTEGER NOT NULL,
       name TEXT NOT NULL,
       color TEXT NOT NULL DEFAULT '#06b6d4',
+      group_name TEXT DEFAULT 'General',
       atem_input_id INTEGER,
       atem_transition_type TEXT DEFAULT 'cut',
       camera_id INTEGER,
@@ -139,6 +140,12 @@ if (useSqlite) {
   // Migrate existing scene_buttons table to add hue_actions column if missing
   try {
     sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN hue_actions TEXT");
+  } catch {
+    // Column already exists — ignore
+  }
+
+  try {
+    sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN group_name TEXT DEFAULT 'General'");
   } catch {
     // Column already exists — ignore
   }

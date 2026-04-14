@@ -276,6 +276,16 @@ export const sceneButtonApi = {
     if (!res.ok) throw new Error("Failed to execute scene button");
     return res.json();
   },
+
+  test: async (id: number, section: "atem" | "mixer" | "hue" | "ptz"): Promise<{ success: boolean; results: string[] }> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/${id}/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ section }),
+    });
+    if (!res.ok) throw new Error("Failed to test scene button");
+    return res.json();
+  },
 };
 
 export const macroApi = {

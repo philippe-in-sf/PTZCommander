@@ -59,6 +59,7 @@ export const sceneButtons = pgTable("scene_buttons", {
   buttonNumber: integer("button_number").notNull(),
   name: text("name").notNull(),
   color: text("color").notNull().default("#06b6d4"),
+  groupName: text("group_name").default("General"),
   atemInputId: integer("atem_input_id"),
   atemTransitionType: text("atem_transition_type").default("cut"),
   cameraId: integer("camera_id").references(() => cameras.id, { onDelete: "set null" }),

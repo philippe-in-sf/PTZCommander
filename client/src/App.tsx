@@ -14,6 +14,7 @@ import ScenesPage from "@/pages/scenes";
 import MacrosPage from "@/pages/macros";
 import MobilePage from "@/pages/mobile";
 import LightingPage from "@/pages/lighting";
+import DiagnosticsPage from "@/pages/diagnostics";
 import NotFound from "@/pages/not-found";
 
 function WsSync({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/switcher" component={SwitcherPage}/>
       <Route path="/mobile" component={MobilePage}/>
       <Route path="/lighting" component={LightingPage}/>
+      <Route path="/diagnostics" component={DiagnosticsPage}/>
       <Route component={NotFound} />
     </Switch>
   );

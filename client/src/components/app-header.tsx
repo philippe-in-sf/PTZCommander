@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { name: "Video Switcher", path: "/switcher", testId: "nav-switcher" },
   { name: "Audio Mixer", path: "/mixer", testId: "nav-mixer" },
   { name: "Lighting", path: "/lighting", testId: "nav-lighting" },
+  { name: "Diagnostics", path: "/diagnostics", testId: "nav-diagnostics" },
 ];
 
 interface AppHeaderProps {
@@ -75,6 +76,7 @@ const BROADCAST_TABS = [
   { name: "Switcher", path: "/switcher" },
   { name: "Audio", path: "/mixer" },
   { name: "Lighting", path: "/lighting" },
+  { name: "Diag", path: "/diagnostics" },
 ];
 
 function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
@@ -114,6 +116,7 @@ const GLASS_NAV = [
   { name: "Video Switcher", path: "/switcher" },
   { name: "Audio Mixer", path: "/mixer" },
   { name: "Lighting", path: "/lighting" },
+  { name: "Diagnostics", path: "/diagnostics" },
 ];
 
 function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
@@ -163,6 +166,7 @@ const COMMAND_TABS = [
   { name: "VIDEO", path: "/switcher" },
   { name: "AUDIO", path: "/mixer" },
   { name: "LIGHTS", path: "/lighting" },
+  { name: "DIAG", path: "/diagnostics" },
 ];
 
 function CommandHeader({ activePage, rightContent }: AppHeaderProps) {

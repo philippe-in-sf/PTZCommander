@@ -170,7 +170,7 @@ export class HueClient {
     if (groupId) {
       return this.setGroupState(groupId, { scene: sceneId });
     }
-    return hueRequest("PUT", this.ip, this.apiPath(`/groups/0/action`), { scene: sceneId });
+    return assertHueSuccess(await hueRequest("PUT", this.ip, this.apiPath(`/groups/0/action`), { scene: sceneId }));
   }
 
   async ping(): Promise<boolean> {
