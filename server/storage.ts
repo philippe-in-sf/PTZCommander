@@ -148,6 +148,7 @@ function sqliteRowToSceneButton(row: any): SceneButton {
     buttonNumber: row.button_number,
     name: row.name,
     color: row.color,
+    groupName: row.group_name || "General",
     atemInputId: row.atem_input_id,
     atemTransitionType: row.atem_transition_type,
     cameraId: row.camera_id,
@@ -581,12 +582,13 @@ export class DatabaseStorage implements IStorage {
   async createSceneButton(insert: InsertSceneButton): Promise<SceneButton> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO scene_buttons (button_number, name, color, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions, hue_actions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scene_buttons (button_number, name, color, group_name, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions, hue_actions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         insert.buttonNumber,
         insert.name,
         insert.color || '#06b6d4',
+        insert.groupName || 'General',
         insert.atemInputId || null,
         insert.atemTransitionType || 'cut',
         insert.cameraId || null,
@@ -608,6 +610,7 @@ export class DatabaseStorage implements IStorage {
       if (updates.buttonNumber !== undefined) { setClauses.push('button_number = ?'); values.push(updates.buttonNumber); }
       if (updates.name !== undefined) { setClauses.push('name = ?'); values.push(updates.name); }
       if (updates.color !== undefined) { setClauses.push('color = ?'); values.push(updates.color); }
+      if (updates.groupName !== undefined) { setClauses.push('group_name = ?'); values.push(updates.groupName || 'General'); }
       if (updates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(updates.atemInputId); }
       if (updates.atemTransitionType !== undefined) { setClauses.push('atem_transition_type = ?'); values.push(updates.atemTransitionType); }
       if (updates.cameraId !== undefined) { setClauses.push('camera_id = ?'); values.push(updates.cameraId); }
