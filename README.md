@@ -1,6 +1,9 @@
 # PTZ Command - Camera & Audio Control System
 
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, a Behringer X32 audio mixer via OSC, and a Blackmagic ATEM video switcher — all from a single interface.
+****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
+
+A professional PTZ camera and audio mixer controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP and a Behringer X32 audio mixer via OSC, all from a single interface.
 
 ## Screenshots
 
