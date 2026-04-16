@@ -11,6 +11,29 @@ export function registerSystemRoutes(ctx: RouteContext) {
     res.json({ version: APP_VERSION });
   });
 
+  app.get("/api/mobile/config", (_req, res) => {
+    res.json({
+      appName: "PTZ Command",
+      version: APP_VERSION,
+      websocketPath: "/ws",
+      features: {
+        cameras: true,
+        presets: true,
+        scenes: true,
+        macros: true,
+        lighting: true,
+        switcher: true,
+        mixer: true,
+      },
+      endpoints: {
+        cameras: "/api/cameras",
+        scenes: "/api/scene-buttons",
+        macros: "/api/macros",
+        deviceHealth: "/api/health/devices",
+      },
+    });
+  });
+
   app.get("/api/changelog", (_req, res) => {
     try {
       const content = readFileSync(join(process.cwd(), "CHANGELOG.md"), "utf-8");

@@ -112,7 +112,7 @@ export function registerSceneRoutes(ctx: RouteContext) {
             undoSteps.push(async () => {
               const currentClient = x32Manager.getClient();
               if (!currentClient || !currentClient.isConnected()) return;
-              for (const snapshot of snapshots.values()) {
+              for (const snapshot of Array.from(snapshots.values())) {
                 currentClient.setSectionFader(snapshot.section, snapshot.channel, snapshot.fader);
                 currentClient.setSectionMute(snapshot.section, snapshot.channel, snapshot.muted);
               }
