@@ -4,8 +4,9 @@ import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { getHueClient } from "../hue";
 import type { ChannelState, MixerSection } from "../x32";
+import { executeDisplayAction } from "./display";
 
-type SceneSection = "atem" | "mixer" | "hue" | "ptz";
+type SceneSection = "atem" | "mixer" | "hue" | "ptz" | "display";
 
 interface MixerAction {
   section: MixerSection;
@@ -23,6 +24,15 @@ interface HueAction {
   on?: boolean;
   brightness?: number;
   colorTemp?: number;
+}
+
+interface DisplayAction {
+  displayId: number;
+  command: "power_on" | "power_off" | "set_volume" | "mute" | "unmute" | "set_input" | "custom";
+  value?: string | number | boolean;
+  capability?: string;
+  smartthingsCommand?: string;
+  arguments?: unknown[];
 }
 
 function parseJsonArray<T>(value: string | null): T[] | null {
@@ -53,6 +63,9 @@ function getScenePreview(button: SceneButton) {
   const hueActions = parseJsonArray<HueAction>(button.hueActions);
   if (hueActions === null) preview.push("Hue: invalid action data");
   else if (hueActions.length > 0) preview.push(`Hue: ${hueActions.length} lighting action(s)`);
+  const displayActions = parseJsonArray<DisplayAction>(button.displayActions);
+  if (displayActions === null) preview.push("Displays: invalid action data");
+  else if (displayActions.length > 0) preview.push(`Displays: ${displayActions.length} action(s)`);
   return preview.length > 0 ? preview : ["No hardware actions configured"];
 }
 
@@ -219,6 +232,18 @@ export function registerSceneRoutes(ctx: RouteContext) {
       }
     }
 
+    if (sectionEnabled("display", sections) && button.displayActions) {
+      const displayActions = parseJsonArray<DisplayAction>(button.displayActions);
+      if (displayActions === null) {
+        results.push("Displays: invalid actions data");
+      } else {
+        for (const action of displayActions) {
+          await executeDisplayAction(ctx, action);
+        }
+        results.push(`Displays: applied ${displayActions.length} action(s)`);
+      }
+    }
+
     if (sectionEnabled("ptz", sections) && button.cameraId !== null && button.cameraId !== undefined && button.presetNumber !== null && button.presetNumber !== undefined) {
       const connectedIds = cameraManager.getConnectedCameraIds();
       const camClient = cameraManager.getClient(button.cameraId);
@@ -305,7 +330,7 @@ export function registerSceneRoutes(ctx: RouteContext) {
     try {
       const id = parseInt(req.params.id);
       const section = req.body?.section as SceneSection | undefined;
-      if (!section || !["atem", "mixer", "hue", "ptz"].includes(section)) {
+      if (!section || !["atem", "mixer", "hue", "ptz", "display"].includes(section)) {
         return res.status(400).json({ message: "Invalid scene test section" });
       }
       const button = await storage.getSceneButton(id);

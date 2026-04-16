@@ -85,7 +85,8 @@ if (useSqlite) {
       camera_id INTEGER,
       preset_number INTEGER,
       mixer_actions TEXT,
-      hue_actions TEXT
+      hue_actions TEXT,
+      display_actions TEXT
     );
 
     CREATE TABLE IF NOT EXISTS layouts (
@@ -129,6 +130,27 @@ if (useSqlite) {
       status TEXT NOT NULL DEFAULT 'offline',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS display_devices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      brand TEXT NOT NULL DEFAULT 'samsung_frame',
+      ip TEXT,
+      protocol TEXT NOT NULL DEFAULT 'smartthings',
+      smartthings_device_id TEXT,
+      smartthings_token TEXT,
+      smartthings_refresh_token TEXT,
+      smartthings_token_expires_at TEXT,
+      smartthings_client_id TEXT,
+      smartthings_client_secret TEXT,
+      status TEXT NOT NULL DEFAULT 'offline',
+      power_state TEXT,
+      volume INTEGER,
+      muted INTEGER NOT NULL DEFAULT 0,
+      input_source TEXT,
+      art_mode_status TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   try {
@@ -148,6 +170,25 @@ if (useSqlite) {
     sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN group_name TEXT DEFAULT 'General'");
   } catch {
     // Column already exists — ignore
+  }
+
+  try {
+    sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN display_actions TEXT");
+  } catch {
+    // Column already exists — ignore
+  }
+
+  for (const statement of [
+    "ALTER TABLE display_devices ADD COLUMN smartthings_refresh_token TEXT",
+    "ALTER TABLE display_devices ADD COLUMN smartthings_token_expires_at TEXT",
+    "ALTER TABLE display_devices ADD COLUMN smartthings_client_id TEXT",
+    "ALTER TABLE display_devices ADD COLUMN smartthings_client_secret TEXT",
+  ]) {
+    try {
+      sqlite.exec(statement);
+    } catch {
+      // Column already exists — ignore
+    }
   }
   
   db = drizzleSqlite(sqlite, { schema });

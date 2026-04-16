@@ -69,7 +69,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const snapshot = JSON.stringify({
         cameras: allCameras.map(c => ({ name: c.name, ip: c.ip, port: c.port, protocol: c.protocol, username: c.username, password: c.password })),
         presets: allPresets.map(p => ({ cameraIp: allCameras.find(c => c.id === p.cameraId)?.ip, presetNumber: p.presetNumber, name: p.name, pan: p.pan, tilt: p.tilt, zoom: p.zoom, focus: p.focus })),
-        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions })),
+        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
         mixers: allMixers.map(m => ({ name: m.name, ip: m.ip, port: m.port })),
         switchers: allSwitchers.map(s => ({ name: s.name, ip: s.ip, type: s.type })),
       });
@@ -182,7 +182,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const snapshot = JSON.stringify({
         cameras: allCameras.map(c => ({ name: c.name, ip: c.ip, port: c.port, protocol: c.protocol, username: c.username, password: c.password })),
         presets: allPresets.map(p => ({ cameraIp: allCameras.find(c => c.id === p.cameraId)?.ip, presetNumber: p.presetNumber, name: p.name, pan: p.pan, tilt: p.tilt, zoom: p.zoom, focus: p.focus })),
-        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions })),
+        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
         mixers: allMixers.map(m => ({ name: m.name, ip: m.ip, port: m.port })),
         switchers: allSwitchers.map(s => ({ name: s.name, ip: s.ip, type: s.type })),
       });

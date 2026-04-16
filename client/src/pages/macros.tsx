@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { macroApi, cameraApi } from "@/lib/api";
+import { macroApi, cameraApi, displayApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Plus, Trash2, Play, GripVertical, Clock, Camera, Monitor, ArrowUpDown, 
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
-import type { Macro, Camera as CameraType } from "@shared/schema";
+import type { Macro, Camera as CameraType, DisplayDevice } from "@shared/schema";
 
 interface MacroStep {
   id: string;
@@ -30,6 +30,12 @@ interface MacroStep {
   on?: boolean;
   brightness?: number;
   colorTemp?: number;
+  displayId?: number;
+  command?: "power_on" | "power_off" | "set_volume" | "mute" | "unmute" | "set_input" | "custom";
+  value?: string | number | boolean;
+  capability?: string;
+  smartthingsCommand?: string;
+  arguments?: unknown[];
 }
 
 const STEP_TYPES = [
@@ -46,6 +52,7 @@ const STEP_TYPES = [
   { value: "hue_scene", label: "Activate Hue Scene", icon: Lightbulb, category: "Lighting" },
   { value: "hue_group", label: "Control Room/Zone", icon: Lightbulb, category: "Lighting" },
   { value: "hue_light", label: "Control Light", icon: Lightbulb, category: "Lighting" },
+  { value: "display_command", label: "Display Command", icon: Monitor, category: "Displays" },
 ];
 
 const COLORS = [
@@ -200,9 +207,71 @@ function HueStepEditor({ step, onChange }: { step: MacroStep; onChange: (s: Macr
   );
 }
 
-function StepEditor({ step, cameras, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast }: {
+function DisplayStepEditor({ step, displays, onChange }: { step: MacroStep; displays: DisplayDevice[]; onChange: (s: MacroStep) => void }) {
+  const command = step.command || "power_on";
+  const needsValue = command === "set_volume" || command === "set_input" || command === "custom";
+
+  return (
+    <div className="space-y-2 w-full">
+      <div className="flex items-center gap-2">
+        <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Display</Label>
+        <Select
+          value={step.displayId?.toString() || ""}
+          onValueChange={(v) => onChange({ ...step, displayId: parseInt(v) })}
+        >
+          <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-48">
+            <SelectValue placeholder="Select display" />
+          </SelectTrigger>
+          <SelectContent>
+            {displays.map((display) => <SelectItem key={display.id} value={display.id.toString()}>{display.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2">
+        <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Command</Label>
+        <Select value={command} onValueChange={(v) => onChange({ ...step, command: v as MacroStep["command"], value: undefined })}>
+          <SelectTrigger className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="power_on">Power On</SelectItem>
+            <SelectItem value="power_off">Power Off</SelectItem>
+            <SelectItem value="set_volume">Set Volume</SelectItem>
+            <SelectItem value="mute">Mute</SelectItem>
+            <SelectItem value="unmute">Unmute</SelectItem>
+            <SelectItem value="set_input">Set Input</SelectItem>
+            <SelectItem value="custom">Custom SmartThings</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {needsValue && (
+        <div className="flex items-center gap-2">
+          <Label className="text-[10px] uppercase text-slate-500 dark:text-slate-400 w-14 shrink-0">Value</Label>
+          <Input
+            type={command === "set_volume" ? "number" : "text"}
+            min={0}
+            max={100}
+            value={step.value?.toString() || ""}
+            placeholder={command === "set_input" ? "HDMI1" : undefined}
+            onChange={(e) => onChange({ ...step, value: command === "set_volume" ? parseInt(e.target.value) || 0 : e.target.value })}
+            className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700 w-48"
+          />
+        </div>
+      )}
+      {command === "custom" && (
+        <div className="grid grid-cols-2 gap-2 pl-16">
+          <Input value={step.capability || ""} onChange={(e) => onChange({ ...step, capability: e.target.value })} placeholder="Capability" className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700" />
+          <Input value={step.smartthingsCommand || ""} onChange={(e) => onChange({ ...step, smartthingsCommand: e.target.value })} placeholder="Command" className="h-7 text-xs bg-slate-200 dark:bg-slate-900 border-slate-400/30 dark:border-slate-700" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepEditor({ step, cameras, displays, onChange, onRemove, onMoveUp, onMoveDown, isFirst, isLast }: {
   step: MacroStep;
   cameras: CameraType[];
+  displays: DisplayDevice[];
   onChange: (step: MacroStep) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -402,6 +471,10 @@ function StepEditor({ step, cameras, onChange, onRemove, onMoveUp, onMoveDown, i
         {(step.type === "hue_scene" || step.type === "hue_group" || step.type === "hue_light") && (
           <HueStepEditor step={step} onChange={onChange} />
         )}
+
+        {step.type === "display_command" && (
+          <DisplayStepEditor step={step} displays={displays} onChange={onChange} />
+        )}
       </div>
 
       <button
@@ -415,9 +488,11 @@ function StepEditor({ step, cameras, onChange, onRemove, onMoveUp, onMoveDown, i
   );
 }
 
-function stepSummary(step: MacroStep, cameras: CameraType[]): string {
+function stepSummary(step: MacroStep, cameras: CameraType[], displays: DisplayDevice[]): string {
   const cam = cameras.find(c => c.id === step.cameraId);
   const camName = cam?.name || `Cam ${step.cameraId}`;
+  const display = displays.find((item) => item.id === step.displayId);
+  const displayName = display?.name || `Display ${step.displayId || "?"}`;
   switch (step.type) {
     case "recall_preset": return `${camName} → Preset ${(step.presetNumber || 0) + 1}`;
     case "pan_tilt": return `${camName} Pan/Tilt (${step.pan}, ${step.tilt})`;
@@ -432,6 +507,7 @@ function stepSummary(step: MacroStep, cameras: CameraType[]): string {
     case "hue_scene": return `Hue Scene${step.sceneId ? ` (${step.sceneId.slice(0, 8)})` : ""}`;
     case "hue_group": return `Room ${step.groupId || "?"} ${step.on !== undefined ? (step.on ? "→ On" : "→ Off") : ""}`;
     case "hue_light": return `Light ${step.lightId || "?"} ${step.on !== undefined ? (step.on ? "→ On" : "→ Off") : ""}`;
+    case "display_command": return `${displayName} → ${step.command || "power_on"}${step.value !== undefined ? ` ${step.value}` : ""}`;
     default: return step.type;
   }
 }
@@ -456,6 +532,11 @@ export default function MacrosPage() {
   const { data: cameras = [] } = useQuery({
     queryKey: ["cameras"],
     queryFn: cameraApi.getAll,
+  });
+
+  const { data: displays = [] } = useQuery({
+    queryKey: ["displays"],
+    queryFn: displayApi.getAll,
   });
 
   const createMutation = useMutation({
@@ -569,7 +650,9 @@ export default function MacrosPage() {
       return;
     }
 
-    const stepsJson = JSON.stringify(formSteps.map(({ id, ...rest }) => rest));
+    const stepsJson = JSON.stringify(formSteps.map(({ id, ...rest }) => (
+      rest.type === "display_command" && !rest.command ? { ...rest, command: "power_on" } : rest
+    )));
 
     if (editingMacro) {
       updateMutation.mutate({
@@ -671,7 +754,7 @@ export default function MacrosPage() {
                       {steps.map((step: any, idx: number) => (
                         <div key={idx} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                           <span className="w-4 h-4 rounded-full bg-slate-400/30 dark:bg-slate-800 flex items-center justify-center text-[9px] font-bold shrink-0">{idx + 1}</span>
-                          <span className="truncate">{stepSummary(step, cameras)}</span>
+                          <span className="truncate">{stepSummary(step, cameras, displays)}</span>
                         </div>
                       ))}
                     </div>
@@ -776,6 +859,7 @@ export default function MacrosPage() {
                       key={step.id}
                       step={step}
                       cameras={cameras}
+                      displays={displays}
                       onChange={(s) => updateStep(idx, s)}
                       onRemove={() => removeStep(idx)}
                       onMoveUp={() => moveStep(idx, -1)}

@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { name: "Video Switcher", path: "/switcher", testId: "nav-switcher" },
   { name: "Audio Mixer", path: "/mixer", testId: "nav-mixer" },
   { name: "Lighting", path: "/lighting", testId: "nav-lighting" },
+  { name: "Displays", path: "/displays", testId: "nav-displays" },
   { name: "Diagnostics", path: "/diagnostics", testId: "nav-diagnostics" },
 ];
 
@@ -76,6 +77,7 @@ const BROADCAST_TABS = [
   { name: "Switcher", path: "/switcher" },
   { name: "Audio", path: "/mixer" },
   { name: "Lighting", path: "/lighting" },
+  { name: "Displays", path: "/displays" },
   { name: "Diag", path: "/diagnostics" },
 ];
 
@@ -116,6 +118,7 @@ const GLASS_NAV = [
   { name: "Video Switcher", path: "/switcher" },
   { name: "Audio Mixer", path: "/mixer" },
   { name: "Lighting", path: "/lighting" },
+  { name: "Displays", path: "/displays" },
   { name: "Diagnostics", path: "/diagnostics" },
 ];
 
@@ -166,6 +169,7 @@ const COMMAND_TABS = [
   { name: "VIDEO", path: "/switcher" },
   { name: "AUDIO", path: "/mixer" },
   { name: "LIGHTS", path: "/lighting" },
+  { name: "DISPLAYS", path: "/displays" },
   { name: "DIAG", path: "/diagnostics" },
 ];
 

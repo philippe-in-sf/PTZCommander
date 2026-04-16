@@ -5,5 +5,6 @@ export { registerSceneRoutes } from "./scene";
 export { registerLayoutRoutes } from "./layout";
 export { registerMacroRoutes } from "./macro";
 export { registerLightingRoutes } from "./lighting";
+export { registerDisplayRoutes } from "./display";
 export { registerSystemRoutes } from "./system";
 export type { RouteContext, UndoAction, SessionLogEntry } from "./types";

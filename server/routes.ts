@@ -19,6 +19,7 @@ import {
   registerLayoutRoutes,
   registerMacroRoutes,
   registerLightingRoutes,
+  registerDisplayRoutes,
   registerSystemRoutes,
 } from "./routes/index";
 
@@ -116,6 +117,7 @@ export async function registerRoutes(
   registerLayoutRoutes(ctx);
   registerMacroRoutes(ctx);
   registerLightingRoutes(ctx);
+  registerDisplayRoutes(ctx);
 
   x32Manager.setStateChangeCallback((section, states) => {
     broadcast({ type: "mixer_state", section, channels: states });

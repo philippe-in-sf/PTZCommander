@@ -66,6 +66,7 @@ export const sceneButtons = pgTable("scene_buttons", {
   presetNumber: integer("preset_number"),
   mixerActions: text("mixer_actions"),
   hueActions: text("hue_actions"),
+  displayActions: text("display_actions"),
 }, (table) => [
   index("scene_buttons_camera_id_idx").on(table.cameraId),
 ]);
@@ -98,6 +99,27 @@ export const hueBridges = pgTable("hue_bridges", {
   ip: text("ip").notNull(),
   apiKey: text("api_key"),
   status: text("status").notNull().default("offline"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const displayDevices = pgTable("display_devices", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  brand: text("brand").notNull().default("samsung_frame"),
+  ip: text("ip"),
+  protocol: text("protocol").notNull().default("smartthings"),
+  smartthingsDeviceId: text("smartthings_device_id"),
+  smartthingsToken: text("smartthings_token"),
+  smartthingsRefreshToken: text("smartthings_refresh_token"),
+  smartthingsTokenExpiresAt: timestamp("smartthings_token_expires_at"),
+  smartthingsClientId: text("smartthings_client_id"),
+  smartthingsClientSecret: text("smartthings_client_secret"),
+  status: text("status").notNull().default("offline"),
+  powerState: text("power_state"),
+  volume: integer("volume"),
+  muted: boolean("muted").notNull().default(false),
+  inputSource: text("input_source"),
+  artModeStatus: text("art_mode_status"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -162,6 +184,17 @@ export const insertHueBridgeSchema = createInsertSchema(hueBridges).omit({
   status: true,
 });
 
+export const insertDisplayDeviceSchema = createInsertSchema(displayDevices).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+  powerState: true,
+  volume: true,
+  muted: true,
+  inputSource: true,
+  artModeStatus: true,
+});
+
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
 });
@@ -172,6 +205,7 @@ export const patchSceneButtonSchema = insertSceneButtonSchema.partial();
 export const patchLayoutSchema = insertLayoutSchema.partial();
 export const patchMacroSchema = insertMacroSchema.partial();
 export const patchHueBridgeSchema = insertHueBridgeSchema.partial();
+export const patchDisplayDeviceSchema = createInsertSchema(displayDevices).omit({ id: true, createdAt: true }).partial();
 export const patchMixerSchema = insertMixerSchema.partial();
 export const patchSwitcherSchema = insertSwitcherSchema.partial();
 
@@ -191,5 +225,7 @@ export type Macro = typeof macros.$inferSelect;
 export type InsertMacro = z.infer<typeof insertMacroSchema>;
 export type HueBridge = typeof hueBridges.$inferSelect;
 export type InsertHueBridge = z.infer<typeof insertHueBridgeSchema>;
+export type DisplayDevice = typeof displayDevices.$inferSelect;
+export type InsertDisplayDevice = z.infer<typeof insertDisplayDeviceSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
