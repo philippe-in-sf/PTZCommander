@@ -175,6 +175,10 @@ function sqliteRowToDisplayDevice(row: any): DisplayDevice {
     protocol: row.protocol,
     smartthingsDeviceId: row.smartthings_device_id,
     smartthingsToken: row.smartthings_token,
+    smartthingsRefreshToken: row.smartthings_refresh_token,
+    smartthingsTokenExpiresAt: row.smartthings_token_expires_at ? new Date(row.smartthings_token_expires_at) : null,
+    smartthingsClientId: row.smartthings_client_id,
+    smartthingsClientSecret: row.smartthings_client_secret,
     status: row.status,
     powerState: row.power_state,
     volume: row.volume,
@@ -970,15 +974,19 @@ export class DatabaseStorage implements IStorage {
   async createDisplayDevice(display: InsertDisplayDevice): Promise<DisplayDevice> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token, smartthings_refresh_token, smartthings_token_expires_at, smartthings_client_id, smartthings_client_secret)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         display.name,
         display.brand || "samsung_frame",
         display.ip ?? null,
         display.protocol || "smartthings",
         display.smartthingsDeviceId ?? null,
-        display.smartthingsToken ?? null
+        display.smartthingsToken ?? null,
+        display.smartthingsRefreshToken ?? null,
+        display.smartthingsTokenExpiresAt ? new Date(display.smartthingsTokenExpiresAt).toISOString() : null,
+        display.smartthingsClientId ?? null,
+        display.smartthingsClientSecret ?? null
       );
       return this.getDisplayDevice(Number(result.lastInsertRowid)) as Promise<DisplayDevice>;
     }
@@ -996,6 +1004,10 @@ export class DatabaseStorage implements IStorage {
       if (updates.protocol !== undefined) { fields.push('protocol = ?'); vals.push(updates.protocol); }
       if (updates.smartthingsDeviceId !== undefined) { fields.push('smartthings_device_id = ?'); vals.push(updates.smartthingsDeviceId); }
       if (updates.smartthingsToken !== undefined) { fields.push('smartthings_token = ?'); vals.push(updates.smartthingsToken); }
+      if (updates.smartthingsRefreshToken !== undefined) { fields.push('smartthings_refresh_token = ?'); vals.push(updates.smartthingsRefreshToken); }
+      if (updates.smartthingsTokenExpiresAt !== undefined) { fields.push('smartthings_token_expires_at = ?'); vals.push(updates.smartthingsTokenExpiresAt ? new Date(updates.smartthingsTokenExpiresAt).toISOString() : null); }
+      if (updates.smartthingsClientId !== undefined) { fields.push('smartthings_client_id = ?'); vals.push(updates.smartthingsClientId); }
+      if (updates.smartthingsClientSecret !== undefined) { fields.push('smartthings_client_secret = ?'); vals.push(updates.smartthingsClientSecret); }
       if (updates.status !== undefined) { fields.push('status = ?'); vals.push(updates.status); }
       if (updates.powerState !== undefined) { fields.push('power_state = ?'); vals.push(updates.powerState); }
       if (updates.volume !== undefined) { fields.push('volume = ?'); vals.push(updates.volume); }

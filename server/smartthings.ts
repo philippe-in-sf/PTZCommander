@@ -1,4 +1,6 @@
 const SMARTTHINGS_BASE_URL = "https://api.smartthings.com/v1";
+const SMARTTHINGS_AUTH_URL = "https://api.smartthings.com/oauth/authorize";
+const SMARTTHINGS_TOKEN_URL = "https://api.smartthings.com/oauth/token";
 
 export interface SmartThingsDeviceSummary {
   deviceId: string;
@@ -16,12 +18,76 @@ export interface SmartThingsCommand {
   arguments?: unknown[];
 }
 
+export interface SmartThingsTokenBundle {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: string;
+  scope?: string;
+}
+
+function encodeBasicAuth(clientId: string, clientSecret: string) {
+  return Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+}
+
+function normalizeTokenResponse(data: any): SmartThingsTokenBundle {
+  const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 86400;
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: new Date(Date.now() + Math.max(60, expiresIn - 60) * 1000).toISOString(),
+    scope: data.scope,
+  };
+}
+
 function getAttribute(status: any, capability: string, attribute: string) {
   return status?.components?.main?.[capability]?.[attribute]?.value;
 }
 
 export class SmartThingsClient {
   constructor(private readonly token: string) {}
+
+  static getAuthorizeUrl(options: { clientId: string; redirectUri: string; scope: string; state: string }) {
+    const url = new URL(SMARTTHINGS_AUTH_URL);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("client_id", options.clientId);
+    url.searchParams.set("redirect_uri", options.redirectUri);
+    url.searchParams.set("scope", options.scope);
+    url.searchParams.set("state", options.state);
+    return url.toString();
+  }
+
+  static async exchangeCode(options: { clientId: string; clientSecret: string; redirectUri: string; code: string }) {
+    const response = await fetch(SMARTTHINGS_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBasicAuth(options.clientId, options.clientSecret)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: options.code,
+        redirect_uri: options.redirectUri,
+      }),
+    });
+    if (!response.ok) throw new Error(await response.text().catch(() => `SmartThings OAuth returned ${response.status}`));
+    return normalizeTokenResponse(await response.json());
+  }
+
+  static async refreshAccessToken(options: { clientId: string; clientSecret: string; refreshToken: string }) {
+    const response = await fetch(SMARTTHINGS_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBasicAuth(options.clientId, options.clientSecret)}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: options.refreshToken,
+      }),
+    });
+    if (!response.ok) throw new Error(await response.text().catch(() => `SmartThings token refresh returned ${response.status}`));
+    return normalizeTokenResponse(await response.json());
+  }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(`${SMARTTHINGS_BASE_URL}${path}`, {

@@ -139,6 +139,10 @@ if (useSqlite) {
       protocol TEXT NOT NULL DEFAULT 'smartthings',
       smartthings_device_id TEXT,
       smartthings_token TEXT,
+      smartthings_refresh_token TEXT,
+      smartthings_token_expires_at TEXT,
+      smartthings_client_id TEXT,
+      smartthings_client_secret TEXT,
       status TEXT NOT NULL DEFAULT 'offline',
       power_state TEXT,
       volume INTEGER,
@@ -172,6 +176,19 @@ if (useSqlite) {
     sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN display_actions TEXT");
   } catch {
     // Column already exists — ignore
+  }
+
+  for (const statement of [
+    "ALTER TABLE display_devices ADD COLUMN smartthings_refresh_token TEXT",
+    "ALTER TABLE display_devices ADD COLUMN smartthings_token_expires_at TEXT",
+    "ALTER TABLE display_devices ADD COLUMN smartthings_client_id TEXT",
+    "ALTER TABLE display_devices ADD COLUMN smartthings_client_secret TEXT",
+  ]) {
+    try {
+      sqlite.exec(statement);
+    } catch {
+      // Column already exists — ignore
+    }
   }
   
   db = drizzleSqlite(sqlite, { schema });

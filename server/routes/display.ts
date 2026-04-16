@@ -4,9 +4,19 @@ import { fromError } from "zod-validation-error";
 import { z } from "zod";
 import { SmartThingsClient, commandForDisplayAction } from "../smartthings";
 import { logger } from "../logger";
+import type { DisplayDevice } from "@shared/schema";
 
 const smartThingsDiscoverSchema = z.object({
   token: z.string().min(10),
+});
+
+const DEFAULT_SMARTTHINGS_SCOPE = "r:devices:* x:devices:* r:locations:*";
+
+const smartThingsOAuthStartSchema = z.object({
+  clientId: z.string().min(6),
+  clientSecret: z.string().min(6),
+  redirectUri: z.string().url(),
+  scope: z.string().min(3).default(DEFAULT_SMARTTHINGS_SCOPE),
 });
 
 const displayCommandSchema = z.object({
@@ -17,13 +27,54 @@ const displayCommandSchema = z.object({
   arguments: z.array(z.unknown()).optional(),
 });
 
+const oauthStates = new Map<string, z.infer<typeof smartThingsOAuthStartSchema> & { createdAt: number }>();
+const oauthSessions = new Map<string, {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: string;
+  scope?: string;
+  clientId: string;
+  clientSecret: string;
+}>();
+
+function redactDisplay(display: DisplayDevice) {
+  return {
+    ...display,
+    smartthingsToken: null,
+    smartthingsRefreshToken: null,
+    smartthingsClientSecret: null,
+  };
+}
+
+async function getSmartThingsClientForDisplay(ctx: RouteContext, display: DisplayDevice) {
+  if (!display.smartthingsToken) throw new Error("Display is missing SmartThings access token");
+  const expiresAt = display.smartthingsTokenExpiresAt?.getTime();
+  const refreshable = display.smartthingsRefreshToken && display.smartthingsClientId && display.smartthingsClientSecret;
+
+  if (refreshable && expiresAt && expiresAt < Date.now() + 5 * 60 * 1000) {
+    const refreshed = await SmartThingsClient.refreshAccessToken({
+      clientId: display.smartthingsClientId!,
+      clientSecret: display.smartthingsClientSecret!,
+      refreshToken: display.smartthingsRefreshToken!,
+    });
+    await ctx.storage.updateDisplayDevice(display.id, {
+      smartthingsToken: refreshed.accessToken,
+      smartthingsRefreshToken: refreshed.refreshToken || display.smartthingsRefreshToken,
+      smartthingsTokenExpiresAt: new Date(refreshed.expiresAt),
+    });
+    return new SmartThingsClient(refreshed.accessToken);
+  }
+
+  return new SmartThingsClient(display.smartthingsToken);
+}
+
 export async function executeDisplayAction(ctx: RouteContext, action: z.infer<typeof displayCommandSchema> & { displayId: number }) {
   const display = await ctx.storage.getDisplayDevice(action.displayId);
   if (!display) throw new Error("Display not found");
   if (display.protocol !== "smartthings") throw new Error(`Unsupported display protocol: ${display.protocol}`);
   if (!display.smartthingsToken || !display.smartthingsDeviceId) throw new Error("Display is missing SmartThings credentials");
 
-  const client = new SmartThingsClient(display.smartthingsToken);
+  const client = await getSmartThingsClientForDisplay(ctx, display);
   const command = commandForDisplayAction(action);
   await client.sendCommands(display.smartthingsDeviceId, [command]);
 
@@ -43,7 +94,7 @@ async function refreshDisplayStatus(ctx: RouteContext, id: number) {
     return display;
   }
 
-  const client = new SmartThingsClient(display.smartthingsToken);
+  const client = await getSmartThingsClientForDisplay(ctx, display);
   try {
     const status = await client.getStatus(display.smartthingsDeviceId);
     return await ctx.storage.updateDisplayDevice(id, {
@@ -65,7 +116,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
   app.get("/api/displays", async (_req, res) => {
     try {
       const displays = await storage.getAllDisplayDevices();
-      res.json(displays);
+      res.json(displays.map(redactDisplay));
     } catch {
       res.status(500).json({ message: "Failed to get displays" });
     }
@@ -89,6 +140,52 @@ export function registerDisplayRoutes(ctx: RouteContext) {
     }
   });
 
+  app.post("/api/displays/smartthings/oauth/start", async (req, res) => {
+    try {
+      const parsed = smartThingsOAuthStartSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
+      const state = crypto.randomUUID();
+      oauthStates.set(state, { ...parsed.data, createdAt: Date.now() });
+      const authorizeUrl = SmartThingsClient.getAuthorizeUrl({ ...parsed.data, state });
+      res.json({ authorizeUrl, state, redirectUri: parsed.data.redirectUri, scope: parsed.data.scope });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to start SmartThings OAuth" });
+    }
+  });
+
+  app.get("/api/displays/smartthings/oauth/callback", async (req, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    const pending = oauthStates.get(state);
+    if (!code || !state || !pending) {
+      return res.status(400).send("SmartThings authorization could not be completed. Return to PTZ Command and try again.");
+    }
+
+    try {
+      const token = await SmartThingsClient.exchangeCode({
+        clientId: pending.clientId,
+        clientSecret: pending.clientSecret,
+        redirectUri: pending.redirectUri,
+        code,
+      });
+      oauthStates.delete(state);
+      oauthSessions.set(state, {
+        ...token,
+        clientId: pending.clientId,
+        clientSecret: pending.clientSecret,
+      });
+      res.redirect(`/displays?smartthingsAuth=${encodeURIComponent(state)}`);
+    } catch (error: any) {
+      res.status(500).send(error.message || "SmartThings authorization failed.");
+    }
+  });
+
+  app.get("/api/displays/smartthings/oauth/session/:state", (req, res) => {
+    const session = oauthSessions.get(req.params.state);
+    if (!session) return res.status(404).json({ message: "SmartThings authorization session not found" });
+    res.json(session);
+  });
+
   app.post("/api/displays", async (req, res) => {
     try {
       const parsed = insertDisplayDeviceSchema.safeParse(req.body);
@@ -104,7 +201,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
         }
       }
       broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
-      res.status(201).json(refreshed);
+      res.status(201).json(redactDisplay(refreshed));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to create display" });
     }
@@ -119,7 +216,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       const display = await storage.updateDisplayDevice(id, parsed.data);
       if (!display) return res.status(404).json({ message: "Display not found" });
       broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
-      res.json(display);
+      res.json(redactDisplay(display));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to update display" });
     }
@@ -139,7 +236,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
     try {
       const display = await refreshDisplayStatus(ctx, parseInt(req.params.id));
       broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
-      res.json(display);
+      res.json(redactDisplay(display));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to refresh display" });
     }
@@ -152,7 +249,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
 
       const display = await executeDisplayAction(ctx, { ...parsed.data, displayId: parseInt(req.params.id) });
       broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
-      res.json(display);
+      res.json(redactDisplay(display));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to control display" });
     }
