@@ -16,15 +16,17 @@ import { ConnectionHealth } from "@/components/ptz/connection-health";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { SkinSelector } from "@/components/skin-selector";
 import { useSkin } from "@/lib/skin-context";
-import { Settings, Power, Video, Wifi, WifiOff, Plus, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Video, Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { cameraApi, presetApi, undoApi } from "@/lib/api";
+import { cameraApi, presetApi, undoApi, type DiscoveredCamera } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import type { Camera } from "@shared/schema";
@@ -33,11 +35,40 @@ const BroadcastConsole = lazy(() => import("@/components/skins/broadcast-console
 const StudioGlass = lazy(() => import("@/components/skins/studio-glass"));
 const CommandCenter = lazy(() => import("@/components/skins/command-center"));
 
+const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
+
+function discoveredCameraKey(camera: Pick<DiscoveredCamera, "ip" | "port">) {
+  return `${camera.ip}:${camera.port}`;
+}
+
+function parseDiscoveryPorts(value: string) {
+  const ports = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map(Number);
+
+  if (ports.some((port) => !Number.isInteger(port) || port < 1 || port > 65535)) {
+    throw new Error("Ports must be comma-separated numbers from 1 to 65535");
+  }
+
+  return Array.from(new Set(ports));
+}
+
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const { skin } = useSkin();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addCameraOpen, setAddCameraOpen] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverySubnet, setDiscoverySubnet] = useState("");
+  const [discoveryPorts, setDiscoveryPorts] = useState("52381, 1259, 5678");
+  const [selectedDiscovered, setSelectedDiscovered] = useState<Set<string>>(new Set());
+  const [hasAutoPromptedDiscovery, setHasAutoPromptedDiscovery] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(FIRST_RUN_DISCOVERY_KEY) === "true";
+  });
+  const [hasAutoScannedDiscovery, setHasAutoScannedDiscovery] = useState(false);
   const [newCamera, setNewCamera] = useState({ name: "", ip: "", port: 52381, streamUrl: "" });
   const [panTiltSpeed, setPanTiltSpeed] = useState(0.5);
 
@@ -89,6 +120,58 @@ export default function Dashboard() {
     },
   });
 
+  const discoverCamerasMutation = useMutation({
+    mutationFn: () => {
+      const ports = parseDiscoveryPorts(discoveryPorts);
+      return cameraApi.discover({
+        subnet: discoverySubnet.trim() || undefined,
+        ports: ports.length > 0 ? ports : undefined,
+      });
+    },
+    onSuccess: (data) => {
+      const selectable = data.cameras.filter((camera) => !camera.alreadyConfigured);
+      setSelectedDiscovered(new Set(selectable.map(discoveredCameraKey)));
+      if (data.cameras.length === 0) {
+        toast.info("No VISCA cameras found");
+      } else {
+        toast.success(`Found ${data.cameras.length} camera candidate${data.cameras.length === 1 ? "" : "s"}`);
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const importDiscoveredMutation = useMutation({
+    mutationFn: () => {
+      const selected = discoverCamerasMutation.data?.cameras.filter((camera) =>
+        selectedDiscovered.has(discoveredCameraKey(camera)) && !camera.alreadyConfigured
+      ) || [];
+
+      if (selected.length === 0) {
+        throw new Error("Select at least one discovered camera");
+      }
+
+      return cameraApi.importDiscovered(selected.map((camera) => ({
+        ip: camera.ip,
+        port: camera.port,
+        name: camera.name,
+      })));
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["cameras"] });
+      if (data.added.length > 0) {
+        setDiscoverOpen(false);
+        toast.success(`Added ${data.added.length} camera${data.added.length === 1 ? "" : "s"}`);
+      } else {
+        toast.info("No new cameras added");
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
   const updateCameraMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: Partial<Camera> }) => 
       cameraApi.update(id, updates),
@@ -130,7 +213,39 @@ export default function Dashboard() {
     },
   });
 
+  useEffect(() => {
+    if (isLoading || cameras.length > 0 || hasAutoPromptedDiscovery) return;
+
+    setDiscoverOpen(true);
+    setHasAutoPromptedDiscovery(true);
+    window.localStorage.setItem(FIRST_RUN_DISCOVERY_KEY, "true");
+  }, [cameras.length, hasAutoPromptedDiscovery, isLoading]);
+
+  useEffect(() => {
+    if (!discoverOpen || cameras.length > 0 || hasAutoScannedDiscovery || discoverCamerasMutation.isPending || discoverCamerasMutation.data) return;
+
+    setHasAutoScannedDiscovery(true);
+    discoverCamerasMutation.mutate();
+  }, [cameras.length, discoverCamerasMutation, discoverOpen, hasAutoScannedDiscovery]);
+
   const selectedCam = cameras.find(c => c.id === selectedId);
+  const discoveredCameras = discoverCamerasMutation.data?.cameras || [];
+  const selectedDiscoveredCount = discoveredCameras.filter((camera) =>
+    selectedDiscovered.has(discoveredCameraKey(camera)) && !camera.alreadyConfigured
+  ).length;
+
+  const toggleDiscoveredCamera = (camera: DiscoveredCamera, checked: boolean) => {
+    const key = discoveredCameraKey(camera);
+    setSelectedDiscovered((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  };
 
   const handleJoystickMove = (x: number, y: number) => {
     if (selectedId) {
@@ -325,74 +440,191 @@ export default function Dashboard() {
         <section>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest font-bold">Camera Select</h2>
-            <Dialog open={addCameraOpen} onOpenChange={setAddCameraOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="text-xs" data-testid="button-add-camera">
-                  <Plus className="w-3 h-3 mr-1" /> Add Camera
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add PTZ Camera</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Camera Name</Label>
-                    <Input
-                      id="name"
-                      value={newCamera.name}
-                      onChange={(e) => setNewCamera({ ...newCamera, name: e.target.value })}
-                      placeholder="Stage Left"
-                      data-testid="input-new-camera-name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="ip">IP Address</Label>
-                    <Input
-                      id="ip"
-                      value={newCamera.ip}
-                      onChange={(e) => setNewCamera({ ...newCamera, ip: e.target.value })}
-                      placeholder="192.168.10.101"
-                      data-testid="input-new-camera-ip"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="port">Port</Label>
-                    <Input
-                      id="port"
-                      type="number"
-                      value={newCamera.port}
-                      onChange={(e) => setNewCamera({ ...newCamera, port: parseInt(e.target.value) })}
-                      data-testid="input-new-camera-port"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="stream-url">Snapshot URL (optional)</Label>
-                    <Input
-                      id="stream-url"
-                      value={newCamera.streamUrl}
-                      onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
-                      placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
-                      data-testid="input-new-camera-stream-url"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                      HTTP URL for JPEG snapshot. Used for live preview.
-                    </p>
-                  </div>
-                  <Button onClick={handleAddCamera} className="w-full" data-testid="button-save-new-camera">
-                    Add Camera
+            <div className="flex items-center gap-2">
+              <Dialog open={discoverOpen} onOpenChange={setDiscoverOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs" data-testid="button-discover-cameras">
+                    <Search className="w-3 h-3 mr-1" /> Discover Cameras
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Discover VISCA Cameras</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Scan the local network for VISCA cameras. Leave the subnet blank to scan detected private network ranges.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="discovery-subnet">Subnet</Label>
+                        <Input
+                          id="discovery-subnet"
+                          value={discoverySubnet}
+                          onChange={(e) => setDiscoverySubnet(e.target.value)}
+                          placeholder="Auto-detect, or 192.168.0.0/24"
+                          data-testid="input-discovery-subnet"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="discovery-ports">Ports</Label>
+                        <Input
+                          id="discovery-ports"
+                          value={discoveryPorts}
+                          onChange={(e) => setDiscoveryPorts(e.target.value)}
+                          placeholder="52381, 1259, 5678"
+                          data-testid="input-discovery-ports"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={() => discoverCamerasMutation.mutate()}
+                      disabled={discoverCamerasMutation.isPending}
+                      className="w-full"
+                      data-testid="button-run-camera-discovery"
+                    >
+                      {discoverCamerasMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Scanning Network
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4 mr-2" /> Scan Network
+                        </>
+                      )}
+                    </Button>
+
+                    {discoverCamerasMutation.data && (
+                      <div className="space-y-3">
+                        <div className="text-xs text-slate-500 dark:text-slate-500">
+                          Scanned {discoverCamerasMutation.data.subnets.join(", ")} on ports {discoverCamerasMutation.data.ports.join(", ")}.
+                        </div>
+
+                        {discoveredCameras.length === 0 ? (
+                          <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-6 text-center text-sm text-slate-600 dark:text-slate-400">
+                            No VISCA cameras found. Try entering the camera subnet manually.
+                          </div>
+                        ) : (
+                          <div className="max-h-72 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg divide-y divide-slate-200 dark:divide-slate-800">
+                            {discoveredCameras.map((camera) => {
+                              const key = discoveredCameraKey(camera);
+                              return (
+                                <label
+                                  key={key}
+                                  className={cn(
+                                    "flex items-center gap-3 p-3 text-sm",
+                                    camera.alreadyConfigured ? "opacity-60" : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60"
+                                  )}
+                                >
+                                  <Checkbox
+                                    checked={selectedDiscovered.has(key)}
+                                    disabled={camera.alreadyConfigured}
+                                    onCheckedChange={(checked) => toggleDiscoveredCamera(camera, checked === true)}
+                                    data-testid={`checkbox-discovered-camera-${camera.ip}-${camera.port}`}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-slate-900 dark:text-slate-100">{camera.name}</div>
+                                    <div className="font-mono text-xs text-slate-500 dark:text-slate-400">{camera.ip}:{camera.port}</div>
+                                  </div>
+                                  <Badge variant={camera.confidence === "confirmed" ? "default" : "outline"}>
+                                    {camera.confidence === "confirmed" ? "VISCA confirmed" : "Port open"}
+                                  </Badge>
+                                  {camera.alreadyConfigured && <Badge variant="secondary">Configured</Badge>}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <Button
+                          onClick={() => importDiscoveredMutation.mutate()}
+                          disabled={selectedDiscoveredCount === 0 || importDiscoveredMutation.isPending}
+                          className="w-full"
+                          data-testid="button-import-discovered-cameras"
+                        >
+                          {importDiscoveredMutation.isPending ? "Adding Cameras..." : `Add Selected${selectedDiscoveredCount ? ` (${selectedDiscoveredCount})` : ""}`}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={addCameraOpen} onOpenChange={setAddCameraOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-xs" data-testid="button-add-camera">
+                    <Plus className="w-3 h-3 mr-1" /> Add Camera
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add PTZ Camera</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="name">Camera Name</Label>
+                      <Input
+                        id="name"
+                        value={newCamera.name}
+                        onChange={(e) => setNewCamera({ ...newCamera, name: e.target.value })}
+                        placeholder="Stage Left"
+                        data-testid="input-new-camera-name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="ip">IP Address</Label>
+                      <Input
+                        id="ip"
+                        value={newCamera.ip}
+                        onChange={(e) => setNewCamera({ ...newCamera, ip: e.target.value })}
+                        placeholder="192.168.10.101"
+                        data-testid="input-new-camera-ip"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="port">Port</Label>
+                      <Input
+                        id="port"
+                        type="number"
+                        value={newCamera.port}
+                        onChange={(e) => setNewCamera({ ...newCamera, port: parseInt(e.target.value) })}
+                        data-testid="input-new-camera-port"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="stream-url">Snapshot URL (optional)</Label>
+                      <Input
+                        id="stream-url"
+                        value={newCamera.streamUrl}
+                        onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
+                        placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
+                        data-testid="input-new-camera-stream-url"
+                      />
+                      <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                        HTTP URL for JPEG snapshot. Used for live preview.
+                      </p>
+                    </div>
+                    <Button onClick={handleAddCamera} className="w-full" data-testid="button-save-new-camera">
+                      Add Camera
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
            
           {cameras.length === 0 ? (
             <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center">
               <p className="text-slate-700 dark:text-slate-500 mb-4">No cameras configured</p>
-              <Button onClick={() => setAddCameraOpen(true)} data-testid="button-add-first-camera">
-                <Plus className="w-4 h-4 mr-2" /> Add Your First Camera
-              </Button>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                <Button onClick={() => setDiscoverOpen(true)} data-testid="button-find-first-camera">
+                  <Search className="w-4 h-4 mr-2" /> Find Cameras
+                </Button>
+                <Button variant="outline" onClick={() => setAddCameraOpen(true)} data-testid="button-add-first-camera">
+                  <Plus className="w-4 h-4 mr-2" /> Add Manually
+                </Button>
+              </div>
             </div>
           ) : (
             <CameraSelector 
