@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, DisplayDevice, InsertDisplayDevice } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -23,6 +23,22 @@ export interface CameraDiscoveryOptions {
   subnets?: string[];
   ports?: number[];
   timeoutMs?: number;
+}
+
+export interface SmartThingsDiscoveredDevice {
+  deviceId: string;
+  name: string;
+  label?: string;
+  manufacturerName?: string;
+  capabilities: string[];
+}
+
+export interface DisplayCommandPayload {
+  command: "power_on" | "power_off" | "set_volume" | "mute" | "unmute" | "set_input" | "custom";
+  value?: string | number | boolean;
+  capability?: string;
+  smartthingsCommand?: string;
+  arguments?: unknown[];
 }
 
 // Camera API
@@ -326,13 +342,84 @@ export const sceneButtonApi = {
     return res.json();
   },
 
-  test: async (id: number, section: "atem" | "mixer" | "hue" | "ptz"): Promise<{ success: boolean; results: string[] }> => {
+  test: async (id: number, section: "atem" | "mixer" | "hue" | "ptz" | "display"): Promise<{ success: boolean; results: string[] }> => {
     const res = await fetch(`${API_BASE}/scene-buttons/${id}/test`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ section }),
     });
     if (!res.ok) throw new Error("Failed to test scene button");
+    return res.json();
+  },
+};
+
+export const displayApi = {
+  getAll: async (): Promise<DisplayDevice[]> => {
+    const res = await fetch(`${API_BASE}/displays`);
+    if (!res.ok) throw new Error("Failed to fetch displays");
+    return res.json();
+  },
+
+  discoverSmartThings: async (token: string): Promise<{ devices: SmartThingsDiscoveredDevice[] }> => {
+    const res = await fetch(`${API_BASE}/displays/smartthings/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to discover SmartThings displays");
+    }
+    return res.json();
+  },
+
+  create: async (display: InsertDisplayDevice): Promise<DisplayDevice> => {
+    const res = await fetch(`${API_BASE}/displays`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(display),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to create display");
+    }
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<DisplayDevice>): Promise<DisplayDevice> => {
+    const res = await fetch(`${API_BASE}/displays/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update display");
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/displays/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete display");
+  },
+
+  refresh: async (id: number): Promise<DisplayDevice> => {
+    const res = await fetch(`${API_BASE}/displays/${id}/refresh`, { method: "POST" });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to refresh display");
+    }
+    return res.json();
+  },
+
+  command: async (id: number, payload: DisplayCommandPayload): Promise<DisplayDevice> => {
+    const res = await fetch(`${API_BASE}/displays/${id}/command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.message || "Failed to control display");
+    }
     return res.json();
   },
 };

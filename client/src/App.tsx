@@ -14,6 +14,7 @@ import ScenesPage from "@/pages/scenes";
 import MacrosPage from "@/pages/macros";
 import MobilePage from "@/pages/mobile";
 import LightingPage from "@/pages/lighting";
+import DisplaysPage from "@/pages/displays";
 import DiagnosticsPage from "@/pages/diagnostics";
 import NotFound from "@/pages/not-found";
 
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/switcher" component={SwitcherPage}/>
       <Route path="/mobile" component={MobilePage}/>
       <Route path="/lighting" component={LightingPage}/>
+      <Route path="/displays" component={DisplaysPage}/>
       <Route path="/diagnostics" component={DiagnosticsPage}/>
       <Route component={NotFound} />
     </Switch>

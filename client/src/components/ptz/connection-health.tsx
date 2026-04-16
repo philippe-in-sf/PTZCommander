@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { healthApi } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Activity, Camera, Tv, Music, Wifi, WifiOff } from "lucide-react";
+import { Activity, Camera, Tv, Music, Wifi, WifiOff, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function ConnectionHealth() {
@@ -14,11 +14,12 @@ export function ConnectionHealth() {
     refetchInterval: open ? 5000 : 30000,
   });
 
-  const totalDevices = (health?.cameras?.length || 0) + (health?.mixers?.length || 0) + (health?.switchers?.length || 0);
+  const totalDevices = (health?.cameras?.length || 0) + (health?.mixers?.length || 0) + (health?.switchers?.length || 0) + (health?.displays?.length || 0);
   const onlineDevices = [
     ...(health?.cameras || []),
     ...(health?.mixers || []),
     ...(health?.switchers || []),
+    ...(health?.displays || []),
   ].filter((d: any) => d.status === "online").length;
 
   return (
@@ -52,7 +53,7 @@ export function ConnectionHealth() {
           <div className="space-y-4">
             {(!health || totalDevices === 0) && (
               <div className="text-center py-8 text-slate-600 dark:text-slate-600 text-sm">
-                No devices configured. Add cameras, a mixer, or a switcher to see their status.
+                No devices configured. Add cameras, a mixer, a switcher, or a display to see their status.
               </div>
             )}
 
@@ -109,6 +110,26 @@ export function ConnectionHealth() {
                       ip={s.ip}
                       status={s.status}
                       testId={`health-switcher-${s.id}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {health?.displays?.length > 0 && (
+              <div>
+                <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
+                  <Monitor className="w-3.5 h-3.5" /> Displays
+                </h3>
+                <div className="space-y-1.5">
+                  {health.displays.map((display: any) => (
+                    <DeviceRow
+                      key={`display-${display.id}`}
+                      name={display.name}
+                      ip={display.ip || display.inputSource || "SmartThings"}
+                      status={display.status}
+                      extra={display.powerState}
+                      testId={`health-display-${display.id}`}
                     />
                   ))}
                 </div>

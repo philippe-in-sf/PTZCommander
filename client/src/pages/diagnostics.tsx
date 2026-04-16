@@ -1,25 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Lightbulb, RefreshCw, Server, Video, Volume2 } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Lightbulb, Monitor, RefreshCw, Server, Video, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/app-layout";
 import { healthApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type DeviceHealth = {
-  type: "camera" | "mixer" | "switcher";
+  type: "camera" | "mixer" | "switcher" | "display";
   id: number;
   name: string;
   ip: string;
   port?: number;
   status: "online" | "offline" | string;
   tallyState?: string;
+  powerState?: string | null;
+  inputSource?: string | null;
 };
 
 type HealthResponse = {
   cameras: DeviceHealth[];
   mixers: DeviceHealth[];
   switchers: DeviceHealth[];
+  displays: DeviceHealth[];
   timestamp: number;
 };
 
@@ -86,6 +89,7 @@ export default function DiagnosticsPage() {
     ...(health?.switchers || []),
     ...(health?.cameras || []),
     ...(health?.mixers || []),
+    ...(health?.displays || []),
   ];
   const bridgeCount = hueQuery.data?.length || 0;
   const offlineBridgeCount = hueQuery.data?.filter((bridge) => bridge.status !== "online").length || 0;
@@ -131,14 +135,14 @@ export default function DiagnosticsPage() {
         <section className="space-y-3">
           <h3 className="font-semibold flex items-center gap-2"><Server className="w-4 h-4 text-cyan-500" /> Device Health</h3>
           {devices.length === 0 ? (
-            <p className="text-sm text-slate-500">No cameras, switchers, or mixers configured.</p>
+            <p className="text-sm text-slate-500">No cameras, switchers, mixers, or displays configured.</p>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
               {devices.map((device) => (
                 <DeviceRow
                   key={`${device.type}-${device.id}`}
                   device={device}
-                  icon={device.type === "mixer" ? <Volume2 className="w-4 h-4" /> : <Video className="w-4 h-4" />}
+                  icon={device.type === "mixer" ? <Volume2 className="w-4 h-4" /> : device.type === "display" ? <Monitor className="w-4 h-4" /> : <Video className="w-4 h-4" />}
                 />
               ))}
             </div>

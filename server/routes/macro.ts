@@ -3,6 +3,7 @@ import { insertMacroSchema, patchMacroSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { getHueClient } from "../hue";
+import { executeDisplayAction } from "./display";
 
 export function registerMacroRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, atemManager, broadcast, addSessionLog } = ctx;
@@ -169,6 +170,17 @@ export function registerMacroRoutes(ctx: RouteContext) {
               if (step.colorTemp !== undefined) state.ct = step.colorTemp;
               await hueClient.setLightState(step.lightId, state);
             }
+            break;
+          }
+          case "display_command": {
+            await executeDisplayAction(ctx, {
+              displayId: step.displayId,
+              command: step.command,
+              value: step.value,
+              capability: step.capability,
+              smartthingsCommand: step.smartthingsCommand,
+              arguments: step.arguments,
+            });
             break;
           }
         }

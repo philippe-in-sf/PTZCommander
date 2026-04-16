@@ -379,6 +379,11 @@ export default function Dashboard() {
                 Lighting
               </button>
             </Link>
+            <Link href="/displays">
+              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-displays">
+                Displays
+              </button>
+            </Link>
           </nav>
         </div>
 
