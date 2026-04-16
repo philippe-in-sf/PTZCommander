@@ -2,6 +2,29 @@ import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Sw
 
 const API_BASE = "/api";
 
+export interface DiscoveredCamera {
+  ip: string;
+  port: number;
+  protocol: "visca";
+  confidence: "confirmed" | "port-open";
+  name: string;
+  alreadyConfigured: boolean;
+}
+
+export interface CameraDiscoveryResult {
+  subnets: string[];
+  ports: number[];
+  timeoutMs: number;
+  cameras: DiscoveredCamera[];
+}
+
+export interface CameraDiscoveryOptions {
+  subnet?: string;
+  subnets?: string[];
+  ports?: number[];
+  timeoutMs?: number;
+}
+
 // Camera API
 export const cameraApi = {
   getAll: async (): Promise<Camera[]> => {
@@ -60,6 +83,32 @@ export const cameraApi = {
   getPresets: async (id: number): Promise<Preset[]> => {
     const res = await fetch(`${API_BASE}/cameras/${id}/presets`);
     if (!res.ok) throw new Error("Failed to fetch presets");
+    return res.json();
+  },
+
+  discover: async (options: CameraDiscoveryOptions = {}): Promise<CameraDiscoveryResult> => {
+    const res = await fetch(`${API_BASE}/cameras/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to discover cameras");
+    }
+    return res.json();
+  },
+
+  importDiscovered: async (cameras: Array<{ ip: string; port: number; name?: string; streamUrl?: string | null }>): Promise<{ added: Camera[]; skipped: Array<{ ip: string; port: number; reason: string }> }> => {
+    const res = await fetch(`${API_BASE}/cameras/import-discovered`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cameras }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to add discovered cameras");
+    }
     return res.json();
   },
 };

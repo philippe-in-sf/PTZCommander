@@ -2,6 +2,137 @@ import type { RouteContext } from "./types";
 import { insertCameraSchema, insertPresetSchema, patchCameraSchema, patchPresetSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
+import net from "net";
+import os from "os";
+import { z } from "zod";
+
+const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
+const VISCA_VERSION_INQUIRY = Buffer.from([0x81, 0x09, 0x00, 0x02, 0xff]);
+
+type DiscoveryConfidence = "confirmed" | "port-open";
+
+interface DiscoveredCamera {
+  ip: string;
+  port: number;
+  protocol: "visca";
+  confidence: DiscoveryConfidence;
+  name: string;
+  alreadyConfigured: boolean;
+}
+
+const discoverSchema = z.object({
+  subnet: z.string().optional(),
+  subnets: z.array(z.string()).max(4).optional(),
+  ports: z.array(z.number().int().min(1).max(65535)).max(12).optional(),
+  timeoutMs: z.number().int().min(100).max(2000).optional(),
+});
+
+const importDiscoveredSchema = z.object({
+  cameras: z.array(z.object({
+    ip: z.string().min(7),
+    port: z.number().int().min(1).max(65535),
+    name: z.string().optional(),
+    streamUrl: z.string().optional().nullable(),
+  })).min(1).max(64),
+});
+
+function ipv4ToInt(ip: string) {
+  return ip.split(".").reduce((acc, part) => ((acc << 8) + Number(part)) >>> 0, 0);
+}
+
+function intToIpv4(value: number) {
+  return [24, 16, 8, 0].map((shift) => (value >>> shift) & 255).join(".");
+}
+
+function isPrivateIpv4(ip: string) {
+  return ip.startsWith("10.") ||
+    ip.startsWith("192.168.") ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(ip);
+}
+
+function getDefaultSubnets() {
+  const subnets = new Set<string>();
+  for (const entries of Object.values(os.networkInterfaces())) {
+    for (const entry of entries || []) {
+      if (entry.family !== "IPv4" || entry.internal || !isPrivateIpv4(entry.address)) continue;
+      const parts = entry.address.split(".");
+      subnets.add(`${parts[0]}.${parts[1]}.${parts[2]}.0/24`);
+    }
+  }
+  return Array.from(subnets);
+}
+
+function hostsForSubnet(cidr: string) {
+  const match = cidr.trim().match(/^(\d{1,3}(?:\.\d{1,3}){3})(?:\/(\d{1,2}))?$/);
+  if (!match) throw new Error(`Invalid subnet: ${cidr}`);
+
+  const baseIp = match[1];
+  const octets = baseIp.split(".").map(Number);
+  if (octets.some((octet) => Number.isNaN(octet) || octet < 0 || octet > 255)) {
+    throw new Error(`Invalid subnet: ${cidr}`);
+  }
+
+  const prefix = match[2] ? Number(match[2]) : 24;
+  if (prefix < 24 || prefix > 30) {
+    throw new Error("Discovery supports /24 through /30 subnets to keep scans bounded");
+  }
+
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  const network = ipv4ToInt(baseIp) & mask;
+  const broadcast = network | (~mask >>> 0);
+  const hosts: string[] = [];
+  for (let value = network + 1; value < broadcast; value++) {
+    hosts.push(intToIpv4(value >>> 0));
+  }
+  return hosts;
+}
+
+function probeViscaEndpoint(ip: string, port: number, timeoutMs: number): Promise<DiscoveryConfidence | null> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    let responseTimer: NodeJS.Timeout | null = null;
+
+    const finish = (confidence: DiscoveryConfidence | null) => {
+      if (settled) return;
+      settled = true;
+      if (responseTimer) clearTimeout(responseTimer);
+      socket.destroy();
+      resolve(confidence);
+    };
+
+    const timeout = setTimeout(() => finish(null), timeoutMs);
+
+    socket.setNoDelay(true);
+    socket.once("connect", () => {
+      clearTimeout(timeout);
+      socket.write(VISCA_VERSION_INQUIRY, () => {
+        responseTimer = setTimeout(() => finish("port-open"), Math.min(250, Math.max(100, timeoutMs)));
+      });
+    });
+    socket.on("data", (chunk) => {
+      finish(chunk.includes(0xff) ? "confirmed" : "port-open");
+    });
+    socket.once("error", () => finish(null));
+    socket.once("close", () => {
+      if (!settled) finish(null);
+    });
+    socket.connect(port, ip);
+  });
+}
+
+async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>) {
+  const results: R[] = [];
+  let index = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (index < items.length) {
+      const current = items[index++];
+      results.push(await worker(current));
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 export function registerCameraRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, broadcast, pushUndo, addSessionLog, captureSnapshot } = ctx;
@@ -12,6 +143,105 @@ export function registerCameraRoutes(ctx: RouteContext) {
       res.json(cameras);
     } catch (error) {
       res.status(500).json({ message: "Failed to get cameras" });
+    }
+  });
+
+  app.post("/api/cameras/discover", async (req, res) => {
+    try {
+      const parsed = discoverSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: fromError(parsed.error).toString() });
+      }
+
+      const subnets = parsed.data.subnets?.length
+        ? parsed.data.subnets
+        : parsed.data.subnet
+          ? [parsed.data.subnet]
+          : getDefaultSubnets();
+      if (subnets.length === 0) {
+        return res.status(400).json({ message: "No local private IPv4 subnet found. Enter a subnet manually, for example 192.168.0.0/24." });
+      }
+
+      const ports = Array.from(new Set(parsed.data.ports?.length ? parsed.data.ports : DEFAULT_VISCA_PORTS));
+      const timeoutMs = parsed.data.timeoutMs ?? 350;
+      const existing = await storage.getAllCameras();
+      const existingIps = new Set(existing.map((camera) => camera.ip));
+      let hosts: string[];
+      try {
+        hosts = Array.from(new Set(subnets.flatMap(hostsForSubnet)));
+      } catch (error: any) {
+        return res.status(400).json({ message: error.message || "Invalid discovery subnet" });
+      }
+      const targets = hosts.flatMap((ip) => ports.map((port) => ({ ip, port })));
+
+      const probes = await runWithConcurrency(targets, 64, async (target) => {
+        const confidence = await probeViscaEndpoint(target.ip, target.port, timeoutMs);
+        return confidence ? { ...target, confidence } : null;
+      });
+
+      const discovered = probes
+        .filter((probe): probe is { ip: string; port: number; confidence: DiscoveryConfidence } => !!probe)
+        .sort((a, b) => ipv4ToInt(a.ip) - ipv4ToInt(b.ip) || a.port - b.port)
+        .map<DiscoveredCamera>((probe, index) => ({
+          ip: probe.ip,
+          port: probe.port,
+          protocol: "visca",
+          confidence: probe.confidence,
+          name: `Camera ${index + 1}`,
+          alreadyConfigured: existingIps.has(probe.ip),
+        }));
+
+      logger.info("camera", `VISCA discovery scan complete: ${discovered.length} candidate(s)`, {
+        action: "camera:discover",
+        details: { subnets, ports, timeoutMs, targets: targets.length, discovered: discovered.length },
+      });
+      res.json({ subnets, ports, timeoutMs, cameras: discovered });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to discover cameras" });
+    }
+  });
+
+  app.post("/api/cameras/import-discovered", async (req, res) => {
+    try {
+      const parsed = importDiscoveredSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: fromError(parsed.error).toString() });
+      }
+
+      const existing = await storage.getAllCameras();
+      const existingIps = new Set(existing.map((camera) => camera.ip));
+      const added = [];
+      const skipped: { ip: string; port: number; reason: string }[] = [];
+
+      for (const candidate of parsed.data.cameras) {
+        if (existingIps.has(candidate.ip)) {
+          skipped.push({ ip: candidate.ip, port: candidate.port, reason: "already configured" });
+          continue;
+        }
+
+        const camera = await storage.createCamera({
+          name: candidate.name?.trim() || `Camera ${existing.length + added.length + 1}`,
+          ip: candidate.ip,
+          port: candidate.port,
+          protocol: "visca",
+          streamUrl: candidate.streamUrl || null,
+        });
+        existingIps.add(candidate.ip);
+        const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
+        await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
+        added.push(await storage.getCamera(camera.id) || camera);
+      }
+
+      if (added.length > 0) {
+        logger.info("camera", `Imported ${added.length} discovered camera(s)`, {
+          action: "camera:import_discovered",
+          details: { added: added.map((camera) => ({ id: camera.id, ip: camera.ip, port: camera.port })) },
+        });
+        broadcast({ type: "invalidate", keys: ["cameras"] });
+      }
+      res.json({ added, skipped });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to import discovered cameras" });
     }
   });
 
