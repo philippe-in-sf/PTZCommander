@@ -5,3 +5,5 @@ data/
 server/public
 vite.config.ts.*
 *.tar.gz
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
