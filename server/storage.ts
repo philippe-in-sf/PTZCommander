@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, auditLogs, hueBridges, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge } from "@shared/schema";
+import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, auditLogs, hueBridges, displayDevices, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
@@ -66,6 +66,13 @@ export interface IStorage {
   createHueBridge(bridge: InsertHueBridge): Promise<HueBridge>;
   updateHueBridge(id: number, updates: Partial<HueBridge>): Promise<HueBridge | undefined>;
   deleteHueBridge(id: number): Promise<void>;
+
+  // Display device operations
+  getAllDisplayDevices(): Promise<DisplayDevice[]>;
+  getDisplayDevice(id: number): Promise<DisplayDevice | undefined>;
+  createDisplayDevice(display: InsertDisplayDevice): Promise<DisplayDevice>;
+  updateDisplayDevice(id: number, updates: Partial<DisplayDevice>): Promise<DisplayDevice | undefined>;
+  deleteDisplayDevice(id: number): Promise<void>;
 
   // Audit log operations
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
@@ -155,6 +162,26 @@ function sqliteRowToSceneButton(row: any): SceneButton {
     presetNumber: row.preset_number,
     mixerActions: row.mixer_actions,
     hueActions: row.hue_actions,
+    displayActions: row.display_actions,
+  };
+}
+
+function sqliteRowToDisplayDevice(row: any): DisplayDevice {
+  return {
+    id: row.id,
+    name: row.name,
+    brand: row.brand,
+    ip: row.ip,
+    protocol: row.protocol,
+    smartthingsDeviceId: row.smartthings_device_id,
+    smartthingsToken: row.smartthings_token,
+    status: row.status,
+    powerState: row.power_state,
+    volume: row.volume,
+    muted: Boolean(row.muted),
+    inputSource: row.input_source,
+    artModeStatus: row.art_mode_status,
+    createdAt: new Date(row.created_at),
   };
 }
 
@@ -582,19 +609,20 @@ export class DatabaseStorage implements IStorage {
   async createSceneButton(insert: InsertSceneButton): Promise<SceneButton> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO scene_buttons (button_number, name, color, group_name, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions, hue_actions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scene_buttons (button_number, name, color, group_name, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions, hue_actions, display_actions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         insert.buttonNumber,
         insert.name,
         insert.color || '#06b6d4',
         insert.groupName || 'General',
-        insert.atemInputId || null,
+        insert.atemInputId ?? null,
         insert.atemTransitionType || 'cut',
-        insert.cameraId || null,
-        insert.presetNumber || null,
-        insert.mixerActions || null,
-        insert.hueActions || null
+        insert.cameraId ?? null,
+        insert.presetNumber ?? null,
+        insert.mixerActions ?? null,
+        insert.hueActions ?? null,
+        insert.displayActions ?? null
       );
       return this.getSceneButton(Number(result.lastInsertRowid)) as Promise<SceneButton>;
     }
@@ -617,6 +645,7 @@ export class DatabaseStorage implements IStorage {
       if (updates.presetNumber !== undefined) { setClauses.push('preset_number = ?'); values.push(updates.presetNumber); }
       if (updates.mixerActions !== undefined) { setClauses.push('mixer_actions = ?'); values.push(updates.mixerActions); }
       if (updates.hueActions !== undefined) { setClauses.push('hue_actions = ?'); values.push(updates.hueActions); }
+      if (updates.displayActions !== undefined) { setClauses.push('display_actions = ?'); values.push(updates.displayActions); }
 
       if (setClauses.length === 0) return this.getSceneButton(id);
 
@@ -918,6 +947,76 @@ export class DatabaseStorage implements IStorage {
       return;
     }
     await db.delete(hueBridges).where(eq(hueBridges.id, id));
+  }
+
+  // ========== Display Device Operations ==========
+  async getAllDisplayDevices(): Promise<DisplayDevice[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM display_devices ORDER BY id').all();
+      return rows.map(sqliteRowToDisplayDevice);
+    }
+    return await db.select().from(displayDevices);
+  }
+
+  async getDisplayDevice(id: number): Promise<DisplayDevice | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM display_devices WHERE id = ?').get(id);
+      return row ? sqliteRowToDisplayDevice(row) : undefined;
+    }
+    const [display] = await db.select().from(displayDevices).where(eq(displayDevices.id, id));
+    return display || undefined;
+  }
+
+  async createDisplayDevice(display: InsertDisplayDevice): Promise<DisplayDevice> {
+    if (useSqlite && sqlite) {
+      const result = sqlite.prepare(`
+        INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        display.name,
+        display.brand || "samsung_frame",
+        display.ip ?? null,
+        display.protocol || "smartthings",
+        display.smartthingsDeviceId ?? null,
+        display.smartthingsToken ?? null
+      );
+      return this.getDisplayDevice(Number(result.lastInsertRowid)) as Promise<DisplayDevice>;
+    }
+    const [created] = await db.insert(displayDevices).values(display).returning();
+    return created;
+  }
+
+  async updateDisplayDevice(id: number, updates: Partial<DisplayDevice>): Promise<DisplayDevice | undefined> {
+    if (useSqlite && sqlite) {
+      const fields: string[] = [];
+      const vals: any[] = [];
+      if (updates.name !== undefined) { fields.push('name = ?'); vals.push(updates.name); }
+      if (updates.brand !== undefined) { fields.push('brand = ?'); vals.push(updates.brand); }
+      if (updates.ip !== undefined) { fields.push('ip = ?'); vals.push(updates.ip); }
+      if (updates.protocol !== undefined) { fields.push('protocol = ?'); vals.push(updates.protocol); }
+      if (updates.smartthingsDeviceId !== undefined) { fields.push('smartthings_device_id = ?'); vals.push(updates.smartthingsDeviceId); }
+      if (updates.smartthingsToken !== undefined) { fields.push('smartthings_token = ?'); vals.push(updates.smartthingsToken); }
+      if (updates.status !== undefined) { fields.push('status = ?'); vals.push(updates.status); }
+      if (updates.powerState !== undefined) { fields.push('power_state = ?'); vals.push(updates.powerState); }
+      if (updates.volume !== undefined) { fields.push('volume = ?'); vals.push(updates.volume); }
+      if (updates.muted !== undefined) { fields.push('muted = ?'); vals.push(updates.muted ? 1 : 0); }
+      if (updates.inputSource !== undefined) { fields.push('input_source = ?'); vals.push(updates.inputSource); }
+      if (updates.artModeStatus !== undefined) { fields.push('art_mode_status = ?'); vals.push(updates.artModeStatus); }
+      if (!fields.length) return this.getDisplayDevice(id);
+      vals.push(id);
+      sqlite.prepare(`UPDATE display_devices SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
+      return this.getDisplayDevice(id);
+    }
+    const [updated] = await db.update(displayDevices).set(updates).where(eq(displayDevices.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deleteDisplayDevice(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('DELETE FROM display_devices WHERE id = ?').run(id);
+      return;
+    }
+    await db.delete(displayDevices).where(eq(displayDevices.id, id));
   }
 }
 

@@ -22,6 +22,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
         scenes: true,
         macros: true,
         lighting: true,
+        displays: true,
         switcher: true,
         mixer: true,
       },
@@ -29,6 +30,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
         cameras: "/api/cameras",
         scenes: "/api/scene-buttons",
         macros: "/api/macros",
+        displays: "/api/displays",
         deviceHealth: "/api/health/devices",
       },
     });
@@ -82,6 +84,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
       const cameras = await storage.getAllCameras();
       const mixers = await storage.getAllMixers();
       const switchers = await storage.getAllSwitchers();
+      const displays = await storage.getAllDisplayDevices();
 
       const cameraHealth = cameras.map(cam => {
         const client = cameraManager.getClient(cam.id);
@@ -119,10 +122,21 @@ export function registerSystemRoutes(ctx: RouteContext) {
         };
       });
 
+      const displayHealth = displays.map(display => ({
+        type: "display" as const,
+        id: display.id,
+        name: display.name,
+        ip: display.ip,
+        status: display.status,
+        powerState: display.powerState,
+        inputSource: display.inputSource,
+      }));
+
       res.json({
         cameras: cameraHealth,
         mixers: mixerHealth,
         switchers: switcherHealth,
+        displays: displayHealth,
         timestamp: Date.now(),
       });
     } catch (error) {

@@ -1,17 +1,17 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { sceneButtonApi, cameraApi } from "@/lib/api";
+import { sceneButtonApi, cameraApi, displayApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, Trash2, Settings, Zap, Play, Lightbulb, Lock, Unlock, ListChecks, FlaskConical, Folder } from "lucide-react";
+import { Plus, Trash2, Settings, Zap, Play, Lightbulb, Lock, Unlock, ListChecks, FlaskConical, Folder, Monitor } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
-import type { SceneButton, Camera } from "@shared/schema";
+import type { SceneButton, Camera, DisplayDevice } from "@shared/schema";
 
 interface MixerAction {
   section: string;
@@ -27,7 +27,16 @@ interface HueSceneAction {
   groupId?: string;
 }
 
-type SceneTestSection = "atem" | "mixer" | "hue" | "ptz";
+interface DisplayAction {
+  displayId: number;
+  command: "power_on" | "power_off" | "set_volume" | "mute" | "unmute" | "set_input" | "custom";
+  value?: string | number | boolean;
+  capability?: string;
+  smartthingsCommand?: string;
+  arguments?: unknown[];
+}
+
+type SceneTestSection = "atem" | "mixer" | "hue" | "ptz" | "display";
 
 const COLORS = [
   "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
@@ -45,17 +54,27 @@ type SceneFormData = {
   presetNumber: number | null;
   mixerActions: MixerAction[];
   hueActions: HueSceneAction[];
+  displayActions: DisplayAction[];
 };
 
 function getSceneGroupName(button: Pick<SceneButton, "groupName">) {
   return button.groupName?.trim() || "General";
 }
 
-function getFormPreview(formData: SceneFormData, cameras: Camera[]) {
+function getFormPreview(formData: SceneFormData, cameras: Camera[], displays: DisplayDevice[]) {
   const preview: string[] = [];
   if (formData.hueActions.length > 0) {
     const readyActions = formData.hueActions.filter((action) => action.bridgeId && action.sceneId).length;
     preview.push(`Hue: ${readyActions}/${formData.hueActions.length} scene action(s) ready`);
+  }
+  if (formData.displayActions.length > 0) {
+    const readyActions = formData.displayActions.filter((action) => action.displayId && action.command).length;
+    const displayNames = formData.displayActions
+      .map((action) => displays.find((display) => display.id === action.displayId)?.name)
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(", ");
+    preview.push(`Displays: ${readyActions}/${formData.displayActions.length} action(s) ready${displayNames ? ` for ${displayNames}` : ""}`);
   }
   if (formData.atemInputId !== null) {
     preview.push(`ATEM: ${formData.atemTransitionType === "auto" ? "auto transition" : "cut"} to input ${formData.atemInputId}`);
@@ -72,6 +91,7 @@ function getFormPreview(formData: SceneFormData, cameras: Camera[]) {
 
 function hasSceneSection(formData: SceneFormData, section: SceneTestSection) {
   if (section === "hue") return formData.hueActions.some((action) => action.bridgeId && action.sceneId);
+  if (section === "display") return formData.displayActions.some((action) => action.displayId && action.command);
   if (section === "atem") return formData.atemInputId !== null;
   if (section === "ptz") return formData.cameraId !== null && formData.presetNumber !== null;
   return formData.mixerActions.length > 0;
@@ -148,6 +168,85 @@ function HueActionRow({ action, bridges, onUpdate, onRemove }: {
   );
 }
 
+function DisplayActionRow({ action, displays, onUpdate, onRemove }: {
+  action: DisplayAction;
+  displays: DisplayDevice[];
+  onUpdate: (u: Partial<DisplayAction>) => void;
+  onRemove: () => void;
+}) {
+  const needsValue = action.command === "set_volume" || action.command === "set_input" || action.command === "custom";
+  const selectedDisplay = displays.find((display) => display.id === action.displayId);
+
+  return (
+    <div className="bg-slate-300 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-cyan-600 dark:text-cyan-400 font-mono flex items-center gap-1">
+          <Monitor className="w-3 h-3" />Display Command
+        </span>
+        <button onClick={onRemove} className="text-red-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs">Display</Label>
+          <Select value={action.displayId?.toString() || "0"} onValueChange={(v) => onUpdate({ displayId: parseInt(v) })}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Select display</SelectItem>
+              {displays.map((display) => <SelectItem key={display.id} value={display.id.toString()}>{display.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {selectedDisplay && (
+            <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Status: {selectedDisplay.status}</p>
+          )}
+        </div>
+        <div>
+          <Label className="text-xs">Command</Label>
+          <Select value={action.command} onValueChange={(v) => onUpdate({ command: v as DisplayAction["command"], value: undefined })}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="power_on">Power On</SelectItem>
+              <SelectItem value="power_off">Power Off</SelectItem>
+              <SelectItem value="set_volume">Set Volume</SelectItem>
+              <SelectItem value="mute">Mute</SelectItem>
+              <SelectItem value="unmute">Unmute</SelectItem>
+              <SelectItem value="set_input">Set Input</SelectItem>
+              <SelectItem value="custom">Custom SmartThings</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {needsValue && (
+        <div className="grid grid-cols-1 gap-2">
+          <div>
+            <Label className="text-xs">{action.command === "set_volume" ? "Volume" : action.command === "set_input" ? "Input Source" : "Value"}</Label>
+            <Input
+              type={action.command === "set_volume" ? "number" : "text"}
+              min={0}
+              max={100}
+              value={action.value?.toString() || ""}
+              onChange={(e) => onUpdate({ value: action.command === "set_volume" ? parseInt(e.target.value) || 0 : e.target.value })}
+              placeholder={action.command === "set_input" ? "HDMI1" : undefined}
+              className="h-8 text-xs"
+            />
+          </div>
+          {action.command === "custom" && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Capability</Label>
+                <Input value={action.capability || ""} onChange={(e) => onUpdate({ capability: e.target.value })} placeholder="switch" className="h-8 text-xs" />
+              </div>
+              <div>
+                <Label className="text-xs">Command</Label>
+                <Input value={action.smartthingsCommand || ""} onChange={(e) => onUpdate({ smartthingsCommand: e.target.value })} placeholder="on" className="h-8 text-xs" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ScenesPage() {
   const queryClient = useQueryClient();
   const [activeSceneId, setActiveSceneId] = useState<number | null>(null);
@@ -165,6 +264,7 @@ export default function ScenesPage() {
     presetNumber: null as number | null,
     mixerActions: [] as MixerAction[],
     hueActions: [] as HueSceneAction[],
+    displayActions: [] as DisplayAction[],
   });
 
   const { data: sceneButtons = [] } = useQuery({
@@ -179,6 +279,11 @@ export default function ScenesPage() {
 
   const { data: hueBridges = [] } = useQuery<{ id: number; name: string; status: string }[]>({
     queryKey: ["/api/hue/bridges"],
+  });
+
+  const { data: displays = [] } = useQuery({
+    queryKey: ["displays"],
+    queryFn: displayApi.getAll,
   });
 
   const sceneGroups = useMemo(() => {
@@ -198,7 +303,7 @@ export default function ScenesPage() {
       .sort((a, b) => a.localeCompare(b));
   }, [formData.groupName, sceneButtons]);
 
-  const previewItems = useMemo(() => getFormPreview(formData, cameras), [formData, cameras]);
+  const previewItems = useMemo(() => getFormPreview(formData, cameras, displays), [formData, cameras, displays]);
 
   useEffect(() => {
     localStorage.setItem("ptzcommand:operator-lock", operatorLocked ? "locked" : "unlocked");
@@ -283,6 +388,7 @@ export default function ScenesPage() {
       presetNumber: null,
       mixerActions: [],
       hueActions: [],
+      displayActions: [],
     });
     setEditOpen(true);
   };
@@ -297,6 +403,8 @@ export default function ScenesPage() {
     try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
     let hueActions: HueSceneAction[] = [];
     try { if (btn.hueActions) hueActions = JSON.parse(btn.hueActions); } catch {}
+    let displayActions: DisplayAction[] = [];
+    try { if (btn.displayActions) displayActions = JSON.parse(btn.displayActions); } catch {}
     setFormData({
       buttonNumber: btn.buttonNumber,
       name: btn.name,
@@ -308,6 +416,7 @@ export default function ScenesPage() {
       presetNumber: btn.presetNumber,
       mixerActions,
       hueActions,
+      displayActions,
     });
     setEditOpen(true);
   };
@@ -317,6 +426,7 @@ export default function ScenesPage() {
       toast.info("Operator lock is on");
       return;
     }
+    const validDisplayActions = formData.displayActions.filter((action) => action.displayId > 0 && action.command);
     const payload = {
       buttonNumber: formData.buttonNumber,
       name: formData.name || `Scene ${formData.buttonNumber}`,
@@ -331,6 +441,9 @@ export default function ScenesPage() {
         : null,
       hueActions: formData.hueActions.length > 0
         ? JSON.stringify(formData.hueActions)
+        : null,
+      displayActions: validDisplayActions.length > 0
+        ? JSON.stringify(validDisplayActions)
         : null,
     };
 
@@ -380,6 +493,27 @@ export default function ScenesPage() {
     setFormData(prev => ({
       ...prev,
       hueActions: prev.hueActions.filter((_, i) => i !== index),
+    }));
+  };
+
+  const addDisplayAction = () => {
+    setFormData(prev => ({
+      ...prev,
+      displayActions: [...prev.displayActions, { displayId: displays[0]?.id || 0, command: "power_on" }],
+    }));
+  };
+
+  const updateDisplayAction = (index: number, updates: Partial<DisplayAction>) => {
+    setFormData(prev => ({
+      ...prev,
+      displayActions: prev.displayActions.map((action, i) => i === index ? { ...action, ...updates } : action),
+    }));
+  };
+
+  const removeDisplayAction = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      displayActions: prev.displayActions.filter((_, i) => i !== index),
     }));
   };
 
@@ -444,6 +578,8 @@ export default function ScenesPage() {
                     try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
                     let hueActionCount = 0;
                     try { if (btn.hueActions) hueActionCount = JSON.parse(btn.hueActions).length; } catch {}
+                    let displayActionCount = 0;
+                    try { if (btn.displayActions) displayActionCount = JSON.parse(btn.displayActions).length; } catch {}
                     const isActive = activeSceneId === btn.id;
 
                     return (
@@ -485,6 +621,11 @@ export default function ScenesPage() {
                             {hueActionCount > 0 && (
                               <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-yellow-200/80 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400")}>
                                 HUE:{hueActionCount}
+                              </span>
+                            )}
+                            {displayActionCount > 0 && (
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-cyan-200/80 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-400")}>
+                                TV:{displayActionCount}
                               </span>
                             )}
                           </div>
@@ -606,13 +747,39 @@ export default function ScenesPage() {
               )}
             </div>
 
+            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Monitor className="w-3 h-3 text-cyan-500" />Display Actions
+                </h4>
+                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addDisplayAction} data-testid="button-add-display-action">
+                  <Plus className="w-3 h-3 mr-1" /> Add Command
+                </Button>
+              </div>
+              {formData.displayActions.length === 0 ? (
+                <p className="text-xs text-slate-500 dark:text-slate-600">No display actions configured.</p>
+              ) : (
+                <div className="space-y-2">
+                  {formData.displayActions.map((action, idx) => (
+                    <DisplayActionRow
+                      key={idx}
+                      action={action}
+                      displays={displays}
+                      onUpdate={(updates) => updateDisplayAction(idx, updates)}
+                      onRemove={() => removeDisplayAction(idx)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
             {editingButton && (
               <div className="border border-emerald-500/30 bg-emerald-500/10 rounded-lg p-3">
                 <h4 className="text-xs font-mono uppercase text-emerald-700 dark:text-emerald-300 mb-2 flex items-center gap-1.5">
                   <FlaskConical className="w-3 h-3" />Test Mode
                 </h4>
-                <div className="grid grid-cols-4 gap-2">
-                  {(["hue", "atem", "ptz", "mixer"] as SceneTestSection[]).map((section) => (
+                <div className="grid grid-cols-5 gap-2">
+                  {(["hue", "display", "atem", "ptz", "mixer"] as SceneTestSection[]).map((section) => (
                     <Button
                       key={section}
                       type="button"
@@ -630,32 +797,6 @@ export default function ScenesPage() {
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Tests run only the selected hardware section and add an undo step when rollback data is available.</p>
               </div>
             )}
-
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <Lightbulb className="w-3 h-3 text-yellow-500" />Hue Lighting Actions
-                </h4>
-                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addHueAction} data-testid="button-add-hue-action">
-                  <Plus className="w-3 h-3 mr-1" /> Add Scene
-                </Button>
-              </div>
-              {formData.hueActions.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-600">No Hue actions configured.</p>
-              ) : (
-                <div className="space-y-2">
-                  {formData.hueActions.map((action, idx) => (
-                    <HueActionRow
-                      key={idx}
-                      action={action}
-                      bridges={hueBridges}
-                      onUpdate={(u) => updateHueAction(idx, u)}
-                      onRemove={() => removeHueAction(idx)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
 
             <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
               <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2">ATEM Switcher Action</h4>

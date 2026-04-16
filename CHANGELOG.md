@@ -2,6 +2,18 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.1.0] - 2026-04-16
+
+### Added
+- **Display Control** — added a Displays page for SmartThings-connected TVs, with discovery, status refresh, power, mute, volume, and input controls
+- **Samsung Frame Support** — added Samsung Frame-first SmartThings device setup while leaving a Hisense Canvas display profile available for future protocol expansion
+- **Scene Display Actions** — scene buttons can now include display commands alongside ATEM, PTZ, mixer, and Hue actions
+- **Macro Display Steps** — macros can now trigger display commands as part of a timed production sequence
+- **Display Health** — displays are included in device health responses, Diagnostics, and the connection health panel
+
+### Changed
+- **Version Display** — interface version labels now report v1.1.0
+
 ## [1.0] - 2026-04-16
 
 ### Added
