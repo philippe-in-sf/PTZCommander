@@ -41,6 +41,15 @@ export interface DisplayCommandPayload {
   arguments?: unknown[];
 }
 
+export interface SmartThingsOAuthSession {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: string;
+  scope?: string;
+  clientId: string;
+  clientSecret: string;
+}
+
 // Camera API
 export const cameraApi = {
   getAll: async (): Promise<Camera[]> => {
@@ -369,6 +378,28 @@ export const displayApi = {
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
       throw new Error(payload?.message || "Failed to discover SmartThings displays");
+    }
+    return res.json();
+  },
+
+  startSmartThingsOAuth: async (payload: { clientId: string; clientSecret: string; redirectUri: string; scope: string }): Promise<{ authorizeUrl: string; state: string; redirectUri: string; scope: string }> => {
+    const res = await fetch(`${API_BASE}/displays/smartthings/oauth/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.message || "Failed to start SmartThings authorization");
+    }
+    return res.json();
+  },
+
+  getSmartThingsOAuthSession: async (state: string): Promise<SmartThingsOAuthSession> => {
+    const res = await fetch(`${API_BASE}/displays/smartthings/oauth/session/${encodeURIComponent(state)}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.message || "Failed to complete SmartThings authorization");
     }
     return res.json();
   },

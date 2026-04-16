@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { displayApi, type DisplayCommandPayload, type SmartThingsDiscoveredDevice } from "@/lib/api";
+import { displayApi, type DisplayCommandPayload, type SmartThingsDiscoveredDevice, type SmartThingsOAuthSession } from "@/lib/api";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,15 +129,44 @@ function DisplayCard({ display }: { display: DisplayDevice }) {
 
 function SetupPanel() {
   const queryClient = useQueryClient();
-  const [token, setToken] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [scope, setScope] = useState("r:devices:* x:devices:* r:locations:*");
+  const [oauthSession, setOauthSession] = useState<SmartThingsOAuthSession | null>(null);
   const [brand, setBrand] = useState("samsung_frame");
   const [name, setName] = useState("Samsung Frame");
   const [ip, setIp] = useState("");
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [discovered, setDiscovered] = useState<SmartThingsDiscoveredDevice[]>([]);
+  const redirectUri = typeof window !== "undefined"
+    ? `${window.location.origin}/api/displays/smartthings/oauth/callback`
+    : "";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const state = params.get("smartthingsAuth");
+    if (!state) return;
+    displayApi.getSmartThingsOAuthSession(state)
+      .then((session) => {
+        setOauthSession(session);
+        setClientId(session.clientId);
+        setClientSecret(session.clientSecret);
+        toast.success("SmartThings authorization complete");
+        window.history.replaceState({}, "", "/displays");
+      })
+      .catch((error: Error) => toast.error("SmartThings authorization failed", { description: error.message }));
+  }, []);
+
+  const oauthMutation = useMutation({
+    mutationFn: () => displayApi.startSmartThingsOAuth({ clientId, clientSecret, redirectUri, scope }),
+    onSuccess: (result) => {
+      window.location.href = result.authorizeUrl;
+    },
+    onError: (error: Error) => toast.error("SmartThings authorization failed", { description: error.message }),
+  });
 
   const discoveryMutation = useMutation({
-    mutationFn: () => displayApi.discoverSmartThings(token),
+    mutationFn: () => displayApi.discoverSmartThings(oauthSession?.accessToken || ""),
     onSuccess: (result) => {
       setDiscovered(result.devices);
       toast.success(`Found ${result.devices.length} SmartThings device${result.devices.length === 1 ? "" : "s"}`);
@@ -152,13 +181,18 @@ function SetupPanel() {
       ip: ip.trim() || null,
       protocol: "smartthings",
       smartthingsDeviceId: selectedDeviceId || null,
-      smartthingsToken: token.trim() || null,
+      smartthingsToken: oauthSession?.accessToken || null,
+      smartthingsRefreshToken: oauthSession?.refreshToken || null,
+      smartthingsTokenExpiresAt: oauthSession?.expiresAt ? new Date(oauthSession.expiresAt) : null,
+      smartthingsClientId: oauthSession?.clientId || clientId || null,
+      smartthingsClientSecret: oauthSession?.clientSecret || clientSecret || null,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["displays"] });
       setName("Samsung Frame");
       setIp("");
       setSelectedDeviceId("");
+      setDiscovered([]);
       toast.success("Display added");
     },
     onError: (error: Error) => toast.error("Display add failed", { description: error.message }),
@@ -174,17 +208,40 @@ function SetupPanel() {
     <div className="rounded-lg border border-slate-400/30 dark:border-slate-800 bg-slate-300/40 dark:bg-slate-900/50 p-4 space-y-4">
       <div>
         <h3 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4 text-cyan-500" /> Add SmartThings Display</h3>
-        <p className="text-xs text-muted-foreground mt-1">Use a SmartThings personal access token with device read and control permissions.</p>
+        <p className="text-xs text-muted-foreground mt-1">Use SmartThings OAuth so PTZ Command can refresh the 24-hour access token automatically.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label>SmartThings Token</Label>
-          <Input type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder="Paste token" data-testid="input-smartthings-token" />
+          <Label>OAuth Client ID</Label>
+          <Input value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="SmartThings app client ID" data-testid="input-smartthings-client-id" />
         </div>
-        <Button onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending || token.trim().length < 10} data-testid="button-discover-displays">
+        <div className="space-y-1">
+          <Label>OAuth Client Secret</Label>
+          <Input type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="SmartThings app client secret" data-testid="input-smartthings-client-secret" />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label>Redirect URI</Label>
+        <Input value={redirectUri} readOnly data-testid="input-smartthings-redirect-uri" />
+        <p className="text-[11px] text-muted-foreground">Add this exact URI to your SmartThings OAuth app.</p>
+      </div>
+      <div className="space-y-1">
+        <Label>OAuth Scopes</Label>
+        <Input value={scope} onChange={(event) => setScope(event.target.value)} data-testid="input-smartthings-scopes" />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => oauthMutation.mutate()} disabled={oauthMutation.isPending || !clientId.trim() || !clientSecret.trim()} data-testid="button-authorize-smartthings">
+          {oauthMutation.isPending ? "Opening..." : oauthSession ? "Reconnect SmartThings" : "Connect SmartThings"}
+        </Button>
+        <Button variant="outline" onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending || !oauthSession?.accessToken} data-testid="button-discover-displays">
           <Search className="w-4 h-4 mr-2" /> {discoveryMutation.isPending ? "Finding..." : "Find TVs"}
         </Button>
+        {oauthSession && (
+          <span className="self-center text-xs text-emerald-600 dark:text-emerald-400">
+            Authorized until {new Date(oauthSession.expiresAt).toLocaleTimeString()}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -230,7 +287,7 @@ function SetupPanel() {
         </div>
       )}
 
-      <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !token.trim() || !selectedDeviceId.trim()} data-testid="button-add-display">
+      <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !oauthSession?.accessToken || !selectedDeviceId.trim()} data-testid="button-add-display">
         <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add Display"}
       </Button>
     </div>
