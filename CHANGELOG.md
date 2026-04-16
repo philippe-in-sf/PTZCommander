@@ -2,6 +2,17 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.0] - 2026-04-16
+
+### Added
+- **Scene Operations** — added scene groups, dry-run previews, saved-scene test controls, and operator lock mode for safer live operation
+- **Diagnostics** — added a diagnostics page for device health, Hue bridge status, and recent system events
+- **Scene Rollback** — scene execution now records rollback snapshots for supported ATEM, mixer, and Hue actions
+
+### Changed
+- **Hue Scene Picker** — Hue scene selection now includes bridge status and room-aware scene labels
+- **Version Display** — interface version labels now report v1.0
+
 ## [0.16.0] - 2026-04-09
 
 ### Added
