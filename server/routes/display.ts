@@ -3,6 +3,7 @@ import { insertDisplayDeviceSchema, patchDisplayDeviceSchema } from "@shared/sch
 import { fromError } from "zod-validation-error";
 import { z } from "zod";
 import { SmartThingsClient, commandForDisplayAction } from "../smartthings";
+import { discoverHisenseDisplays, HisenseVidaaClient, keyForHisenseAction } from "../hisense-local";
 import { discoverSamsungDisplays, keyForSamsungAction, SamsungLocalDisplayClient } from "../samsung-local";
 import { logger } from "../logger";
 import type { DisplayDevice } from "@shared/schema";
@@ -13,6 +14,14 @@ const smartThingsDiscoverSchema = z.object({
 
 const samsungDiscoverSchema = z.object({
   timeoutMs: z.number().int().min(500).max(10000).optional(),
+});
+
+const hisenseDiscoverSchema = z.object({
+  timeoutMs: z.number().int().min(500).max(10000).optional(),
+});
+
+const hisensePairSchema = z.object({
+  authCode: z.string().regex(/^\d{4}$/).optional().or(z.literal("")),
 });
 
 const DEFAULT_SMARTTHINGS_SCOPE = "r:devices:* x:devices:* r:locations:*";
@@ -49,8 +58,21 @@ function redactDisplay(display: DisplayDevice) {
     smartthingsRefreshToken: null,
     smartthingsClientSecret: null,
     samsungToken: null,
-    paired: Boolean(display.samsungToken || display.smartthingsToken || display.smartthingsRefreshToken),
+    hisensePassword: null,
+    paired: Boolean(display.samsungToken || display.hisensePaired || display.smartthingsToken || display.smartthingsRefreshToken),
   };
+}
+
+function hisenseClient(display: DisplayDevice) {
+  if (!display.ip) throw new Error("Display is missing IP address");
+  return new HisenseVidaaClient({
+    ip: display.ip,
+    port: display.hisensePort || 36669,
+    useSsl: display.hisenseUseSsl !== false,
+    username: display.hisenseUsername,
+    password: display.hisensePassword,
+    clientName: display.hisenseClientName,
+  });
 }
 
 async function getSmartThingsClientForDisplay(ctx: RouteContext, display: DisplayDevice) {
@@ -95,6 +117,19 @@ export async function executeDisplayAction(ctx: RouteContext, action: z.infer<ty
     if (!key) throw new Error(`Samsung local control does not support ${action.command}`);
     const client = new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002, token: display.samsungToken });
     await client.sendKey(key);
+  } else if (display.protocol === "hisense_vidaa") {
+    const client = hisenseClient(display);
+    if (action.command === "set_volume") {
+      await client.setVolume(Number(action.value));
+    } else if (action.command === "set_input") {
+      if (action.value === undefined) throw new Error("Hisense input commands require an input value");
+      if (typeof action.value === "boolean") throw new Error("Hisense input commands require a string or numeric input value");
+      await client.setSource(action.value);
+    } else {
+      const key = keyForHisenseAction(action);
+      if (!key) throw new Error(`Hisense local control does not support ${action.command}`);
+      await client.sendKey(key);
+    }
   } else {
     throw new Error(`Unsupported display protocol: ${display.protocol}`);
   }
@@ -120,6 +155,22 @@ async function refreshDisplayStatus(ctx: RouteContext, id: number) {
         powerState: "on",
         samsungPort: info.port,
         samsungModel: info.modelName || display.samsungModel,
+      }) || display;
+    } catch (error) {
+      await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+      throw error;
+    }
+  }
+  if (display.protocol === "hisense_vidaa") {
+    if (!display.ip) return display;
+    try {
+      const info = await hisenseClient(display).getInfo();
+      return await ctx.storage.updateDisplayDevice(id, {
+        status: "online",
+        powerState: "on",
+        volume: typeof info.volume === "number" ? info.volume : display.volume,
+        hisensePort: info.port,
+        hisenseUseSsl: info.useSsl,
       }) || display;
     } catch (error) {
       await ctx.storage.updateDisplayDevice(id, { status: "offline" });
@@ -194,6 +245,24 @@ export function registerDisplayRoutes(ctx: RouteContext) {
     }
   });
 
+  app.post("/api/displays/hisense/discover", async (req, res) => {
+    try {
+      const parsed = hisenseDiscoverSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
+      const existing = await storage.getAllDisplayDevices();
+      const displays = await discoverHisenseDisplays(parsed.data.timeoutMs);
+      res.json({
+        displays: displays.map((display) => ({
+          ...display,
+          protocol: "hisense_vidaa",
+          alreadyConfigured: existing.some((item) => item.protocol === "hisense_vidaa" && item.ip === display.ip),
+        })),
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to discover Hisense Canvas TVs" });
+    }
+  });
+
   app.post("/api/displays/smartthings/oauth/start", async (req, res) => {
     try {
       const parsed = smartThingsOAuthStartSchema.safeParse(req.body || {});
@@ -253,7 +322,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
         } catch {
           refreshed = await storage.updateDisplayDevice(display.id, { status: "offline" }) || display;
         }
-      } else if (display.protocol === "samsung_local" && display.ip) {
+      } else if ((display.protocol === "samsung_local" || display.protocol === "hisense_vidaa") && display.ip) {
         try {
           refreshed = await refreshDisplayStatus(ctx, display.id);
         } catch {
@@ -307,13 +376,22 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       const id = parseInt(req.params.id);
       const display = await storage.getDisplayDevice(id);
       if (!display) return res.status(404).json({ message: "Display not found" });
-      if (display.protocol !== "samsung_local") return res.status(400).json({ message: "Pairing is only available for local Samsung displays" });
-      if (!display.ip) return res.status(400).json({ message: "Display is missing IP address" });
-      const client = new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002 });
-      const token = await client.pair();
-      const updated = await storage.updateDisplayDevice(id, { samsungToken: token, status: "online" }) || display;
+      let updated: DisplayDevice | undefined;
+      if (display.protocol === "samsung_local") {
+        if (!display.ip) return res.status(400).json({ message: "Display is missing IP address" });
+        const client = new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002 });
+        const token = await client.pair();
+        updated = await storage.updateDisplayDevice(id, { samsungToken: token, status: "online" });
+      } else if (display.protocol === "hisense_vidaa") {
+        const parsed = hisensePairSchema.safeParse(req.body || {});
+        if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
+        await hisenseClient(display).pair(parsed.data.authCode || undefined);
+        updated = await storage.updateDisplayDevice(id, { hisensePaired: true, status: "online" });
+      } else {
+        return res.status(400).json({ message: "Pairing is only available for local displays" });
+      }
       broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
-      res.json(redactDisplay(updated));
+      res.json(redactDisplay(updated || display));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to pair Samsung TV" });
     }

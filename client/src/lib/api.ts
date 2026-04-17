@@ -43,6 +43,17 @@ export interface SamsungDiscoveredDisplay {
   alreadyConfigured: boolean;
 }
 
+export interface HisenseDiscoveredDisplay {
+  ip: string;
+  port: number;
+  protocol: "hisense_vidaa";
+  name: string;
+  modelName?: string;
+  useSsl: boolean;
+  location?: string;
+  alreadyConfigured: boolean;
+}
+
 export interface DisplayCommandPayload {
   command: "power_on" | "power_off" | "power_toggle" | "set_volume" | "volume_up" | "volume_down" | "mute" | "unmute" | "set_input" | "custom";
   value?: string | number | boolean;
@@ -392,6 +403,19 @@ export const displayApi = {
     return res.json();
   },
 
+  discoverHisense: async (timeoutMs = 3500): Promise<{ displays: HisenseDiscoveredDisplay[] }> => {
+    const res = await fetch(`${API_BASE}/displays/hisense/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timeoutMs }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to discover Hisense Canvas TVs");
+    }
+    return res.json();
+  },
+
   discoverSmartThings: async (token: string): Promise<{ devices: SmartThingsDiscoveredDevice[] }> => {
     const res = await fetch(`${API_BASE}/displays/smartthings/discover`, {
       method: "POST",
@@ -464,8 +488,12 @@ export const displayApi = {
     return res.json();
   },
 
-  pair: async (id: number): Promise<DisplayDevice> => {
-    const res = await fetch(`${API_BASE}/displays/${id}/pair`, { method: "POST" });
+  pair: async (id: number, payload?: { authCode?: string }): Promise<DisplayDevice> => {
+    const res = await fetch(`${API_BASE}/displays/${id}/pair`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
       throw new Error(payload?.message || "Failed to pair Samsung TV");

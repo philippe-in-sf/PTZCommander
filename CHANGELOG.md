@@ -2,6 +2,15 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.3.0] - 2026-04-17
+
+### Added
+- **Hisense Canvas Support** — added local VIDAA/MQTT setup for Hisense Canvas TVs, including discovery, manual add, optional 4-digit pairing, and local remote commands
+- **Canvas Display Commands** — Hisense Canvas displays can now use power toggle, mute, volume up/down, set volume, and HDMI input commands from Displays, scenes, and macros
+
+### Changed
+- **Version Display** — interface version labels now report v1.3.0
+
 ## [1.2.0] - 2026-04-17
 
 ### Added
