@@ -29,7 +29,7 @@ interface HueSceneAction {
 
 interface DisplayAction {
   displayId: number;
-  command: "power_on" | "power_off" | "set_volume" | "mute" | "unmute" | "set_input" | "custom";
+  command: "power_on" | "power_off" | "power_toggle" | "set_volume" | "volume_up" | "volume_down" | "mute" | "unmute" | "set_input" | "custom";
   value?: string | number | boolean;
   capability?: string;
   smartthingsCommand?: string;
@@ -206,7 +206,10 @@ function DisplayActionRow({ action, displays, onUpdate, onRemove }: {
             <SelectContent>
               <SelectItem value="power_on">Power On</SelectItem>
               <SelectItem value="power_off">Power Off</SelectItem>
+              <SelectItem value="power_toggle">Power Toggle</SelectItem>
               <SelectItem value="set_volume">Set Volume</SelectItem>
+              <SelectItem value="volume_up">Volume Up</SelectItem>
+              <SelectItem value="volume_down">Volume Down</SelectItem>
               <SelectItem value="mute">Mute</SelectItem>
               <SelectItem value="unmute">Unmute</SelectItem>
               <SelectItem value="set_input">Set Input</SelectItem>

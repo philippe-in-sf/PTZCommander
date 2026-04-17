@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { displayApi, type DisplayCommandPayload, type SmartThingsDiscoveredDevice, type SmartThingsOAuthSession } from "@/lib/api";
+import { displayApi, type DisplayCommandPayload, type SamsungDiscoveredDisplay, type SmartThingsDiscoveredDevice, type SmartThingsOAuthSession } from "@/lib/api";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Monitor, Plus, Power, PowerOff, RefreshCw, Search, Trash2, Volume2, VolumeX } from "lucide-react";
 import type { DisplayDevice } from "@shared/schema";
+
+type DisplayWithPairing = DisplayDevice & { paired?: boolean };
 
 const DISPLAY_BRANDS = [
   { value: "samsung_frame", label: "Samsung Frame" },
@@ -23,10 +25,11 @@ function displayStatus(display: DisplayDevice) {
   return [power, volume, input].join(" · ");
 }
 
-function DisplayCard({ display }: { display: DisplayDevice }) {
+function DisplayCard({ display }: { display: DisplayWithPairing }) {
   const queryClient = useQueryClient();
   const [volume, setVolume] = useState(display.volume ?? 20);
   const [inputSource, setInputSource] = useState(display.inputSource ?? "");
+  const isSamsungLocal = display.protocol === "samsung_local";
 
   useEffect(() => {
     setVolume(display.volume ?? 20);
@@ -40,6 +43,15 @@ function DisplayCard({ display }: { display: DisplayDevice }) {
       toast.success("Display updated");
     },
     onError: (error: Error) => toast.error("Display command failed", { description: error.message }),
+  });
+
+  const pairMutation = useMutation({
+    mutationFn: () => displayApi.pair(display.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["displays"] });
+      toast.success("Samsung TV paired");
+    },
+    onError: (error: Error) => toast.error("Pairing failed", { description: error.message }),
   });
 
   const refreshMutation = useMutation({
@@ -70,7 +82,10 @@ function DisplayCard({ display }: { display: DisplayDevice }) {
             <Monitor className={online ? "w-4 h-4 text-cyan-500" : "w-4 h-4 text-slate-500"} />
             <h3 className="font-semibold truncate">{display.name}</h3>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">{DISPLAY_BRANDS.find((brand) => brand.value === display.brand)?.label || display.brand}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {DISPLAY_BRANDS.find((brand) => brand.value === display.brand)?.label || display.brand}
+            {isSamsungLocal ? " · Local network" : " · SmartThings"}
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="outline" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} data-testid={`button-refresh-display-${display.id}`}>
@@ -87,47 +102,190 @@ function DisplayCard({ display }: { display: DisplayDevice }) {
           {online ? "Online" : "Offline"}
         </div>
         <div className="text-xs text-muted-foreground mt-1">{displayStatus(display)}</div>
+        {isSamsungLocal && (
+          <div className="text-xs text-muted-foreground mt-1">
+            {display.paired ? "Paired for remote control" : "Pair once, then accept the prompt on the TV"}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "power_on" })} disabled={commandMutation.isPending}>
-          <Power className="w-3 h-3 mr-1" /> On
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "power_off" })} disabled={commandMutation.isPending}>
-          <PowerOff className="w-3 h-3 mr-1" /> Off
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "mute" })} disabled={commandMutation.isPending}>
-          <VolumeX className="w-3 h-3 mr-1" /> Mute
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "unmute" })} disabled={commandMutation.isPending}>
-          <Volume2 className="w-3 h-3 mr-1" /> Unmute
-        </Button>
+      {isSamsungLocal ? (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" size="sm" onClick={() => pairMutation.mutate()} disabled={pairMutation.isPending}>
+              {pairMutation.isPending ? "Pairing..." : display.paired ? "Pair Again" : "Pair"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "power_toggle" })} disabled={commandMutation.isPending}>
+              <Power className="w-3 h-3 mr-1" /> Power
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "volume_down" })} disabled={commandMutation.isPending}>
+              Vol -
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "volume_up" })} disabled={commandMutation.isPending}>
+              Vol +
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "mute" })} disabled={commandMutation.isPending}>
+              <VolumeX className="w-3 h-3 mr-1" /> Mute
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "set_input", value: inputSource || "HDMI1" })} disabled={commandMutation.isPending}>
+              HDMI
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Input Source</Label>
+              <Input value={inputSource} onChange={(event) => setInputSource(event.target.value)} placeholder="HDMI1" data-testid={`input-display-source-${display.id}`} />
+            </div>
+            <Button size="sm" onClick={() => commandMutation.mutate({ command: "set_input", value: inputSource })} disabled={commandMutation.isPending || !inputSource.trim()}>
+              Set
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "power_on" })} disabled={commandMutation.isPending}>
+              <Power className="w-3 h-3 mr-1" /> On
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "power_off" })} disabled={commandMutation.isPending}>
+              <PowerOff className="w-3 h-3 mr-1" /> Off
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "mute" })} disabled={commandMutation.isPending}>
+              <VolumeX className="w-3 h-3 mr-1" /> Mute
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => commandMutation.mutate({ command: "unmute" })} disabled={commandMutation.isPending}>
+              <Volume2 className="w-3 h-3 mr-1" /> Unmute
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Volume</Label>
+              <Input type="number" min={0} max={100} value={volume} onChange={(event) => setVolume(parseInt(event.target.value) || 0)} data-testid={`input-display-volume-${display.id}`} />
+            </div>
+            <Button size="sm" onClick={() => commandMutation.mutate({ command: "set_volume", value: volume })} disabled={commandMutation.isPending}>
+              Set
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Input Source</Label>
+              <Input value={inputSource} onChange={(event) => setInputSource(event.target.value)} placeholder="HDMI1" data-testid={`input-display-source-${display.id}`} />
+            </div>
+            <Button size="sm" onClick={() => commandMutation.mutate({ command: "set_input", value: inputSource })} disabled={commandMutation.isPending || !inputSource.trim()}>
+              Set
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LocalSamsungSetupPanel() {
+  const queryClient = useQueryClient();
+  const [manualName, setManualName] = useState("Samsung Frame");
+  const [manualIp, setManualIp] = useState("");
+  const [manualPort, setManualPort] = useState("8002");
+  const [discovered, setDiscovered] = useState<SamsungDiscoveredDisplay[]>([]);
+
+  const discoveryMutation = useMutation({
+    mutationFn: () => displayApi.discoverSamsung(),
+    onSuccess: (result) => {
+      setDiscovered(result.displays);
+      toast.success(`Found ${result.displays.length} Samsung TV${result.displays.length === 1 ? "" : "s"}`);
+    },
+    onError: (error: Error) => toast.error("Samsung discovery failed", { description: error.message }),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (display: { name: string; ip: string; port: number; modelName?: string }) => displayApi.create({
+      name: display.name,
+      brand: "samsung_frame",
+      ip: display.ip,
+      protocol: "samsung_local",
+      samsungPort: display.port,
+      samsungModel: display.modelName || null,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["displays"] });
+      setManualIp("");
+      toast.success("Display added. Pair it once and accept the prompt on the TV.");
+    },
+    onError: (error: Error) => toast.error("Display add failed", { description: error.message }),
+  });
+
+  function addManual() {
+    createMutation.mutate({
+      name: manualName.trim() || "Samsung Frame",
+      ip: manualIp.trim(),
+      port: parseInt(manualPort, 10) || 8002,
+    });
+  }
+
+  function addDiscovered(display: SamsungDiscoveredDisplay) {
+    createMutation.mutate({
+      name: display.name || `Samsung TV ${display.ip}`,
+      ip: display.ip,
+      port: display.port || 8002,
+      modelName: display.modelName,
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-400/30 dark:border-slate-800 bg-slate-300/40 dark:bg-slate-900/50 p-4 space-y-4">
+      <div>
+        <h3 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4 text-cyan-500" /> Add Samsung TV</h3>
+        <p className="text-xs text-muted-foreground mt-1">Find Samsung TVs on the local network, add one, then pair once from the TV prompt.</p>
       </div>
 
-      <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-        <div className="space-y-1">
-          <Label className="text-xs">Volume</Label>
-          <Input type="number" min={0} max={100} value={volume} onChange={(event) => setVolume(parseInt(event.target.value) || 0)} data-testid={`input-display-volume-${display.id}`} />
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending} data-testid="button-discover-samsung-displays">
+          <Search className="w-4 h-4 mr-2" /> {discoveryMutation.isPending ? "Finding..." : "Find Samsung TVs"}
+        </Button>
+        <span className="self-center text-xs text-muted-foreground">Works without SmartThings accounts or cloud tokens.</span>
+      </div>
+
+      {discovered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {discovered.map((display) => (
+            <div key={`${display.ip}:${display.port}`} className="rounded-md border border-slate-400/30 dark:border-slate-800 bg-slate-200/60 dark:bg-slate-950/40 p-3 space-y-2">
+              <div>
+                <div className="text-sm font-medium">{display.name}</div>
+                <div className="text-xs text-muted-foreground">{display.ip}:{display.port}{display.modelName ? ` · ${display.modelName}` : ""}</div>
+              </div>
+              <Button size="sm" onClick={() => addDiscovered(display)} disabled={createMutation.isPending || display.alreadyConfigured}>
+                {display.alreadyConfigured ? "Already Added" : "Add TV"}
+              </Button>
+            </div>
+          ))}
         </div>
-        <Button size="sm" onClick={() => commandMutation.mutate({ command: "set_volume", value: volume })} disabled={commandMutation.isPending}>
-          Set
-        </Button>
-      </div>
+      )}
 
-      <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_auto] gap-3 items-end">
         <div className="space-y-1">
-          <Label className="text-xs">Input Source</Label>
-          <Input value={inputSource} onChange={(event) => setInputSource(event.target.value)} placeholder="HDMI1" data-testid={`input-display-source-${display.id}`} />
+          <Label>Name</Label>
+          <Input value={manualName} onChange={(event) => setManualName(event.target.value)} data-testid="input-display-name" />
         </div>
-        <Button size="sm" onClick={() => commandMutation.mutate({ command: "set_input", value: inputSource })} disabled={commandMutation.isPending || !inputSource.trim()}>
-          Set
+        <div className="space-y-1">
+          <Label>IP Address</Label>
+          <Input value={manualIp} onChange={(event) => setManualIp(event.target.value)} placeholder="192.168.0.50" data-testid="input-display-ip" />
+        </div>
+        <div className="space-y-1">
+          <Label>Port</Label>
+          <Input value={manualPort} onChange={(event) => setManualPort(event.target.value)} placeholder="8002" data-testid="input-display-port" />
+        </div>
+        <Button onClick={addManual} disabled={createMutation.isPending || !manualIp.trim()} data-testid="button-add-display">
+          <Plus className="w-4 h-4 mr-2" /> Add
         </Button>
       </div>
     </div>
   );
 }
 
-function SetupPanel() {
+function AdvancedSmartThingsSetup() {
   const queryClient = useQueryClient();
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -208,102 +366,105 @@ function SetupPanel() {
   }
 
   return (
-    <div className="rounded-lg border border-slate-400/30 dark:border-slate-800 bg-slate-300/40 dark:bg-slate-900/50 p-4 space-y-4">
-      <div>
-        <h3 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4 text-cyan-500" /> Add SmartThings Display</h3>
-        <p className="text-xs text-muted-foreground mt-1">Use SmartThings OAuth so PTZ Command can refresh the 24-hour access token automatically.</p>
-      </div>
+    <details className="rounded-lg border border-slate-400/30 dark:border-slate-800 bg-slate-300/30 dark:bg-slate-900/40 p-4">
+      <summary className="cursor-pointer text-sm font-semibold">Advanced: SmartThings cloud setup</summary>
+      <div className="pt-4 space-y-4">
+        <div>
+          <h3 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4 text-cyan-500" /> Add SmartThings Display</h3>
+          <p className="text-xs text-muted-foreground mt-1">Use this when local Samsung control is not available or when a TV only exposes SmartThings controls.</p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label>OAuth Client ID</Label>
-          <Input value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="SmartThings app client ID" data-testid="input-smartthings-client-id" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>OAuth Client ID</Label>
+            <Input value={clientId} onChange={(event) => setClientId(event.target.value)} placeholder="SmartThings app client ID" data-testid="input-smartthings-client-id" />
+          </div>
+          <div className="space-y-1">
+            <Label>OAuth Client Secret</Label>
+            <Input type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="SmartThings app client secret" data-testid="input-smartthings-client-secret" />
+          </div>
         </div>
         <div className="space-y-1">
-          <Label>OAuth Client Secret</Label>
-          <Input type="password" value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} placeholder="SmartThings app client secret" data-testid="input-smartthings-client-secret" />
+          <Label>Redirect URI</Label>
+          <Input value={redirectUri} onChange={(event) => setRedirectUri(event.target.value)} data-testid="input-smartthings-redirect-uri" />
+          <p className="text-[11px] text-muted-foreground">Add this exact URI to your SmartThings OAuth app.</p>
+          {!redirectUriIsHttps && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              SmartThings requires an HTTPS redirect URI. Use an HTTPS tunnel or reverse proxy, then paste that callback URL here.
+            </p>
+          )}
         </div>
-      </div>
-      <div className="space-y-1">
-        <Label>Redirect URI</Label>
-        <Input value={redirectUri} onChange={(event) => setRedirectUri(event.target.value)} data-testid="input-smartthings-redirect-uri" />
-        <p className="text-[11px] text-muted-foreground">Add this exact URI to your SmartThings OAuth app.</p>
-        {!redirectUriIsHttps && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-400">
-            SmartThings requires an HTTPS redirect URI. Use an HTTPS tunnel or reverse proxy, then paste that callback URL here.
-          </p>
+        <div className="space-y-1">
+          <Label>OAuth Scopes</Label>
+          <Input value={scope} onChange={(event) => setScope(event.target.value)} data-testid="input-smartthings-scopes" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => oauthMutation.mutate()} disabled={oauthMutation.isPending || !clientId.trim() || !clientSecret.trim() || !redirectUriIsHttps} data-testid="button-authorize-smartthings">
+            {oauthMutation.isPending ? "Opening..." : oauthSession ? "Reconnect SmartThings" : "Connect SmartThings"}
+          </Button>
+          <Button variant="outline" onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending || !oauthSession?.accessToken} data-testid="button-discover-displays">
+            <Search className="w-4 h-4 mr-2" /> {discoveryMutation.isPending ? "Finding..." : "Find TVs"}
+          </Button>
+          {oauthSession && (
+            <span className="self-center text-xs text-emerald-600 dark:text-emerald-400">
+              Authorized until {new Date(oauthSession.expiresAt).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label>Brand</Label>
+            <Select value={brand} onValueChange={setBrand}>
+              <SelectTrigger data-testid="select-display-brand"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {DISPLAY_BRANDS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>SmartThings Device</Label>
+            <Select value={selectedDeviceId || "_manual"} onValueChange={(value) => selectDevice(value === "_manual" ? "" : value)}>
+              <SelectTrigger data-testid="select-smartthings-device"><SelectValue placeholder="Choose discovered device" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_manual">Manual device id</SelectItem>
+                {discovered.map((device) => (
+                  <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || device.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Name</Label>
+            <Input value={name} onChange={(event) => setName(event.target.value)} data-testid="input-smartthings-display-name" />
+          </div>
+          <div className="space-y-1">
+            <Label>IP Address</Label>
+            <Input value={ip} onChange={(event) => setIp(event.target.value)} placeholder="Optional" data-testid="input-smartthings-display-ip" />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label>SmartThings Device ID</Label>
+          <Input value={selectedDeviceId} onChange={(event) => setSelectedDeviceId(event.target.value)} placeholder="Device UUID" data-testid="input-smartthings-device-id" />
+        </div>
+
+        {discovered.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            Discovery returned {discovered.length} device{discovered.length === 1 ? "" : "s"}. Pick the TV, then add it.
+          </div>
         )}
-      </div>
-      <div className="space-y-1">
-        <Label>OAuth Scopes</Label>
-        <Input value={scope} onChange={(event) => setScope(event.target.value)} data-testid="input-smartthings-scopes" />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => oauthMutation.mutate()} disabled={oauthMutation.isPending || !clientId.trim() || !clientSecret.trim() || !redirectUriIsHttps} data-testid="button-authorize-smartthings">
-          {oauthMutation.isPending ? "Opening..." : oauthSession ? "Reconnect SmartThings" : "Connect SmartThings"}
+
+        <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !oauthSession?.accessToken || !selectedDeviceId.trim()} data-testid="button-add-smartthings-display">
+          <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add SmartThings Display"}
         </Button>
-        <Button variant="outline" onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending || !oauthSession?.accessToken} data-testid="button-discover-displays">
-          <Search className="w-4 h-4 mr-2" /> {discoveryMutation.isPending ? "Finding..." : "Find TVs"}
-        </Button>
-        {oauthSession && (
-          <span className="self-center text-xs text-emerald-600 dark:text-emerald-400">
-            Authorized until {new Date(oauthSession.expiresAt).toLocaleTimeString()}
-          </span>
-        )}
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label>Brand</Label>
-          <Select value={brand} onValueChange={setBrand}>
-            <SelectTrigger data-testid="select-display-brand"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {DISPLAY_BRANDS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label>SmartThings Device</Label>
-          <Select value={selectedDeviceId || "_manual"} onValueChange={(value) => selectDevice(value === "_manual" ? "" : value)}>
-            <SelectTrigger data-testid="select-smartthings-device"><SelectValue placeholder="Choose discovered device" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_manual">Manual device id</SelectItem>
-              {discovered.map((device) => (
-                <SelectItem key={device.deviceId} value={device.deviceId}>{device.label || device.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label>Name</Label>
-          <Input value={name} onChange={(event) => setName(event.target.value)} data-testid="input-display-name" />
-        </div>
-        <div className="space-y-1">
-          <Label>IP Address</Label>
-          <Input value={ip} onChange={(event) => setIp(event.target.value)} placeholder="Optional" data-testid="input-display-ip" />
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <Label>SmartThings Device ID</Label>
-        <Input value={selectedDeviceId} onChange={(event) => setSelectedDeviceId(event.target.value)} placeholder="Device UUID" data-testid="input-smartthings-device-id" />
-      </div>
-
-      {discovered.length > 0 && (
-        <div className="text-xs text-muted-foreground">
-          Discovery returned {discovered.length} device{discovered.length === 1 ? "" : "s"}. Pick the TV, then add it.
-        </div>
-      )}
-
-      <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !oauthSession?.accessToken || !selectedDeviceId.trim()} data-testid="button-add-display">
-        <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add Display"}
-      </Button>
-    </div>
+    </details>
   );
 }
 
 export default function DisplaysPage() {
-  const { data: displays = [] } = useQuery({
+  const { data: displays = [] } = useQuery<DisplayWithPairing[]>({
     queryKey: ["displays"],
     queryFn: displayApi.getAll,
   });
@@ -317,11 +478,12 @@ export default function DisplaysPage() {
               <Monitor className="w-5 h-5 text-cyan-500" /> Displays
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Control Samsung Frame TVs and other SmartThings displays from the same app that runs cameras, lights, scenes, and macros.
+              Control Samsung Frame TVs and other displays from the same app that runs cameras, lights, scenes, and macros.
             </p>
           </div>
 
-          <SetupPanel />
+          <LocalSamsungSetupPanel />
+          <AdvancedSmartThingsSetup />
 
           {displays.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed border-slate-400/40 dark:border-slate-800 p-12 text-center">

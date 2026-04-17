@@ -2,6 +2,17 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.2.0] - 2026-04-17
+
+### Added
+- **Local Samsung TV Discovery** — added LAN discovery for Samsung TVs so a new install can find Frame TVs without SmartThings setup
+- **Samsung Local Pairing** — added one-click pairing for Samsung local remote control, with pairing tokens stored server-side and redacted from API responses
+- **Local Display Commands** — added Samsung local power toggle, mute, volume up/down, and HDMI input commands for the Displays page, scenes, and macros
+
+### Changed
+- **Display Setup** — local Samsung setup is now the default Displays workflow, with SmartThings OAuth moved under advanced setup
+- **Version Display** — interface version labels now report v1.2.0
+
 ## [1.1.0] - 2026-04-16
 
 ### Added

@@ -143,6 +143,9 @@ if (useSqlite) {
       smartthings_token_expires_at TEXT,
       smartthings_client_id TEXT,
       smartthings_client_secret TEXT,
+      samsung_token TEXT,
+      samsung_port INTEGER DEFAULT 8002,
+      samsung_model TEXT,
       status TEXT NOT NULL DEFAULT 'offline',
       power_state TEXT,
       volume INTEGER,
@@ -183,6 +186,9 @@ if (useSqlite) {
     "ALTER TABLE display_devices ADD COLUMN smartthings_token_expires_at TEXT",
     "ALTER TABLE display_devices ADD COLUMN smartthings_client_id TEXT",
     "ALTER TABLE display_devices ADD COLUMN smartthings_client_secret TEXT",
+    "ALTER TABLE display_devices ADD COLUMN samsung_token TEXT",
+    "ALTER TABLE display_devices ADD COLUMN samsung_port INTEGER DEFAULT 8002",
+    "ALTER TABLE display_devices ADD COLUMN samsung_model TEXT",
   ]) {
     try {
       sqlite.exec(statement);
