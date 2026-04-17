@@ -133,14 +133,17 @@ function SetupPanel() {
   const [clientSecret, setClientSecret] = useState("");
   const [scope, setScope] = useState("r:devices:* x:devices:* r:locations:*");
   const [oauthSession, setOauthSession] = useState<SmartThingsOAuthSession | null>(null);
+  const [redirectUri, setRedirectUri] = useState(() => (
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/displays/smartthings/oauth/callback`
+      : ""
+  ));
   const [brand, setBrand] = useState("samsung_frame");
   const [name, setName] = useState("Samsung Frame");
   const [ip, setIp] = useState("");
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [discovered, setDiscovered] = useState<SmartThingsDiscoveredDevice[]>([]);
-  const redirectUri = typeof window !== "undefined"
-    ? `${window.location.origin}/api/displays/smartthings/oauth/callback`
-    : "";
+  const redirectUriIsHttps = redirectUri.trim().startsWith("https://");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -223,15 +226,20 @@ function SetupPanel() {
       </div>
       <div className="space-y-1">
         <Label>Redirect URI</Label>
-        <Input value={redirectUri} readOnly data-testid="input-smartthings-redirect-uri" />
+        <Input value={redirectUri} onChange={(event) => setRedirectUri(event.target.value)} data-testid="input-smartthings-redirect-uri" />
         <p className="text-[11px] text-muted-foreground">Add this exact URI to your SmartThings OAuth app.</p>
+        {!redirectUriIsHttps && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-400">
+            SmartThings requires an HTTPS redirect URI. Use an HTTPS tunnel or reverse proxy, then paste that callback URL here.
+          </p>
+        )}
       </div>
       <div className="space-y-1">
         <Label>OAuth Scopes</Label>
         <Input value={scope} onChange={(event) => setScope(event.target.value)} data-testid="input-smartthings-scopes" />
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => oauthMutation.mutate()} disabled={oauthMutation.isPending || !clientId.trim() || !clientSecret.trim()} data-testid="button-authorize-smartthings">
+        <Button onClick={() => oauthMutation.mutate()} disabled={oauthMutation.isPending || !clientId.trim() || !clientSecret.trim() || !redirectUriIsHttps} data-testid="button-authorize-smartthings">
           {oauthMutation.isPending ? "Opening..." : oauthSession ? "Reconnect SmartThings" : "Connect SmartThings"}
         </Button>
         <Button variant="outline" onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending || !oauthSession?.accessToken} data-testid="button-discover-displays">
