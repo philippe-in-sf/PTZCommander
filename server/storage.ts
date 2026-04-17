@@ -179,6 +179,9 @@ function sqliteRowToDisplayDevice(row: any): DisplayDevice {
     smartthingsTokenExpiresAt: row.smartthings_token_expires_at ? new Date(row.smartthings_token_expires_at) : null,
     smartthingsClientId: row.smartthings_client_id,
     smartthingsClientSecret: row.smartthings_client_secret,
+    samsungToken: row.samsung_token,
+    samsungPort: row.samsung_port,
+    samsungModel: row.samsung_model,
     status: row.status,
     powerState: row.power_state,
     volume: row.volume,
@@ -974,8 +977,8 @@ export class DatabaseStorage implements IStorage {
   async createDisplayDevice(display: InsertDisplayDevice): Promise<DisplayDevice> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token, smartthings_refresh_token, smartthings_token_expires_at, smartthings_client_id, smartthings_client_secret)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token, smartthings_refresh_token, smartthings_token_expires_at, smartthings_client_id, smartthings_client_secret, samsung_token, samsung_port, samsung_model)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         display.name,
         display.brand || "samsung_frame",
@@ -986,7 +989,10 @@ export class DatabaseStorage implements IStorage {
         display.smartthingsRefreshToken ?? null,
         display.smartthingsTokenExpiresAt ? new Date(display.smartthingsTokenExpiresAt).toISOString() : null,
         display.smartthingsClientId ?? null,
-        display.smartthingsClientSecret ?? null
+        display.smartthingsClientSecret ?? null,
+        display.samsungToken ?? null,
+        display.samsungPort ?? 8002,
+        display.samsungModel ?? null
       );
       return this.getDisplayDevice(Number(result.lastInsertRowid)) as Promise<DisplayDevice>;
     }
@@ -1008,6 +1014,9 @@ export class DatabaseStorage implements IStorage {
       if (updates.smartthingsTokenExpiresAt !== undefined) { fields.push('smartthings_token_expires_at = ?'); vals.push(updates.smartthingsTokenExpiresAt ? new Date(updates.smartthingsTokenExpiresAt).toISOString() : null); }
       if (updates.smartthingsClientId !== undefined) { fields.push('smartthings_client_id = ?'); vals.push(updates.smartthingsClientId); }
       if (updates.smartthingsClientSecret !== undefined) { fields.push('smartthings_client_secret = ?'); vals.push(updates.smartthingsClientSecret); }
+      if (updates.samsungToken !== undefined) { fields.push('samsung_token = ?'); vals.push(updates.samsungToken); }
+      if (updates.samsungPort !== undefined) { fields.push('samsung_port = ?'); vals.push(updates.samsungPort); }
+      if (updates.samsungModel !== undefined) { fields.push('samsung_model = ?'); vals.push(updates.samsungModel); }
       if (updates.status !== undefined) { fields.push('status = ?'); vals.push(updates.status); }
       if (updates.powerState !== undefined) { fields.push('power_state = ?'); vals.push(updates.powerState); }
       if (updates.volume !== undefined) { fields.push('volume = ?'); vals.push(updates.volume); }

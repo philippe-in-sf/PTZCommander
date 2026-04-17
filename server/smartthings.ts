@@ -163,6 +163,10 @@ export function commandForDisplayAction(action: {
       return { capability: "switch", command: "off" };
     case "set_volume":
       return { capability: "audioVolume", command: "setVolume", arguments: [Number(action.value)] };
+    case "volume_up":
+      return { capability: "audioVolume", command: "volumeUp" };
+    case "volume_down":
+      return { capability: "audioVolume", command: "volumeDown" };
     case "mute":
       return { capability: "audioMute", command: "mute" };
     case "unmute":

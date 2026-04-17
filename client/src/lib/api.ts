@@ -33,8 +33,18 @@ export interface SmartThingsDiscoveredDevice {
   capabilities: string[];
 }
 
+export interface SamsungDiscoveredDisplay {
+  ip: string;
+  port: number;
+  protocol: "samsung_local";
+  name: string;
+  modelName?: string;
+  location?: string;
+  alreadyConfigured: boolean;
+}
+
 export interface DisplayCommandPayload {
-  command: "power_on" | "power_off" | "set_volume" | "mute" | "unmute" | "set_input" | "custom";
+  command: "power_on" | "power_off" | "power_toggle" | "set_volume" | "volume_up" | "volume_down" | "mute" | "unmute" | "set_input" | "custom";
   value?: string | number | boolean;
   capability?: string;
   smartthingsCommand?: string;
@@ -369,6 +379,19 @@ export const displayApi = {
     return res.json();
   },
 
+  discoverSamsung: async (timeoutMs = 3500): Promise<{ displays: SamsungDiscoveredDisplay[] }> => {
+    const res = await fetch(`${API_BASE}/displays/samsung/discover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timeoutMs }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to discover Samsung TVs");
+    }
+    return res.json();
+  },
+
   discoverSmartThings: async (token: string): Promise<{ devices: SmartThingsDiscoveredDevice[] }> => {
     const res = await fetch(`${API_BASE}/displays/smartthings/discover`, {
       method: "POST",
@@ -437,6 +460,15 @@ export const displayApi = {
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
       throw new Error(payload?.message || "Failed to refresh display");
+    }
+    return res.json();
+  },
+
+  pair: async (id: number): Promise<DisplayDevice> => {
+    const res = await fetch(`${API_BASE}/displays/${id}/pair`, { method: "POST" });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to pair Samsung TV");
     }
     return res.json();
   },

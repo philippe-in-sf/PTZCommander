@@ -3,11 +3,16 @@ import { insertDisplayDeviceSchema, patchDisplayDeviceSchema } from "@shared/sch
 import { fromError } from "zod-validation-error";
 import { z } from "zod";
 import { SmartThingsClient, commandForDisplayAction } from "../smartthings";
+import { discoverSamsungDisplays, keyForSamsungAction, SamsungLocalDisplayClient } from "../samsung-local";
 import { logger } from "../logger";
 import type { DisplayDevice } from "@shared/schema";
 
 const smartThingsDiscoverSchema = z.object({
   token: z.string().min(10),
+});
+
+const samsungDiscoverSchema = z.object({
+  timeoutMs: z.number().int().min(500).max(10000).optional(),
 });
 
 const DEFAULT_SMARTTHINGS_SCOPE = "r:devices:* x:devices:* r:locations:*";
@@ -20,7 +25,7 @@ const smartThingsOAuthStartSchema = z.object({
 });
 
 const displayCommandSchema = z.object({
-  command: z.enum(["power_on", "power_off", "set_volume", "mute", "unmute", "set_input", "custom"]),
+  command: z.enum(["power_on", "power_off", "power_toggle", "set_volume", "volume_up", "volume_down", "mute", "unmute", "set_input", "custom"]),
   value: z.union([z.string(), z.number(), z.boolean()]).optional(),
   capability: z.string().optional(),
   smartthingsCommand: z.string().optional(),
@@ -43,6 +48,8 @@ function redactDisplay(display: DisplayDevice) {
     smartthingsToken: null,
     smartthingsRefreshToken: null,
     smartthingsClientSecret: null,
+    samsungToken: null,
+    paired: Boolean(display.samsungToken || display.smartthingsToken || display.smartthingsRefreshToken),
   };
 }
 
@@ -71,12 +78,26 @@ async function getSmartThingsClientForDisplay(ctx: RouteContext, display: Displa
 export async function executeDisplayAction(ctx: RouteContext, action: z.infer<typeof displayCommandSchema> & { displayId: number }) {
   const display = await ctx.storage.getDisplayDevice(action.displayId);
   if (!display) throw new Error("Display not found");
-  if (display.protocol !== "smartthings") throw new Error(`Unsupported display protocol: ${display.protocol}`);
-  if (!display.smartthingsToken || !display.smartthingsDeviceId) throw new Error("Display is missing SmartThings credentials");
 
-  const client = await getSmartThingsClientForDisplay(ctx, display);
-  const command = commandForDisplayAction(action);
-  await client.sendCommands(display.smartthingsDeviceId, [command]);
+  if (display.protocol === "smartthings") {
+    if (!display.smartthingsToken || !display.smartthingsDeviceId) throw new Error("Display is missing SmartThings credentials");
+    const client = await getSmartThingsClientForDisplay(ctx, display);
+    const command = action.command === "power_toggle"
+      ? {
+          capability: "switch",
+          command: (await client.getStatus(display.smartthingsDeviceId)).powerState === "on" ? "off" : "on",
+        }
+      : commandForDisplayAction(action);
+    await client.sendCommands(display.smartthingsDeviceId, [command]);
+  } else if (display.protocol === "samsung_local") {
+    if (!display.ip) throw new Error("Display is missing IP address");
+    const key = keyForSamsungAction(action);
+    if (!key) throw new Error(`Samsung local control does not support ${action.command}`);
+    const client = new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002, token: display.samsungToken });
+    await client.sendKey(key);
+  } else {
+    throw new Error(`Unsupported display protocol: ${display.protocol}`);
+  }
 
   const refreshed = await refreshDisplayStatus(ctx, display.id);
   ctx.addSessionLog("system", "Display", `${display.name}: ${action.command}`);
@@ -90,6 +111,21 @@ export async function executeDisplayAction(ctx: RouteContext, action: z.infer<ty
 async function refreshDisplayStatus(ctx: RouteContext, id: number) {
   const display = await ctx.storage.getDisplayDevice(id);
   if (!display) throw new Error("Display not found");
+  if (display.protocol === "samsung_local") {
+    if (!display.ip) return display;
+    try {
+      const info = await new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002, token: display.samsungToken }).getInfo();
+      return await ctx.storage.updateDisplayDevice(id, {
+        status: "online",
+        powerState: "on",
+        samsungPort: info.port,
+        samsungModel: info.modelName || display.samsungModel,
+      }) || display;
+    } catch (error) {
+      await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+      throw error;
+    }
+  }
   if (display.protocol !== "smartthings" || !display.smartthingsToken || !display.smartthingsDeviceId) {
     return display;
   }
@@ -137,6 +173,24 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       res.json({ devices: likelyDisplays.length > 0 ? likelyDisplays : devices });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to discover SmartThings devices" });
+    }
+  });
+
+  app.post("/api/displays/samsung/discover", async (req, res) => {
+    try {
+      const parsed = samsungDiscoverSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
+      const existing = await storage.getAllDisplayDevices();
+      const displays = await discoverSamsungDisplays(parsed.data.timeoutMs);
+      res.json({
+        displays: displays.map((display) => ({
+          ...display,
+          protocol: "samsung_local",
+          alreadyConfigured: existing.some((item) => item.protocol === "samsung_local" && item.ip === display.ip),
+        })),
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to discover Samsung TVs" });
     }
   });
 
@@ -199,6 +253,12 @@ export function registerDisplayRoutes(ctx: RouteContext) {
         } catch {
           refreshed = await storage.updateDisplayDevice(display.id, { status: "offline" }) || display;
         }
+      } else if (display.protocol === "samsung_local" && display.ip) {
+        try {
+          refreshed = await refreshDisplayStatus(ctx, display.id);
+        } catch {
+          refreshed = await storage.updateDisplayDevice(display.id, { status: "offline" }) || display;
+        }
       }
       broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
       res.status(201).json(redactDisplay(refreshed));
@@ -239,6 +299,23 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       res.json(redactDisplay(display));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to refresh display" });
+    }
+  });
+
+  app.post("/api/displays/:id/pair", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const display = await storage.getDisplayDevice(id);
+      if (!display) return res.status(404).json({ message: "Display not found" });
+      if (display.protocol !== "samsung_local") return res.status(400).json({ message: "Pairing is only available for local Samsung displays" });
+      if (!display.ip) return res.status(400).json({ message: "Display is missing IP address" });
+      const client = new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002 });
+      const token = await client.pair();
+      const updated = await storage.updateDisplayDevice(id, { samsungToken: token, status: "online" }) || display;
+      broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
+      res.json(redactDisplay(updated));
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to pair Samsung TV" });
     }
   });
 
