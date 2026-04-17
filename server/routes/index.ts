@@ -4,6 +4,7 @@ export { registerSwitcherRoutes } from "./switcher";
 export { registerSceneRoutes } from "./scene";
 export { registerLayoutRoutes } from "./layout";
 export { registerMacroRoutes } from "./macro";
+export { registerRunsheetRoutes } from "./runsheet";
 export { registerLightingRoutes } from "./lighting";
 export { registerDisplayRoutes } from "./display";
 export { registerSystemRoutes } from "./system";

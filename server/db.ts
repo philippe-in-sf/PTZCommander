@@ -111,6 +111,15 @@ if (useSqlite) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS runsheet_cues (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scene_button_id INTEGER NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp TEXT NOT NULL DEFAULT (datetime('now')),
@@ -158,6 +167,7 @@ if (useSqlite) {
 
   try {
     sqlite.exec("CREATE INDEX IF NOT EXISTS idx_presets_camera_id ON presets(camera_id)");
+    sqlite.exec("CREATE INDEX IF NOT EXISTS idx_runsheet_cues_scene_button_id ON runsheet_cues(scene_button_id)");
     sqlite.exec("CREATE INDEX IF NOT EXISTS idx_audit_logs_category_timestamp ON audit_logs(category, timestamp)");
   } catch {
   }

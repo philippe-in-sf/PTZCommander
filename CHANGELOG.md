@@ -2,6 +2,15 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.4.0] - 2026-04-17
+
+### Added
+- **Runsheet** — added a cue-by-cue Runsheet page backed by SQLite, with cues linked to existing scenes and optional operator notes
+- **Cue Navigation** — added drag-to-reorder cue rows plus Space / Shift+Space keyboard navigation for current cue stepping
+
+### Changed
+- **Version Display** — interface version labels now report v1.4.0
+
 ## [1.2.0] - 2026-04-17
 
 ### Added

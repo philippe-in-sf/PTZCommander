@@ -18,6 +18,7 @@ import {
   registerSceneRoutes,
   registerLayoutRoutes,
   registerMacroRoutes,
+  registerRunsheetRoutes,
   registerLightingRoutes,
   registerDisplayRoutes,
   registerSystemRoutes,
@@ -116,6 +117,7 @@ export async function registerRoutes(
   registerSceneRoutes(ctx);
   registerLayoutRoutes(ctx);
   registerMacroRoutes(ctx);
+  registerRunsheetRoutes(ctx);
   registerLightingRoutes(ctx);
   registerDisplayRoutes(ctx);
 
