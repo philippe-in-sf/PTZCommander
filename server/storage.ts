@@ -89,6 +89,8 @@ function sqliteRowToCamera(row: any): Camera {
     username: row.username,
     password: row.password,
     streamUrl: row.stream_url,
+    previewType: row.preview_type || (row.stream_url ? "snapshot" : "none"),
+    previewRefreshMs: row.preview_refresh_ms || 2000,
     atemInputId: row.atem_input_id,
     tallyState: row.tally_state || 'off',
     status: row.status,
@@ -249,8 +251,8 @@ export class DatabaseStorage implements IStorage {
   async createCamera(insertCamera: InsertCamera): Promise<Camera> {
     if (useSqlite && sqlite) {
       const stmt = sqlite.prepare(`
-        INSERT INTO cameras (name, ip, port, protocol, username, password, stream_url, atem_input_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cameras (name, ip, port, protocol, username, password, stream_url, preview_type, preview_refresh_ms, atem_input_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
         insertCamera.name,
@@ -260,6 +262,8 @@ export class DatabaseStorage implements IStorage {
         insertCamera.username || null,
         insertCamera.password || null,
         insertCamera.streamUrl || null,
+        insertCamera.previewType || (insertCamera.streamUrl ? "snapshot" : "none"),
+        insertCamera.previewRefreshMs || 2000,
         insertCamera.atemInputId || null
       );
       return this.getCamera(Number(result.lastInsertRowid)) as Promise<Camera>;
@@ -280,6 +284,8 @@ export class DatabaseStorage implements IStorage {
       if (updates.username !== undefined) { setClauses.push('username = ?'); values.push(updates.username); }
       if (updates.password !== undefined) { setClauses.push('password = ?'); values.push(updates.password); }
       if (updates.streamUrl !== undefined) { setClauses.push('stream_url = ?'); values.push(updates.streamUrl); }
+      if (updates.previewType !== undefined) { setClauses.push('preview_type = ?'); values.push(updates.previewType); }
+      if (updates.previewRefreshMs !== undefined) { setClauses.push('preview_refresh_ms = ?'); values.push(updates.previewRefreshMs); }
       if (updates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(updates.atemInputId); }
       if (updates.tallyState !== undefined) { setClauses.push('tally_state = ?'); values.push(updates.tallyState); }
       if (updates.status !== undefined) { setClauses.push('status = ?'); values.push(updates.status); }

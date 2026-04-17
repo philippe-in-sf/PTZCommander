@@ -2,6 +2,16 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.5.0] - 2026-04-17
+
+### Added
+- **Integrated Camera Preview** — cameras can now use snapshot polling, MJPEG streaming, WebRTC bridge, or browser USB/UVC sources for inline preview
+- **Preview Source Settings** — camera setup now stores preview type, preview URL, snapshot refresh rate, and local browser video input selection
+- **Preview Stream Proxy** — the server now proxies MJPEG streams and WHEP-style WebRTC offers so camera credentials and CORS stay behind the app
+
+### Changed
+- **Version Display** — interface version labels now report v1.5.0
+
 ## [1.2.0] - 2026-04-17
 
 ### Added

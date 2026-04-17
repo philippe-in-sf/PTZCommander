@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { Camera, Video, VideoOff, Maximize2 } from "lucide-react";
+import { Camera, Maximize2, MonitorUp, Radio, RefreshCw, Video, VideoOff } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { Camera as CameraType } from "@shared/schema";
 
 interface CameraPreviewProps {
@@ -11,32 +13,41 @@ interface CameraPreviewProps {
   refreshInterval?: number;
 }
 
-function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
+type PreviewType = "none" | "snapshot" | "mjpeg" | "webrtc" | "browser";
+
+function getPreviewType(camera: CameraType): PreviewType {
+  return (camera.previewType || (camera.streamUrl ? "snapshot" : "none")) as PreviewType;
+}
+
+function previewLabel(type: PreviewType) {
+  switch (type) {
+    case "snapshot": return "Snapshot";
+    case "mjpeg": return "MJPEG";
+    case "webrtc": return "WebRTC";
+    case "browser": return "USB";
+    default: return "No preview";
+  }
+}
+
+function SnapshotPreview({ camera, refreshInterval, className }: {
   camera: CameraType;
-  isSelected: boolean;
-  onSelect: () => void;
   refreshInterval: number;
+  className?: string;
 }) {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [fullscreen, setFullscreen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  const hasStream = !!camera.streamUrl;
-
   useEffect(() => {
-    if (!hasStream) return;
-
     const loadImage = () => {
       if (imgRef.current) {
         imgRef.current.onload = null;
         imgRef.current.onerror = null;
       }
 
-      const timestamp = Date.now();
-      const url = `/api/cameras/${camera.id}/snapshot?t=${timestamp}`;
+      const url = `/api/cameras/${camera.id}/snapshot?t=${Date.now()}`;
       const img = new Image();
       imgRef.current = img;
       img.onload = () => {
@@ -52,7 +63,7 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
     };
 
     loadImage();
-    timerRef.current = setInterval(loadImage, refreshInterval);
+    timerRef.current = setInterval(loadImage, Math.max(250, refreshInterval));
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -62,8 +73,246 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
         imgRef.current = null;
       }
     };
-  }, [camera.id, camera.streamUrl, refreshInterval, hasStream]);
+  }, [camera.id, refreshInterval]);
 
+  if (imgSrc && !error) {
+    return <img src={imgSrc} alt={camera.name} className={cn("w-full h-full object-cover", className)} />;
+  }
+
+  return <PreviewState loading={loading} error={error} label="No snapshot" />;
+}
+
+function MjpegPreview({ camera, className }: { camera: CameraType; className?: string }) {
+  const [srcKey, setSrcKey] = useState(Date.now());
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setError(false);
+    setLoading(true);
+    const timeout = setTimeout(() => setLoading(false), 1200);
+    return () => clearTimeout(timeout);
+  }, [camera.id, srcKey]);
+
+  if (error) {
+    return (
+      <PreviewState error label="No MJPEG signal">
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2 h-7 text-[10px]"
+          onClick={(event) => {
+            event.stopPropagation();
+            setSrcKey(Date.now());
+          }}
+        >
+          <RefreshCw className="w-3 h-3 mr-1" /> Retry
+        </Button>
+      </PreviewState>
+    );
+  }
+
+  return (
+    <>
+      {loading && <PreviewState loading label="Opening stream" />}
+      <img
+        src={`/api/cameras/${camera.id}/preview-stream?t=${srcKey}`}
+        alt={camera.name}
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          setLoading(false);
+          setError(true);
+        }}
+        className={cn("w-full h-full object-cover", loading && "hidden", className)}
+      />
+    </>
+  );
+}
+
+function waitForIceGathering(peer: RTCPeerConnection) {
+  if (peer.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, 1800);
+    peer.addEventListener("icegatheringstatechange", () => {
+      if (peer.iceGatheringState === "complete") {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  });
+}
+
+function WebRtcPreview({ camera, className }: { camera: CameraType; className?: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let peer: RTCPeerConnection | null = new RTCPeerConnection();
+    let cancelled = false;
+
+    async function start() {
+      if (!peer) return;
+      try {
+        setLoading(true);
+        setError(null);
+        peer.addTransceiver("video", { direction: "recvonly" });
+        peer.addTransceiver("audio", { direction: "recvonly" });
+        peer.ontrack = (event) => {
+          if (cancelled || !videoRef.current) return;
+          videoRef.current.srcObject = event.streams[0];
+          videoRef.current.play().catch(() => {});
+          setLoading(false);
+        };
+
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        await waitForIceGathering(peer);
+
+        const response = await fetch(`/api/cameras/${camera.id}/webrtc/offer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sdp: peer.localDescription?.sdp || offer.sdp }),
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new Error(payload?.message || "WebRTC bridge rejected the offer");
+        }
+
+        await peer.setRemoteDescription({ type: "answer", sdp: await response.text() });
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err.message || "WebRTC failed");
+          setLoading(false);
+        }
+      }
+    }
+
+    start();
+    return () => {
+      cancelled = true;
+      peer?.close();
+      peer = null;
+      if (videoRef.current?.srcObject) {
+        for (const track of (videoRef.current.srcObject as MediaStream).getTracks()) track.stop();
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [camera.id]);
+
+  if (error) return <PreviewState error label={error} />;
+
+  return (
+    <>
+      {loading && <PreviewState loading label="Connecting WebRTC" />}
+      <video ref={videoRef} autoPlay muted playsInline className={cn("w-full h-full object-cover", loading && "hidden", className)} />
+    </>
+  );
+}
+
+function BrowserVideoPreview({ camera, className }: { camera: CameraType; className?: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let cancelled = false;
+
+    async function start() {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Browser video input is not available");
+        }
+        setLoading(true);
+        setError(null);
+        const deviceId = camera.streamUrl?.trim();
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: deviceId ? { deviceId: { exact: deviceId } } : true,
+          audio: false,
+        });
+        if (cancelled) {
+          for (const track of stream.getTracks()) track.stop();
+          return;
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setLoading(false);
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err.message || "USB preview failed");
+          setLoading(false);
+        }
+      }
+    }
+
+    start();
+    return () => {
+      cancelled = true;
+      if (stream) {
+        for (const track of stream.getTracks()) track.stop();
+      }
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+  }, [camera.id, camera.streamUrl]);
+
+  if (error) return <PreviewState error label={error} />;
+
+  return (
+    <>
+      {loading && <PreviewState loading label="Opening video input" />}
+      <video ref={videoRef} autoPlay muted playsInline className={cn("w-full h-full object-cover", loading && "hidden", className)} />
+    </>
+  );
+}
+
+function PreviewMedia({ camera, refreshInterval, className }: {
+  camera: CameraType;
+  refreshInterval: number;
+  className?: string;
+}) {
+  const type = getPreviewType(camera);
+  if (type === "none" || (!camera.streamUrl && type !== "browser")) {
+    return <PreviewState label={type === "browser" ? "Use default browser input" : "No preview configured"} />;
+  }
+  if (type === "mjpeg") return <MjpegPreview camera={camera} className={className} />;
+  if (type === "webrtc") return <WebRtcPreview camera={camera} className={className} />;
+  if (type === "browser") return <BrowserVideoPreview camera={camera} className={className} />;
+  return <SnapshotPreview camera={camera} refreshInterval={refreshInterval} className={className} />;
+}
+
+function PreviewState({ loading = false, error = false, label, children }: {
+  loading?: boolean;
+  error?: boolean;
+  label: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="w-full h-full bg-slate-300 dark:bg-slate-900 flex flex-col items-center justify-center text-center px-3">
+      {loading ? (
+        <Video className="w-8 h-8 text-slate-600 dark:text-slate-600 animate-pulse" />
+      ) : error ? (
+        <VideoOff className="w-6 h-6 text-slate-600 dark:text-slate-700" />
+      ) : (
+        <Camera className="w-6 h-6 text-slate-600 dark:text-slate-700" />
+      )}
+      <p className="text-[10px] text-slate-600 dark:text-slate-700 mt-1 line-clamp-2">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function CameraFeed({ camera, isSelected, onSelect, refreshInterval }: {
+  camera: CameraType;
+  isSelected: boolean;
+  onSelect: () => void;
+  refreshInterval: number;
+}) {
+  const [fullscreen, setFullscreen] = useState(false);
+  const previewType = getPreviewType(camera);
+  const hasPreview = previewType !== "none" && (!!camera.streamUrl || previewType === "browser");
   const tallyState = camera.tallyState || (camera.isProgramOutput ? "program" : camera.isPreviewOutput ? "preview" : "off");
   const isPgm = tallyState === "program";
   const isPvw = tallyState === "preview";
@@ -84,31 +333,7 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
         )}
         data-testid={`camera-preview-${camera.id}`}
       >
-        {hasStream && imgSrc && !error ? (
-          <img
-            src={imgSrc}
-            alt={camera.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-slate-300 dark:bg-slate-900 flex items-center justify-center">
-            {hasStream && loading ? (
-              <div className="animate-pulse text-slate-600 dark:text-slate-600">
-                <Video className="w-8 h-8" />
-              </div>
-            ) : hasStream && error ? (
-              <div className="text-center">
-                <VideoOff className="w-6 h-6 text-slate-600 dark:text-slate-700 mx-auto" />
-                <p className="text-[10px] text-slate-600 dark:text-slate-700 mt-1">No signal</p>
-              </div>
-            ) : (
-              <div className="text-center">
-                <Camera className="w-6 h-6 text-slate-600 dark:text-slate-700 mx-auto" />
-                <p className="text-[10px] text-slate-600 dark:text-slate-700 mt-1">No stream URL</p>
-              </div>
-            )}
-          </div>
-        )}
+        <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} />
 
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-gradient-to-b from-black/70 to-transparent">
           <span className={cn(
@@ -118,30 +343,24 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
             {camera.name}
           </span>
           <div className="flex items-center gap-1">
-            {isPgm && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white">PGM</span>
-            )}
-            {isPvw && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-600 text-white">PVW</span>
-            )}
-            {isSelected && !isPgm && !isPvw && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-600 text-white">SEL</span>
-            )}
+            {isPgm && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white">PGM</span>}
+            {isPvw && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-600 text-white">PVW</span>}
+            {isSelected && !isPgm && !isPvw && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-600 text-white">SEL</span>}
           </div>
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-gradient-to-t from-black/70 to-transparent">
-          <span className="text-[9px] font-mono text-white/40">{camera.ip}</span>
+          <span className="text-[9px] font-mono text-white/50">{previewLabel(previewType)} / {camera.ip}</span>
           <div className={cn(
             "w-1.5 h-1.5 rounded-full",
-            camera.status === "online" ? "bg-green-500" : "bg-red-800"
+            camera.status === "online" ? "bg-green-500" : hasPreview ? "bg-amber-400" : "bg-red-800"
           )} />
         </div>
 
-        {hasStream && imgSrc && !error && (
+        {hasPreview && (
           <button
-            onClick={(e) => { e.stopPropagation(); setFullscreen(true); }}
-            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-black/50 text-white/70 hover:text-white"
+            onClick={(event) => { event.stopPropagation(); setFullscreen(true); }}
+            className="absolute top-8 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded bg-black/50 text-white/70 hover:text-white"
             data-testid={`camera-fullscreen-${camera.id}`}
           >
             <Maximize2 className="w-3 h-3" />
@@ -150,18 +369,37 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval = 2000 }: {
       </div>
 
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black border-slate-300 dark:border-slate-800">
-          {imgSrc && (
-            <div className="relative">
-              <img src={imgSrc} alt={camera.name} className="w-full" />
-              <div className="absolute top-3 left-3 text-sm font-mono font-bold text-white bg-black/50 px-2 py-1 rounded">
-                {camera.name}
-              </div>
+        <DialogContent className="max-w-5xl p-0 overflow-hidden bg-black border-slate-300 dark:border-slate-800">
+          <div className="relative aspect-video">
+            <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} />
+            <div className="absolute top-3 left-3 text-sm font-mono font-bold text-white bg-black/50 px-2 py-1 rounded">
+              {camera.name} / {previewLabel(previewType)}
             </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+export function CameraMonitor({ camera, refreshInterval = 2000, className }: {
+  camera: CameraType;
+  refreshInterval?: number;
+  className?: string;
+}) {
+  const previewType = getPreviewType(camera);
+
+  return (
+    <div
+      className={cn("relative aspect-video overflow-hidden rounded-lg border border-slate-300 dark:border-slate-800 bg-black", className)}
+      data-testid={`camera-monitor-${camera.id}`}
+    >
+      <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} />
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-gradient-to-b from-black/70 to-transparent">
+        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-white/80">{camera.name}</span>
+        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white/70">{previewLabel(previewType)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -169,7 +407,7 @@ export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval =
   return (
     <div className="bg-slate-200/80 dark:bg-slate-900/30 border border-slate-400/50 dark:border-slate-800 rounded-xl p-4">
       <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest mb-3 flex items-center gap-2 font-bold">
-        <Video className="w-3 h-3" /> Camera Preview
+        <MonitorUp className="w-3 h-3" /> Camera Preview
       </h3>
       <div className={cn(
         "grid gap-3",
@@ -184,6 +422,10 @@ export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval =
             refreshInterval={refreshInterval}
           />
         ))}
+      </div>
+      <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-500">
+        <Radio className="w-3 h-3" />
+        Snapshot, MJPEG, WebRTC bridge, and local USB inputs can be set per camera.
       </div>
     </div>
   );

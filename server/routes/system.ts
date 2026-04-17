@@ -18,6 +18,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
       websocketPath: "/ws",
       features: {
         cameras: true,
+        cameraPreview: true,
         presets: true,
         scenes: true,
         macros: true,
