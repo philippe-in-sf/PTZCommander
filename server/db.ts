@@ -146,6 +146,13 @@ if (useSqlite) {
       samsung_token TEXT,
       samsung_port INTEGER DEFAULT 8002,
       samsung_model TEXT,
+      hisense_port INTEGER DEFAULT 36669,
+      hisense_use_ssl INTEGER NOT NULL DEFAULT 1,
+      hisense_username TEXT DEFAULT 'hisenseservice',
+      hisense_password TEXT DEFAULT 'multimqttservice',
+      hisense_client_name TEXT DEFAULT 'PTZCommander',
+      hisense_model TEXT,
+      hisense_paired INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'offline',
       power_state TEXT,
       volume INTEGER,
@@ -189,6 +196,13 @@ if (useSqlite) {
     "ALTER TABLE display_devices ADD COLUMN samsung_token TEXT",
     "ALTER TABLE display_devices ADD COLUMN samsung_port INTEGER DEFAULT 8002",
     "ALTER TABLE display_devices ADD COLUMN samsung_model TEXT",
+    "ALTER TABLE display_devices ADD COLUMN hisense_port INTEGER DEFAULT 36669",
+    "ALTER TABLE display_devices ADD COLUMN hisense_use_ssl INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE display_devices ADD COLUMN hisense_username TEXT DEFAULT 'hisenseservice'",
+    "ALTER TABLE display_devices ADD COLUMN hisense_password TEXT DEFAULT 'multimqttservice'",
+    "ALTER TABLE display_devices ADD COLUMN hisense_client_name TEXT DEFAULT 'PTZCommander'",
+    "ALTER TABLE display_devices ADD COLUMN hisense_model TEXT",
+    "ALTER TABLE display_devices ADD COLUMN hisense_paired INTEGER NOT NULL DEFAULT 0",
   ]) {
     try {
       sqlite.exec(statement);
