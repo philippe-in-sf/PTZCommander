@@ -184,6 +184,13 @@ function sqliteRowToDisplayDevice(row: any): DisplayDevice {
     samsungToken: row.samsung_token,
     samsungPort: row.samsung_port,
     samsungModel: row.samsung_model,
+    hisensePort: row.hisense_port,
+    hisenseUseSsl: Boolean(row.hisense_use_ssl),
+    hisenseUsername: row.hisense_username,
+    hisensePassword: row.hisense_password,
+    hisenseClientName: row.hisense_client_name,
+    hisenseModel: row.hisense_model,
+    hisensePaired: Boolean(row.hisense_paired),
     status: row.status,
     powerState: row.power_state,
     volume: row.volume,
@@ -983,8 +990,8 @@ export class DatabaseStorage implements IStorage {
   async createDisplayDevice(display: InsertDisplayDevice): Promise<DisplayDevice> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token, smartthings_refresh_token, smartthings_token_expires_at, smartthings_client_id, smartthings_client_secret, samsung_token, samsung_port, samsung_model)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token, smartthings_refresh_token, smartthings_token_expires_at, smartthings_client_id, smartthings_client_secret, samsung_token, samsung_port, samsung_model, hisense_port, hisense_use_ssl, hisense_username, hisense_password, hisense_client_name, hisense_model, hisense_paired)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         display.name,
         display.brand || "samsung_frame",
@@ -998,7 +1005,14 @@ export class DatabaseStorage implements IStorage {
         display.smartthingsClientSecret ?? null,
         display.samsungToken ?? null,
         display.samsungPort ?? 8002,
-        display.samsungModel ?? null
+        display.samsungModel ?? null,
+        display.hisensePort ?? 36669,
+        display.hisenseUseSsl === false ? 0 : 1,
+        display.hisenseUsername ?? "hisenseservice",
+        display.hisensePassword ?? "multimqttservice",
+        display.hisenseClientName ?? "PTZCommander",
+        display.hisenseModel ?? null,
+        display.hisensePaired ? 1 : 0
       );
       return this.getDisplayDevice(Number(result.lastInsertRowid)) as Promise<DisplayDevice>;
     }
@@ -1023,6 +1037,13 @@ export class DatabaseStorage implements IStorage {
       if (updates.samsungToken !== undefined) { fields.push('samsung_token = ?'); vals.push(updates.samsungToken); }
       if (updates.samsungPort !== undefined) { fields.push('samsung_port = ?'); vals.push(updates.samsungPort); }
       if (updates.samsungModel !== undefined) { fields.push('samsung_model = ?'); vals.push(updates.samsungModel); }
+      if (updates.hisensePort !== undefined) { fields.push('hisense_port = ?'); vals.push(updates.hisensePort); }
+      if (updates.hisenseUseSsl !== undefined) { fields.push('hisense_use_ssl = ?'); vals.push(updates.hisenseUseSsl ? 1 : 0); }
+      if (updates.hisenseUsername !== undefined) { fields.push('hisense_username = ?'); vals.push(updates.hisenseUsername); }
+      if (updates.hisensePassword !== undefined) { fields.push('hisense_password = ?'); vals.push(updates.hisensePassword); }
+      if (updates.hisenseClientName !== undefined) { fields.push('hisense_client_name = ?'); vals.push(updates.hisenseClientName); }
+      if (updates.hisenseModel !== undefined) { fields.push('hisense_model = ?'); vals.push(updates.hisenseModel); }
+      if (updates.hisensePaired !== undefined) { fields.push('hisense_paired = ?'); vals.push(updates.hisensePaired ? 1 : 0); }
       if (updates.status !== undefined) { fields.push('status = ?'); vals.push(updates.status); }
       if (updates.powerState !== undefined) { fields.push('power_state = ?'); vals.push(updates.powerState); }
       if (updates.volume !== undefined) { fields.push('volume = ?'); vals.push(updates.volume); }
