@@ -26,11 +26,12 @@ export default defineConfig({
       : []),
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(projectRoot, "client", "src"),
-      "@shared": path.resolve(projectRoot, "shared"),
-      "@assets": path.resolve(projectRoot, "attached_assets"),
-    },
+    alias: [
+      { find: /^lucide-react$/, replacement: path.resolve(projectRoot, "client", "src", "lib", "lucide-react.ts") },
+      { find: "@shared", replacement: path.resolve(projectRoot, "shared") },
+      { find: "@assets", replacement: path.resolve(projectRoot, "attached_assets") },
+      { find: "@", replacement: path.resolve(projectRoot, "client", "src") },
+    ],
   },
   css: {
     postcss: {

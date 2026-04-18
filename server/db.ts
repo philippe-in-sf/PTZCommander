@@ -34,6 +34,8 @@ if (useSqlite) {
       username TEXT,
       password TEXT,
       stream_url TEXT,
+      preview_type TEXT NOT NULL DEFAULT 'snapshot',
+      preview_refresh_ms INTEGER NOT NULL DEFAULT 2000,
       atem_input_id INTEGER,
       tally_state TEXT NOT NULL DEFAULT 'off',
       status TEXT NOT NULL DEFAULT 'offline',
@@ -196,6 +198,21 @@ if (useSqlite) {
     sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN display_actions TEXT");
   } catch {
     // Column already exists — ignore
+  }
+
+  for (const statement of [
+    "ALTER TABLE cameras ADD COLUMN preview_type TEXT NOT NULL DEFAULT 'snapshot'",
+    "ALTER TABLE cameras ADD COLUMN preview_refresh_ms INTEGER NOT NULL DEFAULT 2000",
+  ]) {
+    try {
+      sqlite.exec(statement);
+    } catch {
+      // Column already exists — ignore
+    }
+  }
+  try {
+    sqlite.exec("UPDATE cameras SET preview_type = 'none' WHERE (stream_url IS NULL OR stream_url = '') AND preview_type = 'snapshot'");
+  } catch {
   }
 
   for (const statement of [

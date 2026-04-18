@@ -12,6 +12,8 @@ export const cameras = pgTable("cameras", {
   username: text("username"),
   password: text("password"),
   streamUrl: text("stream_url"),
+  previewType: text("preview_type").notNull().default("snapshot"),
+  previewRefreshMs: integer("preview_refresh_ms").notNull().default(2000),
   atemInputId: integer("atem_input_id"),
   tallyState: text("tally_state").notNull().default("off"),
   status: text("status").notNull().default("offline"),
@@ -162,6 +164,9 @@ export const insertCameraSchema = createInsertSchema(cameras).omit({
   tallyState: true,
   isProgramOutput: true,
   isPreviewOutput: true,
+}).extend({
+  previewType: z.enum(["none", "snapshot", "mjpeg", "webrtc", "browser"]).optional(),
+  previewRefreshMs: z.number().int().min(250).max(60000).optional(),
 });
 
 export const insertPresetSchema = createInsertSchema(presets).omit({
@@ -239,6 +244,7 @@ export const patchSwitcherSchema = insertSwitcherSchema.partial();
 
 export type Camera = typeof cameras.$inferSelect;
 export type InsertCamera = z.infer<typeof insertCameraSchema>;
+export type CameraPreviewType = NonNullable<InsertCamera["previewType"]>;
 export type Preset = typeof presets.$inferSelect;
 export type InsertPreset = z.infer<typeof insertPresetSchema>;
 export type Mixer = typeof mixers.$inferSelect;

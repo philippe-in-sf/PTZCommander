@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Camera, WifiOff, Settings, Trash2 } from "lucide-react";
+import { Camera, MonitorUp, Settings, Trash2, WifiOff } from "lucide-react";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ export interface CameraData {
   ip: string;
   port?: number;
   streamUrl?: string | null;
+  previewType?: "none" | "snapshot" | "mjpeg" | "webrtc" | "browser" | string;
+  previewRefreshMs?: number | null;
   atemInputId?: number | null;
   tallyState?: string;
   status: 'online' | 'offline' | 'tally';
@@ -21,7 +23,15 @@ interface CameraSelectorProps {
   cameras: CameraData[];
   selectedId: number;
   onSelect: (id: number) => void;
-  onUpdateCamera?: (id: number, updates: { name: string; ip: string; port: number; streamUrl?: string | null; atemInputId?: number | null }) => void;
+  onUpdateCamera?: (id: number, updates: {
+    name: string;
+    ip: string;
+    port: number;
+    streamUrl?: string | null;
+    previewType?: string;
+    previewRefreshMs?: number;
+    atemInputId?: number | null;
+  }) => void;
   onDeleteCamera?: (id: number) => void;
 }
 
@@ -33,7 +43,9 @@ export function CameraSelector({
   onDeleteCamera 
 }: CameraSelectorProps) {
   const [editingCamera, setEditingCamera] = useState<CameraData | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, streamUrl: '', atemInputId: '' });
+  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, streamUrl: '', previewType: 'none', previewRefreshMs: 2000, atemInputId: '' });
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [videoDeviceError, setVideoDeviceError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
@@ -44,8 +56,11 @@ export function CameraSelector({
       ip: cam.ip, 
       port: cam.port || 52381,
       streamUrl: cam.streamUrl || '',
+      previewType: cam.previewType || (cam.streamUrl ? 'snapshot' : 'none'),
+      previewRefreshMs: cam.previewRefreshMs || 2000,
       atemInputId: cam.atemInputId ? String(cam.atemInputId) : '',
     });
+    setVideoDeviceError("");
     setConfirmDelete(false);
   };
 
@@ -55,7 +70,9 @@ export function CameraSelector({
         name: editForm.name,
         ip: editForm.ip,
         port: editForm.port,
-        streamUrl: editForm.streamUrl || null,
+        streamUrl: editForm.previewType === 'none' ? null : editForm.streamUrl || null,
+        previewType: editForm.previewType,
+        previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
         atemInputId: editForm.atemInputId ? parseInt(editForm.atemInputId) : null,
       });
     }
@@ -68,6 +85,21 @@ export function CameraSelector({
     }
     setEditingCamera(null);
     setConfirmDelete(false);
+  };
+
+  const loadVideoInputs = async () => {
+    setVideoDeviceError("");
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices || !navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Browser video devices are not available");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      stream.getTracks().forEach((track) => track.stop());
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+    } catch (error: any) {
+      setVideoDeviceError(error.message || "Could not list browser video inputs");
+    }
   };
 
   return (
@@ -194,18 +226,75 @@ export function CameraSelector({
                 </p>
               </div>
               <div>
-                <Label htmlFor="edit-stream">Snapshot/Stream URL</Label>
-                <Input
-                  id="edit-stream"
-                  value={editForm.streamUrl}
-                  onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
-                  placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
-                  data-testid="input-camera-stream-url"
-                />
+                <Label htmlFor="edit-preview-type">Preview Source</Label>
+                <select
+                  id="edit-preview-type"
+                  value={editForm.previewType}
+                  onChange={(e) => setEditForm({ ...editForm, previewType: e.target.value, streamUrl: e.target.value === 'none' ? '' : editForm.streamUrl })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  data-testid="select-camera-preview-type"
+                >
+                  <option value="none">No inline preview</option>
+                  <option value="snapshot">HTTP snapshot polling</option>
+                  <option value="mjpeg">MJPEG stream</option>
+                  <option value="webrtc">WebRTC bridge (WHEP)</option>
+                  <option value="browser">Browser USB/UVC input</option>
+                </select>
                 <p className="text-xs text-slate-500 mt-1">
-                  HTTP URL for camera snapshot (JPEG). Used for live preview on dashboard.
+                  PTZOptics, Fomako, and Marshall cameras commonly expose snapshot or MJPEG URLs. ATEM USB output appears as a browser video input.
                 </p>
               </div>
+              {editForm.previewType !== 'none' && editForm.previewType !== 'browser' && (
+                <div>
+                  <Label htmlFor="edit-stream">Preview URL</Label>
+                  <Input
+                    id="edit-stream"
+                    value={editForm.streamUrl}
+                    onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
+                    placeholder={editForm.previewType === 'webrtc' ? "http://127.0.0.1:8080/camera/whep" : "http://192.168.0.27/cgi-bin/snapshot.cgi"}
+                    data-testid="input-camera-stream-url"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Snapshot and MJPEG are proxied by the app. WebRTC expects a WHEP-compatible bridge endpoint.
+                  </p>
+                </div>
+              )}
+              {editForm.previewType === 'browser' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="edit-browser-video">Local Video Input</Label>
+                    <Button type="button" size="sm" variant="outline" onClick={loadVideoInputs} data-testid="button-load-video-inputs">
+                      <MonitorUp className="w-3 h-3 mr-1" /> Detect Inputs
+                    </Button>
+                  </div>
+                  <select
+                    id="edit-browser-video"
+                    value={editForm.streamUrl}
+                    onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                    data-testid="select-camera-browser-video"
+                  >
+                    <option value="">Default browser camera</option>
+                    {videoDevices.map((device, index) => (
+                      <option key={device.deviceId} value={device.deviceId}>{device.label || `Video input ${index + 1}`}</option>
+                    ))}
+                  </select>
+                  {videoDeviceError && <p className="text-xs text-red-500">{videoDeviceError}</p>}
+                </div>
+              )}
+              {editForm.previewType === 'snapshot' && (
+                <div>
+                  <Label htmlFor="edit-preview-refresh">Snapshot Refresh (ms)</Label>
+                  <Input
+                    id="edit-preview-refresh"
+                    type="number"
+                    min={250}
+                    value={editForm.previewRefreshMs}
+                    onChange={(e) => setEditForm({ ...editForm, previewRefreshMs: parseInt(e.target.value) || 2000 })}
+                    data-testid="input-camera-preview-refresh"
+                  />
+                </div>
+              )}
               <div>
                 <Label htmlFor="edit-atem-input">ATEM Input Number</Label>
                 <Input
