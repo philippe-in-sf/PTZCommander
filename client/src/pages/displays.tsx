@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { displayApi, type DisplayCommandPayload, type SamsungDiscoveredDisplay, type SmartThingsDiscoveredDevice, type SmartThingsOAuthSession } from "@/lib/api";
+import { displayApi, type DisplayCommandPayload, type HisenseDiscoveredDisplay, type SamsungDiscoveredDisplay, type SmartThingsDiscoveredDevice, type SmartThingsOAuthSession } from "@/lib/api";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,10 @@ function DisplayCard({ display }: { display: DisplayWithPairing }) {
   const queryClient = useQueryClient();
   const [volume, setVolume] = useState(display.volume ?? 20);
   const [inputSource, setInputSource] = useState(display.inputSource ?? "");
+  const [authCode, setAuthCode] = useState("");
   const isSamsungLocal = display.protocol === "samsung_local";
+  const isHisenseLocal = display.protocol === "hisense_vidaa";
+  const isLocalDisplay = isSamsungLocal || isHisenseLocal;
 
   useEffect(() => {
     setVolume(display.volume ?? 20);
@@ -46,10 +49,11 @@ function DisplayCard({ display }: { display: DisplayWithPairing }) {
   });
 
   const pairMutation = useMutation({
-    mutationFn: () => displayApi.pair(display.id),
+    mutationFn: () => displayApi.pair(display.id, isHisenseLocal ? { authCode: authCode.trim() } : undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["displays"] });
-      toast.success("Samsung TV paired");
+      setAuthCode("");
+      toast.success("Display paired");
     },
     onError: (error: Error) => toast.error("Pairing failed", { description: error.message }),
   });
@@ -84,7 +88,7 @@ function DisplayCard({ display }: { display: DisplayWithPairing }) {
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             {DISPLAY_BRANDS.find((brand) => brand.value === display.brand)?.label || display.brand}
-            {isSamsungLocal ? " · Local network" : " · SmartThings"}
+            {isLocalDisplay ? " · Local network" : " · SmartThings"}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -102,15 +106,21 @@ function DisplayCard({ display }: { display: DisplayWithPairing }) {
           {online ? "Online" : "Offline"}
         </div>
         <div className="text-xs text-muted-foreground mt-1">{displayStatus(display)}</div>
-        {isSamsungLocal && (
+        {isLocalDisplay && (
           <div className="text-xs text-muted-foreground mt-1">
-            {display.paired ? "Paired for remote control" : "Pair once, then accept the prompt on the TV"}
+            {display.paired ? "Paired for remote control" : isHisenseLocal ? "Pair if the TV asks for a 4-digit code" : "Pair once, then accept the prompt on the TV"}
           </div>
         )}
       </div>
 
-      {isSamsungLocal ? (
+      {isLocalDisplay ? (
         <>
+          {isHisenseLocal && !display.paired && (
+            <div className="space-y-1">
+              <Label className="text-xs">Auth Code</Label>
+              <Input value={authCode} onChange={(event) => setAuthCode(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="Optional 4-digit code" data-testid={`input-display-auth-code-${display.id}`} />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm" onClick={() => pairMutation.mutate()} disabled={pairMutation.isPending}>
               {pairMutation.isPending ? "Pairing..." : display.paired ? "Pair Again" : "Pair"}
@@ -278,6 +288,124 @@ function LocalSamsungSetupPanel() {
           <Input value={manualPort} onChange={(event) => setManualPort(event.target.value)} placeholder="8002" data-testid="input-display-port" />
         </div>
         <Button onClick={addManual} disabled={createMutation.isPending || !manualIp.trim()} data-testid="button-add-display">
+          <Plus className="w-4 h-4 mr-2" /> Add
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function LocalHisenseSetupPanel() {
+  const queryClient = useQueryClient();
+  const [manualName, setManualName] = useState("Hisense Canvas");
+  const [manualIp, setManualIp] = useState("");
+  const [manualPort, setManualPort] = useState("36669");
+  const [manualUseSsl, setManualUseSsl] = useState("true");
+  const [discovered, setDiscovered] = useState<HisenseDiscoveredDisplay[]>([]);
+
+  const discoveryMutation = useMutation({
+    mutationFn: () => displayApi.discoverHisense(),
+    onSuccess: (result) => {
+      setDiscovered(result.displays);
+      toast.success(`Found ${result.displays.length} Hisense TV${result.displays.length === 1 ? "" : "s"}`);
+    },
+    onError: (error: Error) => toast.error("Hisense discovery failed", { description: error.message }),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (display: { name: string; ip: string; port: number; useSsl: boolean; modelName?: string }) => displayApi.create({
+      name: display.name,
+      brand: "hisense_canvas",
+      ip: display.ip,
+      protocol: "hisense_vidaa",
+      hisensePort: display.port,
+      hisenseUseSsl: display.useSsl,
+      hisenseUsername: "hisenseservice",
+      hisensePassword: "multimqttservice",
+      hisenseClientName: "PTZCommander",
+      hisenseModel: display.modelName || null,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["displays"] });
+      setManualIp("");
+      toast.success("Canvas TV added. Pair it if the TV asks for a code.");
+    },
+    onError: (error: Error) => toast.error("Canvas add failed", { description: error.message }),
+  });
+
+  function addManual() {
+    createMutation.mutate({
+      name: manualName.trim() || "Hisense Canvas",
+      ip: manualIp.trim(),
+      port: parseInt(manualPort, 10) || 36669,
+      useSsl: manualUseSsl === "true",
+    });
+  }
+
+  function addDiscovered(display: HisenseDiscoveredDisplay) {
+    createMutation.mutate({
+      name: display.name || `Hisense Canvas ${display.ip}`,
+      ip: display.ip,
+      port: display.port || 36669,
+      useSsl: display.useSsl !== false,
+      modelName: display.modelName,
+    });
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-400/30 dark:border-slate-800 bg-slate-300/40 dark:bg-slate-900/50 p-4 space-y-4">
+      <div>
+        <h3 className="font-semibold flex items-center gap-2"><Plus className="w-4 h-4 text-cyan-500" /> Add Hisense Canvas TV</h3>
+        <p className="text-xs text-muted-foreground mt-1">Find VIDAA-based Hisense TVs on the local network, then pair with the TV code only if prompted.</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending} data-testid="button-discover-hisense-displays">
+          <Search className="w-4 h-4 mr-2" /> {discoveryMutation.isPending ? "Finding..." : "Find Canvas TVs"}
+        </Button>
+        <span className="self-center text-xs text-muted-foreground">Uses VIDAA local MQTT on port 36669.</span>
+      </div>
+
+      {discovered.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {discovered.map((display) => (
+            <div key={`${display.ip}:${display.port}`} className="rounded-md border border-slate-400/30 dark:border-slate-800 bg-slate-200/60 dark:bg-slate-950/40 p-3 space-y-2">
+              <div>
+                <div className="text-sm font-medium">{display.name}</div>
+                <div className="text-xs text-muted-foreground">{display.ip}:{display.port}{display.modelName ? ` · ${display.modelName}` : ""}</div>
+              </div>
+              <Button size="sm" onClick={() => addDiscovered(display)} disabled={createMutation.isPending || display.alreadyConfigured}>
+                {display.alreadyConfigured ? "Already Added" : "Add TV"}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_140px_auto] gap-3 items-end">
+        <div className="space-y-1">
+          <Label>Name</Label>
+          <Input value={manualName} onChange={(event) => setManualName(event.target.value)} data-testid="input-hisense-display-name" />
+        </div>
+        <div className="space-y-1">
+          <Label>IP Address</Label>
+          <Input value={manualIp} onChange={(event) => setManualIp(event.target.value)} placeholder="192.168.0.60" data-testid="input-hisense-display-ip" />
+        </div>
+        <div className="space-y-1">
+          <Label>Port</Label>
+          <Input value={manualPort} onChange={(event) => setManualPort(event.target.value)} placeholder="36669" data-testid="input-hisense-display-port" />
+        </div>
+        <div className="space-y-1">
+          <Label>Transport</Label>
+          <Select value={manualUseSsl} onValueChange={setManualUseSsl}>
+            <SelectTrigger data-testid="select-hisense-transport"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">Encrypted</SelectItem>
+              <SelectItem value="false">Plain</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={addManual} disabled={createMutation.isPending || !manualIp.trim()} data-testid="button-add-hisense-display">
           <Plus className="w-4 h-4 mr-2" /> Add
         </Button>
       </div>
@@ -483,6 +611,7 @@ export default function DisplaysPage() {
           </div>
 
           <LocalSamsungSetupPanel />
+          <LocalHisenseSetupPanel />
           <AdvancedSmartThingsSetup />
 
           {displays.length === 0 ? (
