@@ -4,6 +4,7 @@ import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import net from "net";
 import os from "os";
+import { Readable } from "stream";
 import { z } from "zod";
 
 const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
@@ -35,6 +36,16 @@ const importDiscoveredSchema = z.object({
     streamUrl: z.string().optional().nullable(),
   })).min(1).max(64),
 });
+
+const webrtcOfferSchema = z.object({
+  sdp: z.string().min(1),
+});
+
+function cameraAuthHeaders(camera: { username: string | null; password: string | null }) {
+  return camera.username && camera.password
+    ? { Authorization: "Basic " + Buffer.from(`${camera.username}:${camera.password}`).toString("base64") }
+    : {};
+}
 
 function ipv4ToInt(ip: string) {
   return ip.split(".").reduce((acc, part) => ((acc << 8) + Number(part)) >>> 0, 0);
@@ -225,6 +236,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
           port: candidate.port,
           protocol: "visca",
           streamUrl: candidate.streamUrl || null,
+          previewType: candidate.streamUrl ? "snapshot" : "none",
         });
         existingIps.add(candidate.ip);
         const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
@@ -264,7 +276,11 @@ export function registerCameraRoutes(ctx: RouteContext) {
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }
-      const camera = await storage.createCamera(result.data);
+      const camera = await storage.createCamera({
+        ...result.data,
+        previewType: result.data.previewType ?? (result.data.streamUrl ? "snapshot" : "none"),
+        previewRefreshMs: result.data.previewRefreshMs ?? 2000,
+      });
       logger.info("camera", `Camera created: ${camera.name}`, { action: "camera:create", details: { cameraId: camera.id, name: camera.name, ip: camera.ip } });
       const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
       await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
@@ -364,9 +380,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
       try {
         const response = await fetch(camera.streamUrl, {
           signal: controller.signal,
-          headers: camera.username && camera.password
-            ? { 'Authorization': 'Basic ' + Buffer.from(`${camera.username}:${camera.password}`).toString('base64') }
-            : {},
+          headers: cameraAuthHeaders(camera),
         });
         clearTimeout(timeout);
 
@@ -389,6 +403,92 @@ export function registerCameraRoutes(ctx: RouteContext) {
       }
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to get snapshot" });
+    }
+  });
+
+  app.get("/api/cameras/:id/preview-stream", async (req, res) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const id = parseInt(req.params.id);
+      const camera = await storage.getCamera(id);
+      if (!camera) return res.status(404).json({ message: "Camera not found" });
+      if (!camera.streamUrl) return res.status(404).json({ message: "No preview URL configured" });
+
+      req.on("close", () => controller.abort());
+
+      const response = await fetch(camera.streamUrl, {
+        signal: controller.signal,
+        headers: cameraAuthHeaders(camera),
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        return res.status(502).json({ message: `Camera returned ${response.status}` });
+      }
+      if (!response.body) {
+        return res.status(502).json({ message: "Camera returned an empty stream" });
+      }
+
+      res.setHeader("Content-Type", response.headers.get("content-type") || "multipart/x-mixed-replace");
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      Readable.fromWeb(response.body as any).on("error", () => res.end()).pipe(res);
+    } catch (error: any) {
+      clearTimeout(timeout);
+      if (error.name === "AbortError" && !res.headersSent) {
+        return res.status(504).json({ message: "Camera preview stream timed out" });
+      }
+      if (!res.headersSent) {
+        res.status(502).json({ message: error.message || "Failed to open camera preview stream" });
+      } else {
+        res.end();
+      }
+    }
+  });
+
+  app.post("/api/cameras/:id/webrtc/offer", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const camera = await storage.getCamera(id);
+      if (!camera) return res.status(404).json({ message: "Camera not found" });
+      if (!camera.streamUrl) return res.status(404).json({ message: "No WebRTC endpoint configured" });
+
+      const parsed = webrtcOfferSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: fromError(parsed.error).toString() });
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch(camera.streamUrl, {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            ...cameraAuthHeaders(camera),
+            "Content-Type": "application/sdp",
+            "Accept": "application/sdp",
+          },
+          body: parsed.data.sdp,
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          return res.status(502).json({ message: `WebRTC bridge returned ${response.status}` });
+        }
+
+        res.setHeader("Content-Type", "application/sdp");
+        res.send(await response.text());
+      } catch (offerError: any) {
+        clearTimeout(timeout);
+        if (offerError.name === "AbortError") {
+          return res.status(504).json({ message: "WebRTC bridge offer timed out" });
+        }
+        return res.status(502).json({ message: offerError.message || "Failed to reach WebRTC bridge" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create WebRTC offer" });
     }
   });
 

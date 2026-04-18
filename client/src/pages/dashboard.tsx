@@ -8,7 +8,7 @@ import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
 import { HuePanel } from "@/components/lighting/hue-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
-import { CameraPreview } from "@/components/ptz/camera-preview";
+import { CameraMonitor, CameraPreview } from "@/components/ptz/camera-preview";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { SessionLog } from "@/components/logs/session-log";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
@@ -36,6 +36,7 @@ const StudioGlass = lazy(() => import("@/components/skins/studio-glass"));
 const CommandCenter = lazy(() => import("@/components/skins/command-center"));
 
 const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
+type PreviewType = "none" | "snapshot" | "mjpeg" | "webrtc" | "browser";
 
 function discoveredCameraKey(camera: Pick<DiscoveredCamera, "ip" | "port">) {
   return `${camera.ip}:${camera.port}`;
@@ -69,7 +70,14 @@ export default function Dashboard() {
     return window.localStorage.getItem(FIRST_RUN_DISCOVERY_KEY) === "true";
   });
   const [hasAutoScannedDiscovery, setHasAutoScannedDiscovery] = useState(false);
-  const [newCamera, setNewCamera] = useState({ name: "", ip: "", port: 52381, streamUrl: "" });
+  const [newCamera, setNewCamera] = useState<{ name: string; ip: string; port: number; streamUrl: string; previewType: PreviewType; previewRefreshMs: number }>({
+    name: "",
+    ip: "",
+    port: 52381,
+    streamUrl: "",
+    previewType: "none",
+    previewRefreshMs: 2000,
+  });
   const [panTiltSpeed, setPanTiltSpeed] = useState(0.5);
 
   const ws = useWebSocket();
@@ -112,7 +120,7 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cameras"] });
       setAddCameraOpen(false);
-      setNewCamera({ name: "", ip: "", port: 52381, streamUrl: "" });
+      setNewCamera({ name: "", ip: "", port: 52381, streamUrl: "", previewType: "none", previewRefreshMs: 2000 });
       toast.success("Camera added successfully");
     },
     onError: (error: Error) => {
@@ -293,7 +301,9 @@ export default function Dashboard() {
       ip: newCamera.ip,
       port: newCamera.port,
       protocol: "visca",
-      streamUrl: newCamera.streamUrl || null,
+      streamUrl: newCamera.previewType === "none" ? null : newCamera.streamUrl || null,
+      previewType: newCamera.previewType,
+      previewRefreshMs: newCamera.previewRefreshMs,
     });
   };
 
@@ -598,18 +608,52 @@ export default function Dashboard() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="stream-url">Snapshot URL (optional)</Label>
-                      <Input
-                        id="stream-url"
-                        value={newCamera.streamUrl}
-                        onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
-                        placeholder="http://192.168.0.27/cgi-bin/snapshot.cgi"
-                        data-testid="input-new-camera-stream-url"
-                      />
+                      <Label htmlFor="preview-type">Preview Source</Label>
+                      <select
+                        id="preview-type"
+                        value={newCamera.previewType}
+                        onChange={(e) => {
+                          const previewType = e.target.value as PreviewType;
+                          setNewCamera({ ...newCamera, previewType, streamUrl: previewType === "none" ? "" : newCamera.streamUrl });
+                        }}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                        data-testid="select-new-camera-preview-type"
+                      >
+                        <option value="none">No inline preview</option>
+                        <option value="snapshot">HTTP snapshot polling</option>
+                        <option value="mjpeg">MJPEG stream</option>
+                        <option value="webrtc">WebRTC bridge (WHEP)</option>
+                        <option value="browser">Browser USB/UVC input</option>
+                      </select>
                       <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                        HTTP URL for JPEG snapshot. Used for live preview.
+                        Add or edit camera settings later to choose local USB inputs.
                       </p>
                     </div>
+                    {newCamera.previewType !== "none" && newCamera.previewType !== "browser" && (
+                      <div>
+                        <Label htmlFor="stream-url">Preview URL</Label>
+                        <Input
+                          id="stream-url"
+                          value={newCamera.streamUrl}
+                          onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
+                          placeholder={newCamera.previewType === "webrtc" ? "http://127.0.0.1:8080/camera/whep" : "http://192.168.0.27/cgi-bin/snapshot.cgi"}
+                          data-testid="input-new-camera-stream-url"
+                        />
+                      </div>
+                    )}
+                    {newCamera.previewType === "snapshot" && (
+                      <div>
+                        <Label htmlFor="preview-refresh">Snapshot Refresh (ms)</Label>
+                        <Input
+                          id="preview-refresh"
+                          type="number"
+                          min={250}
+                          value={newCamera.previewRefreshMs}
+                          onChange={(e) => setNewCamera({ ...newCamera, previewRefreshMs: parseInt(e.target.value) || 2000 })}
+                          data-testid="input-new-camera-preview-refresh"
+                        />
+                      </div>
+                    )}
                     <Button onClick={handleAddCamera} className="w-full" data-testid="button-save-new-camera">
                       Add Camera
                     </Button>
@@ -639,6 +683,8 @@ export default function Dashboard() {
                 ip: c.ip,
                 port: c.port,
                 streamUrl: c.streamUrl,
+                previewType: c.previewType,
+                previewRefreshMs: c.previewRefreshMs,
                 atemInputId: c.atemInputId,
                 tallyState: c.tallyState || 'off',
                 status: c.status as 'online' | 'offline' | 'tally',
@@ -656,20 +702,25 @@ export default function Dashboard() {
           <section className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
             
             <div className="lg:col-span-5 flex flex-col gap-6">
-              <div className="glass-panel rounded-2xl p-8 flex-1 flex flex-col items-center justify-center relative overflow-hidden group border-cyan-500/20">
+              <div className="glass-panel rounded-2xl p-6 flex-1 flex flex-col items-center justify-center relative overflow-hidden group border-cyan-500/20">
                 <div className="absolute inset-0 bg-[url('/src/assets/tech-grid.png')] bg-cover opacity-10 pointer-events-none mix-blend-overlay" />
                 
                 <div className="absolute top-4 left-4 font-mono text-xs text-cyan-600/70 dark:text-cyan-500/70 border border-cyan-500/30 px-2 py-1 rounded bg-cyan-100/30 dark:bg-cyan-950/30">
                   CONTROLLING: {selectedCam.name.toUpperCase()}
                 </div>
                 
-                <Joystick 
-                  className="border-cyan-500/30"
-                  onMove={handleJoystickMove} 
-                  onStop={handleJoystickStop}
-                />
+                <div className="relative z-10 w-full grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_220px] gap-5 items-center mt-6">
+                  <CameraMonitor camera={selectedCam} />
+                  <div className="flex justify-center">
+                    <Joystick
+                      className="border-cyan-500/30"
+                      onMove={handleJoystickMove}
+                      onStop={handleJoystickStop}
+                    />
+                  </div>
+                </div>
 
-                <div className="mt-8 text-center space-y-1">
+                <div className="relative z-10 mt-6 text-center space-y-1">
                    <div className="text-2xl font-bold font-mono text-slate-900 dark:text-white tracking-widest">{selectedCam.name}</div>
                    <div className="text-xs font-mono text-cyan-500">{selectedCam.ip}</div>
                 </div>
