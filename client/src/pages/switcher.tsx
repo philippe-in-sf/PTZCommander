@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { obsApi, switcherApi, type ObsScene, type ObsState } from "@/lib/api";
 import { useAtemControl, type AtemState } from "@/hooks/use-atem-control";
@@ -70,6 +70,14 @@ export default function SwitcherPage() {
     enabled: !!obsConnection && Boolean(obsStatus?.connected),
     retry: false,
   });
+  const obsScenes = useMemo(() => obsScenesResult?.scenes ?? obsStatus?.scenes ?? [], [obsScenesResult?.scenes, obsStatus?.scenes]);
+
+  useEffect(() => {
+    const preferredScene = obsStatus?.currentProgramScene || obsConnection?.currentProgramScene || obsScenes[0]?.sceneName;
+    if (!obsSceneName && preferredScene) {
+      setObsSceneName(preferredScene);
+    }
+  }, [obsConnection?.currentProgramScene, obsSceneName, obsScenes, obsStatus?.currentProgramScene]);
 
   const createSwitcherMutation = useMutation({
     mutationFn: switcherApi.create,
@@ -179,7 +187,7 @@ export default function SwitcherPage() {
         <OBSConnectionCard
           connection={obsConnection}
           status={obsStatus}
-          scenes={obsScenesResult?.scenes ?? obsStatus?.scenes ?? []}
+          scenes={obsScenes}
           selectedSceneName={obsSceneName}
           onSelectedSceneNameChange={setObsSceneName}
           addOpen={addObsOpen}
@@ -196,6 +204,10 @@ export default function SwitcherPage() {
           deleting={deleteObsMutation.isPending}
           onSwitchScene={() => obsConnection && obsSceneName && setObsSceneMutation.mutate({ id: obsConnection.id, sceneName: obsSceneName })}
           switching={setObsSceneMutation.isPending}
+          onRefreshScenes={() => {
+            queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+            queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
+          }}
         />
       </div>
 
@@ -323,6 +335,7 @@ function OBSConnectionCard({
   deleting,
   onSwitchScene,
   switching,
+  onRefreshScenes,
 }: {
   connection: ObsConnection | null;
   status?: ObsState;
@@ -343,6 +356,7 @@ function OBSConnectionCard({
   deleting: boolean;
   onSwitchScene: () => void;
   switching: boolean;
+  onRefreshScenes: () => void;
 }) {
   const connected = Boolean(status?.connected || connection?.status === "online");
   const currentScene = status?.currentProgramScene || connection?.currentProgramScene;
@@ -352,14 +366,14 @@ function OBSConnectionCard({
     : sceneNames;
 
   return (
-    <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4">
+    <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="obs-websocket-controller">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className={cn("w-10 h-10 rounded-lg border flex items-center justify-center", connected ? "border-green-500/50 bg-green-500/10" : "border-slate-500/40 bg-slate-500/10")}>
             <Radio className={cn("h-5 w-5", connected ? "text-green-500" : "text-slate-500")} />
           </div>
           <div>
-            <h3 className="font-semibold text-slate-900 dark:text-white">OBS Studio</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-white">OBS WebSocket</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {connection
                 ? `${connection.name} · ${connection.host}:${connection.port}`
@@ -409,10 +423,12 @@ function OBSConnectionCard({
           </Dialog>
         ) : (
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {connected && scenes.length > 0 && (
-              <>
+            {connected ? (
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                {selectableSceneNames.length > 0 ? (
+                  <>
                 <Select
-                  value={selectedSceneName}
+                  value={selectedSceneName || undefined}
                   onValueChange={onSelectedSceneNameChange}
                 >
                   <SelectTrigger className="sm:w-56" data-testid="select-switcher-obs-scene">
@@ -429,8 +445,17 @@ function OBSConnectionCard({
                 <Button variant="outline" onClick={onSwitchScene} disabled={!selectedSceneName || switching} data-testid="button-switch-obs-scene">
                   <Play className="h-4 w-4 mr-2" /> Go
                 </Button>
-              </>
-            )}
+                  </>
+                ) : (
+                  <Button variant="outline" disabled className="justify-start text-slate-500">
+                    No OBS scenes found
+                  </Button>
+                )}
+                <Button variant="outline" onClick={onRefreshScenes} data-testid="button-refresh-obs-scenes">
+                  <Repeat className="h-4 w-4 mr-2" /> Refresh
+                </Button>
+              </div>
+            ) : null}
             {connected ? (
               <Button variant="outline" onClick={onDisconnect} disabled={disconnecting} data-testid="button-disconnect-obs">
                 <LogOut className="h-4 w-4 mr-2" /> Disconnect
