@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, auditLogs, hueBridges, displayDevices, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
+import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, runsheetCues, auditLogs, hueBridges, displayDevices, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type RunsheetCue, type InsertRunsheetCue, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
@@ -59,6 +59,14 @@ export interface IStorage {
   createMacro(macro: InsertMacro): Promise<Macro>;
   updateMacro(id: number, updates: Partial<Macro>): Promise<Macro | undefined>;
   deleteMacro(id: number): Promise<void>;
+
+  // Runsheet operations
+  getAllRunsheetCues(): Promise<RunsheetCue[]>;
+  getRunsheetCue(id: number): Promise<RunsheetCue | undefined>;
+  createRunsheetCue(cue: InsertRunsheetCue): Promise<RunsheetCue>;
+  updateRunsheetCue(id: number, updates: Partial<RunsheetCue>): Promise<RunsheetCue | undefined>;
+  deleteRunsheetCue(id: number): Promise<void>;
+  reorderRunsheetCues(ids: number[]): Promise<RunsheetCue[]>;
 
   // Hue bridge operations
   getAllHueBridges(): Promise<HueBridge[]>;
@@ -146,6 +154,17 @@ function sqliteRowToMacro(row: any): Macro {
     notes: row.notes,
     color: row.color,
     steps: row.steps,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
+function sqliteRowToRunsheetCue(row: any): RunsheetCue {
+  return {
+    id: row.id,
+    sceneButtonId: row.scene_button_id,
+    sortOrder: row.sort_order,
+    notes: row.notes,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -845,6 +864,78 @@ export class DatabaseStorage implements IStorage {
       return;
     }
     await db.delete(macros).where(eq(macros.id, id));
+  }
+
+  // Runsheet operations
+  async getAllRunsheetCues(): Promise<RunsheetCue[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM runsheet_cues ORDER BY sort_order ASC, id ASC').all();
+      return rows.map(sqliteRowToRunsheetCue);
+    }
+    return await db.select().from(runsheetCues).orderBy(runsheetCues.sortOrder, runsheetCues.id);
+  }
+
+  async getRunsheetCue(id: number): Promise<RunsheetCue | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM runsheet_cues WHERE id = ?').get(id);
+      return row ? sqliteRowToRunsheetCue(row) : undefined;
+    }
+    const [cue] = await db.select().from(runsheetCues).where(eq(runsheetCues.id, id));
+    return cue || undefined;
+  }
+
+  async createRunsheetCue(cue: InsertRunsheetCue): Promise<RunsheetCue> {
+    if (useSqlite && sqlite) {
+      const nextOrder = cue.sortOrder ?? ((sqlite.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM runsheet_cues').get() as any)?.next_order ?? 0);
+      const result = sqlite.prepare(`
+        INSERT INTO runsheet_cues (scene_button_id, sort_order, notes, created_at, updated_at)
+        VALUES (?, ?, ?, datetime('now'), datetime('now'))
+      `).run(cue.sceneButtonId, nextOrder, cue.notes ?? null);
+      return this.getRunsheetCue(Number(result.lastInsertRowid)) as Promise<RunsheetCue>;
+    }
+    const [created] = await db.insert(runsheetCues).values(cue).returning();
+    return created;
+  }
+
+  async updateRunsheetCue(id: number, updates: Partial<RunsheetCue>): Promise<RunsheetCue | undefined> {
+    if (useSqlite && sqlite) {
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      if (updates.sceneButtonId !== undefined) { setClauses.push('scene_button_id = ?'); values.push(updates.sceneButtonId); }
+      if (updates.sortOrder !== undefined) { setClauses.push('sort_order = ?'); values.push(updates.sortOrder); }
+      if (updates.notes !== undefined) { setClauses.push('notes = ?'); values.push(updates.notes); }
+      setClauses.push("updated_at = datetime('now')");
+      values.push(id);
+      sqlite.prepare(`UPDATE runsheet_cues SET ${setClauses.join(', ')} WHERE id = ?`).run(...values);
+      return this.getRunsheetCue(id);
+    }
+    const [updated] = await db.update(runsheetCues).set({ ...updates, updatedAt: new Date() }).where(eq(runsheetCues.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deleteRunsheetCue(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('DELETE FROM runsheet_cues WHERE id = ?').run(id);
+      return;
+    }
+    await db.delete(runsheetCues).where(eq(runsheetCues.id, id));
+  }
+
+  async reorderRunsheetCues(ids: number[]): Promise<RunsheetCue[]> {
+    if (useSqlite && sqlite) {
+      const update = sqlite.prepare('UPDATE runsheet_cues SET sort_order = ?, updated_at = datetime(\'now\') WHERE id = ?');
+      const tx = sqlite.transaction((orderedIds: number[]) => {
+        orderedIds.forEach((id, index) => update.run(index, id));
+      });
+      tx(ids);
+      return this.getAllRunsheetCues();
+    }
+    await db.transaction(async (tx) => {
+      for (let index = 0; index < ids.length; index++) {
+        await tx.update(runsheetCues).set({ sortOrder: index, updatedAt: new Date() }).where(eq(runsheetCues.id, ids[index]));
+      }
+    });
+    return this.getAllRunsheetCues();
   }
 
   // Audit log operations

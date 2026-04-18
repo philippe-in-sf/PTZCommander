@@ -20,6 +20,7 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
     { name: "Dashboard", path: "/" },
     { name: "Scenes", path: "/scenes" },
     { name: "Macros", path: "/macros" },
+    { name: "Run", path: "/runsheet" },
     { name: "Switcher", path: "/switcher" },
     { name: "Audio", path: "/mixer" },
     { name: "Lighting", path: "/lighting" },

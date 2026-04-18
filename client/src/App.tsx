@@ -12,6 +12,7 @@ import MixerPage from "@/pages/mixer";
 import SwitcherPage from "@/pages/switcher";
 import ScenesPage from "@/pages/scenes";
 import MacrosPage from "@/pages/macros";
+import RunsheetPage from "@/pages/runsheet";
 import MobilePage from "@/pages/mobile";
 import LightingPage from "@/pages/lighting";
 import DisplaysPage from "@/pages/displays";
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/" component={Dashboard}/>
       <Route path="/scenes" component={ScenesPage}/>
       <Route path="/macros" component={MacrosPage}/>
+      <Route path="/runsheet" component={RunsheetPage}/>
       <Route path="/mixer" component={MixerPage}/>
       <Route path="/switcher" component={SwitcherPage}/>
       <Route path="/mobile" component={MobilePage}/>

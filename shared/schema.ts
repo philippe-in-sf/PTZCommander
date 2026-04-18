@@ -95,6 +95,17 @@ export const macros = pgTable("macros", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const runsheetCues = pgTable("runsheet_cues", {
+  id: serial("id").primaryKey(),
+  sceneButtonId: integer("scene_button_id").notNull().references(() => sceneButtons.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("runsheet_cues_scene_button_id_idx").on(table.sceneButtonId),
+]);
+
 export const hueBridges = pgTable("hue_bridges", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -193,6 +204,12 @@ export const insertMacroSchema = createInsertSchema(macros).omit({
   updatedAt: true,
 });
 
+export const insertRunsheetCueSchema = z.object({
+  sceneButtonId: z.number().int().positive(),
+  sortOrder: z.number().int().nonnegative().optional(),
+  notes: z.string().nullable().optional(),
+});
+
 export const insertHueBridgeSchema = createInsertSchema(hueBridges).omit({
   id: true,
   createdAt: true,
@@ -219,6 +236,7 @@ export const patchPresetSchema = createInsertSchema(presets).omit({ id: true, cr
 export const patchSceneButtonSchema = insertSceneButtonSchema.partial();
 export const patchLayoutSchema = insertLayoutSchema.partial();
 export const patchMacroSchema = insertMacroSchema.partial();
+export const patchRunsheetCueSchema = insertRunsheetCueSchema.partial();
 export const patchHueBridgeSchema = insertHueBridgeSchema.partial();
 export const patchDisplayDeviceSchema = createInsertSchema(displayDevices).omit({ id: true, createdAt: true }).partial();
 export const patchMixerSchema = insertMixerSchema.partial();
@@ -239,6 +257,15 @@ export type Layout = typeof layouts.$inferSelect;
 export type InsertLayout = z.infer<typeof insertLayoutSchema>;
 export type Macro = typeof macros.$inferSelect;
 export type InsertMacro = z.infer<typeof insertMacroSchema>;
+export interface RunsheetCue {
+  id: number;
+  sceneButtonId: number;
+  sortOrder: number;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+export type InsertRunsheetCue = z.infer<typeof insertRunsheetCueSchema>;
 export type HueBridge = typeof hueBridges.$inferSelect;
 export type InsertHueBridge = z.infer<typeof insertHueBridgeSchema>;
 export type DisplayDevice = typeof displayDevices.$inferSelect;

@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, DisplayDevice, InsertDisplayDevice } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -24,6 +24,10 @@ export interface CameraDiscoveryOptions {
   ports?: number[];
   timeoutMs?: number;
 }
+
+export type RunsheetCueWithScene = RunsheetCue & {
+  scene: SceneButton | null;
+};
 
 export interface SmartThingsDiscoveredDevice {
   deviceId: string;
@@ -560,6 +564,58 @@ export const macroApi = {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to execute macro");
+    return res.json();
+  },
+};
+
+export const runsheetApi = {
+  getAll: async (): Promise<RunsheetCueWithScene[]> => {
+    const res = await fetch(`${API_BASE}/runsheet/cues`);
+    if (!res.ok) throw new Error("Failed to fetch runsheet cues");
+    return res.json();
+  },
+
+  create: async (cue: InsertRunsheetCue): Promise<RunsheetCueWithScene> => {
+    const res = await fetch(`${API_BASE}/runsheet/cues`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cue),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to add runsheet cue");
+    }
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<RunsheetCue>): Promise<RunsheetCueWithScene> => {
+    const res = await fetch(`${API_BASE}/runsheet/cues/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to update runsheet cue");
+    }
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/runsheet/cues/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete runsheet cue");
+  },
+
+  reorder: async (ids: number[]): Promise<RunsheetCueWithScene[]> => {
+    const res = await fetch(`${API_BASE}/runsheet/cues/reorder`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to reorder runsheet cues");
+    }
     return res.json();
   },
 };
