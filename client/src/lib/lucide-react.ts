@@ -47,6 +47,7 @@ export { default as LinkIcon } from "lucide-react/dist/esm/icons/link.js";
 export { default as ListChecks } from "lucide-react/dist/esm/icons/list-checks.js";
 export { default as Loader2 } from "lucide-react/dist/esm/icons/loader-2.js";
 export { default as Loader2Icon } from "lucide-react/dist/esm/icons/loader-2.js";
+export { default as LogOut } from "lucide-react/dist/esm/icons/log-out.js";
 export { default as Lock } from "lucide-react/dist/esm/icons/lock.js";
 export { default as Maximize } from "lucide-react/dist/esm/icons/maximize.js";
 export { default as Maximize2 } from "lucide-react/dist/esm/icons/maximize-2.js";

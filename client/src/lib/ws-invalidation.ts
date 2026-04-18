@@ -31,6 +31,9 @@ export function useWsInvalidation() {
         case "atem_state":
           queryClient.invalidateQueries({ queryKey: ["switcher-status"] });
           break;
+        case "obs_state":
+          queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+          break;
         case "mixer_state":
           queryClient.invalidateQueries({ queryKey: ["mixer-status"] });
           break;

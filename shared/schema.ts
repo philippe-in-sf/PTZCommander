@@ -64,6 +64,7 @@ export const sceneButtons = pgTable("scene_buttons", {
   groupName: text("group_name").default("General"),
   atemInputId: integer("atem_input_id"),
   atemTransitionType: text("atem_transition_type").default("cut"),
+  obsSceneName: text("obs_scene_name"),
   cameraId: integer("camera_id").references(() => cameras.id, { onDelete: "set null" }),
   presetNumber: integer("preset_number"),
   mixerActions: text("mixer_actions"),
@@ -93,6 +94,18 @@ export const macros = pgTable("macros", {
   steps: text("steps").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const obsConnections = pgTable("obs_connections", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  host: text("host").notNull(),
+  port: integer("port").notNull().default(4455),
+  password: text("password"),
+  status: text("status").notNull().default("offline"),
+  currentProgramScene: text("current_program_scene"),
+  studioMode: boolean("studio_mode").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const runsheetCues = pgTable("runsheet_cues", {
@@ -204,6 +217,17 @@ export const insertMacroSchema = createInsertSchema(macros).omit({
   updatedAt: true,
 });
 
+export const insertObsConnectionSchema = createInsertSchema(obsConnections).omit({
+  id: true,
+  createdAt: true,
+  status: true,
+  currentProgramScene: true,
+  studioMode: true,
+}).extend({
+  port: z.number().int().min(1).max(65535).optional(),
+  password: z.string().nullable().optional(),
+});
+
 export const insertRunsheetCueSchema = z.object({
   sceneButtonId: z.number().int().positive(),
   sortOrder: z.number().int().nonnegative().optional(),
@@ -236,6 +260,7 @@ export const patchPresetSchema = createInsertSchema(presets).omit({ id: true, cr
 export const patchSceneButtonSchema = insertSceneButtonSchema.partial();
 export const patchLayoutSchema = insertLayoutSchema.partial();
 export const patchMacroSchema = insertMacroSchema.partial();
+export const patchObsConnectionSchema = createInsertSchema(obsConnections).omit({ id: true, createdAt: true }).partial();
 export const patchRunsheetCueSchema = insertRunsheetCueSchema.partial();
 export const patchHueBridgeSchema = insertHueBridgeSchema.partial();
 export const patchDisplayDeviceSchema = createInsertSchema(displayDevices).omit({ id: true, createdAt: true }).partial();
@@ -257,6 +282,8 @@ export type Layout = typeof layouts.$inferSelect;
 export type InsertLayout = z.infer<typeof insertLayoutSchema>;
 export type Macro = typeof macros.$inferSelect;
 export type InsertMacro = z.infer<typeof insertMacroSchema>;
+export type ObsConnection = typeof obsConnections.$inferSelect;
+export type InsertObsConnection = z.infer<typeof insertObsConnectionSchema>;
 export interface RunsheetCue {
   id: number;
   sceneButtonId: number;

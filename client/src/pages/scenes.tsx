@@ -1,13 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { sceneButtonApi, cameraApi, displayApi } from "@/lib/api";
+import { sceneButtonApi, cameraApi, displayApi, obsApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, Trash2, Settings, Zap, Play, Lightbulb, Lock, Unlock, ListChecks, FlaskConical, Folder, Monitor } from "lucide-react";
+import { Plus, Trash2, Settings, Zap, Play, Lightbulb, Lock, Unlock, ListChecks, FlaskConical, Folder, Monitor, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
@@ -36,7 +36,7 @@ interface DisplayAction {
   arguments?: unknown[];
 }
 
-type SceneTestSection = "atem" | "mixer" | "hue" | "ptz" | "display";
+type SceneTestSection = "atem" | "obs" | "mixer" | "hue" | "ptz" | "display";
 
 const COLORS = [
   "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
@@ -50,6 +50,7 @@ type SceneFormData = {
   color: string;
   atemInputId: number | null;
   atemTransitionType: string;
+  obsSceneName: string;
   cameraId: number | null;
   presetNumber: number | null;
   mixerActions: MixerAction[];
@@ -79,6 +80,9 @@ function getFormPreview(formData: SceneFormData, cameras: Camera[], displays: Di
   if (formData.atemInputId !== null) {
     preview.push(`ATEM: ${formData.atemTransitionType === "auto" ? "auto transition" : "cut"} to input ${formData.atemInputId}`);
   }
+  if (formData.obsSceneName.trim()) {
+    preview.push(`OBS: switch program scene to ${formData.obsSceneName.trim()}`);
+  }
   if (formData.cameraId !== null && formData.presetNumber !== null) {
     const cameraName = cameras.find((camera) => camera.id === formData.cameraId)?.name || `Camera ${formData.cameraId}`;
     preview.push(`PTZ: ${cameraName} recalls preset ${formData.presetNumber + 1}`);
@@ -93,6 +97,7 @@ function hasSceneSection(formData: SceneFormData, section: SceneTestSection) {
   if (section === "hue") return formData.hueActions.some((action) => action.bridgeId && action.sceneId);
   if (section === "display") return formData.displayActions.some((action) => action.displayId && action.command);
   if (section === "atem") return formData.atemInputId !== null;
+  if (section === "obs") return Boolean(formData.obsSceneName.trim());
   if (section === "ptz") return formData.cameraId !== null && formData.presetNumber !== null;
   return formData.mixerActions.length > 0;
 }
@@ -263,6 +268,7 @@ export default function ScenesPage() {
     color: "#06b6d4",
     atemInputId: null as number | null,
     atemTransitionType: "cut",
+    obsSceneName: "",
     cameraId: null as number | null,
     presetNumber: null as number | null,
     mixerActions: [] as MixerAction[],
@@ -288,6 +294,22 @@ export default function ScenesPage() {
     queryKey: ["displays"],
     queryFn: displayApi.getAll,
   });
+
+  const { data: obsConnections = [] } = useQuery({
+    queryKey: ["obs"],
+    queryFn: obsApi.getAll,
+  });
+
+  const obsConnection = obsConnections[0] ?? null;
+
+  const { data: obsScenesResult } = useQuery({
+    queryKey: ["obs-scenes", obsConnection?.id],
+    queryFn: () => obsApi.getScenes(obsConnection!.id),
+    enabled: editOpen && !!obsConnection,
+    retry: false,
+  });
+
+  const obsSceneOptions = obsScenesResult?.scenes ?? [];
 
   const sceneGroups = useMemo(() => {
     const groups = new Map<string, SceneButton[]>();
@@ -387,6 +409,7 @@ export default function ScenesPage() {
       color: COLORS[(nextNum - 1) % COLORS.length],
       atemInputId: null,
       atemTransitionType: "cut",
+      obsSceneName: "",
       cameraId: null,
       presetNumber: null,
       mixerActions: [],
@@ -415,6 +438,7 @@ export default function ScenesPage() {
       color: btn.color,
       atemInputId: btn.atemInputId,
       atemTransitionType: btn.atemTransitionType || "cut",
+      obsSceneName: btn.obsSceneName || "",
       cameraId: btn.cameraId,
       presetNumber: btn.presetNumber,
       mixerActions,
@@ -437,6 +461,7 @@ export default function ScenesPage() {
       color: formData.color,
       atemInputId: formData.atemInputId,
       atemTransitionType: formData.atemTransitionType,
+      obsSceneName: formData.obsSceneName.trim() || null,
       cameraId: formData.cameraId,
       presetNumber: formData.presetNumber,
       mixerActions: formData.mixerActions.length > 0
@@ -542,7 +567,7 @@ export default function ScenesPage() {
               <Zap className="w-5 h-5 text-cyan-500" /> Scene Buttons
             </h2>
             <p className="text-sm text-slate-500 mt-1">
-              Programmable buttons that trigger combined ATEM, mixer, and PTZ actions in one press.
+              Programmable buttons that trigger combined OBS, ATEM, mixer, lighting, display, and PTZ actions in one press.
             </p>
           </div>
           <Button onClick={openCreate} disabled={operatorLocked} data-testid="button-add-scene">
@@ -561,7 +586,7 @@ export default function ScenesPage() {
           <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-16 text-center">
             <Zap className="w-12 h-12 text-slate-400 dark:text-slate-700 mx-auto mb-4" />
             <p className="text-slate-500 mb-2">No scene buttons configured yet</p>
-            <p className="text-sm text-slate-500 dark:text-slate-600 mb-6">Create a scene button to trigger combined actions across your ATEM switcher, audio mixer, and PTZ cameras.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-600 mb-6">Create a scene button to trigger combined actions across OBS, your ATEM switcher, audio mixer, and PTZ cameras.</p>
             <Button onClick={openCreate} disabled={operatorLocked} data-testid="button-add-first-scene">
               <Plus className="w-4 h-4 mr-2" /> Create Your First Scene
             </Button>
@@ -609,6 +634,11 @@ export default function ScenesPage() {
                             {btn.atemInputId !== null && (
                               <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                                 ATEM:{btn.atemInputId}
+                              </span>
+                            )}
+                            {btn.obsSceneName && (
+                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-indigo-200/80 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300")}>
+                                OBS
                               </span>
                             )}
                             {btn.cameraId !== null && btn.presetNumber !== null && (
@@ -781,8 +811,8 @@ export default function ScenesPage() {
                 <h4 className="text-xs font-mono uppercase text-emerald-700 dark:text-emerald-300 mb-2 flex items-center gap-1.5">
                   <FlaskConical className="w-3 h-3" />Test Mode
                 </h4>
-                <div className="grid grid-cols-5 gap-2">
-                  {(["hue", "display", "atem", "ptz", "mixer"] as SceneTestSection[]).map((section) => (
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {(["hue", "display", "atem", "obs", "ptz", "mixer"] as SceneTestSection[]).map((section) => (
                     <Button
                       key={section}
                       type="button"
@@ -830,6 +860,32 @@ export default function ScenesPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
+              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
+                <Radio className="w-3 h-3 text-indigo-500" />OBS Studio Action
+              </h4>
+              <div className="space-y-2">
+                <div>
+                  <Label>Program Scene</Label>
+                  <Input
+                    value={formData.obsSceneName}
+                    onChange={(e) => setFormData(p => ({ ...p, obsSceneName: e.target.value }))}
+                    placeholder="None"
+                    list="obs-scene-options"
+                    data-testid="input-scene-obs-scene"
+                  />
+                  <datalist id="obs-scene-options">
+                    {obsSceneOptions.map((scene) => <option key={scene.sceneName} value={scene.sceneName} />)}
+                  </datalist>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {obsConnection
+                    ? `OBS: ${obsConnection.name} (${obsConnection.status})${obsScenesResult?.state?.currentProgramScene ? ` · live: ${obsScenesResult.state.currentProgramScene}` : ""}`
+                    : "Add OBS on the Switcher page to populate scene names."}
+                </p>
               </div>
             </div>
 
