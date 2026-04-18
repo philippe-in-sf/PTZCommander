@@ -9,6 +9,7 @@ import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export default function BroadcastConsole(props: DashboardSkinProps) {
   const [location] = useLocation();
@@ -19,11 +20,27 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
   const tabs = [
     { name: "Dashboard", path: "/" },
     { name: "Scenes", path: "/scenes" },
-    { name: "Macros", path: "/macros" },
     { name: "Run", path: "/runsheet" },
-    { name: "Switcher", path: "/switcher" },
-    { name: "Audio", path: "/mixer" },
-    { name: "Lighting", path: "/lighting" },
+  ];
+  const tabGroups = [
+    {
+      name: "Prod",
+      paths: ["/switcher", "/mixer", "/lighting", "/displays"],
+      items: [
+        { name: "Switcher", path: "/switcher" },
+        { name: "Audio", path: "/mixer" },
+        { name: "Lighting", path: "/lighting" },
+        { name: "Displays", path: "/displays" },
+      ],
+    },
+    {
+      name: "Tools",
+      paths: ["/macros", "/diagnostics"],
+      items: [
+        { name: "Macros", path: "/macros" },
+        { name: "Diagnostics", path: "/diagnostics" },
+      ],
+    },
   ];
 
   const handlePresetClick = (presetNumber: number) => {
@@ -52,9 +69,29 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
             {tabs.map((tab) => {
               const isActive = location === tab.path || (location === "/dashboard" && tab.path === "/");
               return (
-                <Link key={tab.name} href={tab.path} className={`px-4 py-1.5 ${isActive ? 'bg-[#252535] text-cyan-400 border-t-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#1e1e2a]'} transition-colors block`}>
+                <Link key={tab.name} href={tab.path} className={`px-3 py-1.5 ${isActive ? 'bg-[#252535] text-cyan-400 border-t-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#1e1e2a]'} transition-colors block`}>
                   {tab.name}
                 </Link>
+              );
+            })}
+            {tabGroups.map((group) => {
+              const isActive = group.paths.includes(location);
+              return (
+                <DropdownMenu key={group.name}>
+                  <DropdownMenuTrigger asChild>
+                    <button className={`px-3 py-1.5 ${isActive ? 'bg-[#252535] text-cyan-400 border-t-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#1e1e2a]'} transition-colors inline-flex items-center`}>
+                      {group.name}
+                      <ChevronDown className="w-3 h-3 ml-1" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {group.items.map((item) => (
+                      <DropdownMenuItem key={item.path} asChild>
+                        <Link href={item.path} className="cursor-pointer">{item.name}</Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               );
             })}
           </nav>

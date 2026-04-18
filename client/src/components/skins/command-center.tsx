@@ -8,6 +8,7 @@ import {
   Clock,
   Crosshair,
   Database,
+  ChevronDown,
   Focus,
   Maximize,
   Radio,
@@ -20,6 +21,7 @@ import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 // FAKE DATA for secondary panels
 const TERMINAL_LOGS = [
@@ -89,36 +91,53 @@ export default function CommandCenter(props: DashboardSkinProps) {
           </div>
           
           <nav className="hidden md:flex gap-1 bg-[#020617] p-1 rounded-full border border-slate-800">
-            <Link href="/">
-              <a className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors bg-amber-500/20 text-amber-400">
-                DASHBOARD
-              </a>
+            <Link href="/" className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors bg-amber-500/20 text-amber-400">
+              DASHBOARD
             </Link>
-            <Link href="/scenes">
-              <a className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-                SCENES
-              </a>
+            <Link href="/scenes" className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+              SCENES
             </Link>
-            <Link href="/macros">
-              <a className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-                MACROS
-              </a>
+            <Link href="/runsheet" className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+              RUN
             </Link>
-            <Link href="/switcher">
-              <a className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-                VIDEO
-              </a>
-            </Link>
-            <Link href="/mixer">
-              <a className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-                AUDIO
-              </a>
-            </Link>
-            <Link href="/lighting">
-              <a className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-                LIGHTS
-              </a>
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 inline-flex items-center">
+                  PROD
+                  <ChevronDown className="w-3 h-3 ml-1" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                  <Link href="/switcher" className="cursor-pointer">VIDEO</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/mixer" className="cursor-pointer">AUDIO</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/lighting" className="cursor-pointer">LIGHTS</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/displays" className="cursor-pointer">DISPLAYS</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 inline-flex items-center">
+                  TOOLS
+                  <ChevronDown className="w-3 h-3 ml-1" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem asChild>
+                  <Link href="/macros" className="cursor-pointer">MACROS</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/diagnostics" className="cursor-pointer">DIAG</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
         </div>
 

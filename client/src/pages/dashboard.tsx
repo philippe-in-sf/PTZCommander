@@ -9,15 +9,11 @@ import { AtemPanel } from "@/components/switcher/atem-panel";
 import { HuePanel } from "@/components/lighting/hue-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { CameraMonitor, CameraPreview } from "@/components/ptz/camera-preview";
-import { LogViewer } from "@/components/logs/log-viewer";
 import { SessionLog } from "@/components/logs/session-log";
-import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { ConnectionHealth } from "@/components/ptz/connection-health";
-import { ChangelogDialog } from "@/components/changelog-dialog";
-import { SkinSelector } from "@/components/skin-selector";
+import { AppHeader } from "@/components/app-header";
 import { useSkin } from "@/lib/skin-context";
-import { Video, Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, presetApi, undoApi, type DiscoveredCamera } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
@@ -28,7 +24,6 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Link } from "wouter";
 import type { Camera } from "@shared/schema";
 
 const BroadcastConsole = lazy(() => import("@/components/skins/broadcast-console"));
@@ -348,61 +343,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
-            <Video className="text-white w-4 h-4" />
-          </div>
-          <div>
-            <h1 className="font-bold tracking-tight text-lg leading-none">
-              PTZ<span className="text-cyan-500 font-light">COMMAND</span>
-            </h1>
-            <ChangelogDialog />
-          </div>
-
-          <nav className="flex items-center gap-1 ml-6">
-            <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700" data-testid="nav-dashboard">
-              Dashboard
-            </button>
-            <Link href="/scenes">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-scenes">
-                Scenes
-              </button>
-            </Link>
-            <Link href="/macros">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-macros">
-                Macros
-              </button>
-            </Link>
-            <Link href="/runsheet">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-runsheet">
-                Runsheet
-              </button>
-            </Link>
-            <Link href="/switcher">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-switcher">
-                Video Switcher
-              </button>
-            </Link>
-            <Link href="/mixer">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-mixer">
-                Audio Mixer
-              </button>
-            </Link>
-            <Link href="/lighting">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-lighting">
-                Lighting
-              </button>
-            </Link>
-            <Link href="/displays">
-              <button className="px-3 py-1.5 rounded text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800 transition-colors" data-testid="nav-displays">
-                Displays
-              </button>
-            </Link>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-4">
+      <AppHeader
+        activePage="/"
+        rightContent={
+          <>
           <div className={cn(
             "flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-md border",
             ws ? "text-emerald-600 dark:text-emerald-500 bg-emerald-100/50 dark:bg-emerald-950/30 border-emerald-300/50 dark:border-emerald-900/50" : "text-red-600 dark:text-red-500 bg-red-100/50 dark:bg-red-950/30 border-red-300/50 dark:border-red-900/50"
@@ -424,12 +368,9 @@ export default function Dashboard() {
           )}
           <ConnectionHealth />
           <SessionLog />
-          <SkinSelector />
-          <ThemeToggle />
-          <LayoutSelector />
-          <LogViewer />
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <main className="flex-1 p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
         
