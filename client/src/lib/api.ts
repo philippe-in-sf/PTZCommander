@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, ObsConnection, InsertObsConnection, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -73,6 +73,22 @@ export interface SmartThingsOAuthSession {
   scope?: string;
   clientId: string;
   clientSecret: string;
+}
+
+export interface ObsScene {
+  sceneName: string;
+  sceneIndex?: number;
+}
+
+export interface ObsState {
+  connected: boolean;
+  host?: string;
+  port?: number;
+  currentProgramScene?: string | null;
+  currentPreviewScene?: string | null;
+  studioMode?: boolean;
+  scenes?: ObsScene[];
+  error?: string;
 }
 
 // Camera API
@@ -334,6 +350,88 @@ export const switcherApi = {
   },
 };
 
+export const obsApi = {
+  getAll: async (): Promise<ObsConnection[]> => {
+    const res = await fetch(`${API_BASE}/obs`);
+    if (!res.ok) throw new Error("Failed to fetch OBS connections");
+    return res.json();
+  },
+
+  create: async (connection: InsertObsConnection): Promise<ObsConnection> => {
+    const res = await fetch(`${API_BASE}/obs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(connection),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to create OBS connection");
+    }
+    return res.json();
+  },
+
+  update: async (id: number, updates: Partial<ObsConnection>): Promise<ObsConnection> => {
+    const res = await fetch(`${API_BASE}/obs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to update OBS connection");
+    }
+    return res.json();
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const res = await fetch(`${API_BASE}/obs/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete OBS connection");
+  },
+
+  connect: async (id: number): Promise<{ success: boolean; status: string; state?: ObsState }> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/connect`, { method: "POST" });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to connect to OBS");
+    }
+    return res.json();
+  },
+
+  disconnect: async (id: number): Promise<{ success: boolean; status: string }> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/disconnect`, { method: "POST" });
+    if (!res.ok) throw new Error("Failed to disconnect OBS");
+    return res.json();
+  },
+
+  getStatus: async (id: number): Promise<ObsState> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/status`);
+    if (!res.ok) throw new Error("Failed to get OBS status");
+    return res.json();
+  },
+
+  getScenes: async (id: number): Promise<{ scenes: ObsScene[]; state: ObsState }> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/scenes`);
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to fetch OBS scenes");
+    }
+    return res.json();
+  },
+
+  setProgramScene: async (id: number, sceneName: string): Promise<{ success: boolean; state: ObsState }> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/program`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sceneName }),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to switch OBS scene");
+    }
+    return res.json();
+  },
+};
+
 export const sceneButtonApi = {
   getAll: async (): Promise<SceneButton[]> => {
     const res = await fetch(`${API_BASE}/scene-buttons`);
@@ -376,7 +474,7 @@ export const sceneButtonApi = {
     return res.json();
   },
 
-  test: async (id: number, section: "atem" | "mixer" | "hue" | "ptz" | "display"): Promise<{ success: boolean; results: string[] }> => {
+  test: async (id: number, section: "atem" | "obs" | "mixer" | "hue" | "ptz" | "display"): Promise<{ success: boolean; results: string[] }> => {
     const res = await fetch(`${API_BASE}/scene-buttons/${id}/test`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

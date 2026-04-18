@@ -84,6 +84,7 @@ if (useSqlite) {
       group_name TEXT DEFAULT 'General',
       atem_input_id INTEGER,
       atem_transition_type TEXT DEFAULT 'cut',
+      obs_scene_name TEXT,
       camera_id INTEGER,
       preset_number INTEGER,
       mixer_actions TEXT,
@@ -111,6 +112,18 @@ if (useSqlite) {
       steps TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS obs_connections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      host TEXT NOT NULL,
+      port INTEGER NOT NULL DEFAULT 4455,
+      password TEXT,
+      status TEXT NOT NULL DEFAULT 'offline',
+      current_program_scene TEXT,
+      studio_mode INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS runsheet_cues (
@@ -196,6 +209,12 @@ if (useSqlite) {
 
   try {
     sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN display_actions TEXT");
+  } catch {
+    // Column already exists — ignore
+  }
+
+  try {
+    sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN obs_scene_name TEXT");
   } catch {
     // Column already exists — ignore
   }

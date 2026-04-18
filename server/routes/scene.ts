@@ -6,7 +6,7 @@ import { getHueClient } from "../hue";
 import type { ChannelState, MixerSection } from "../x32";
 import { executeDisplayAction } from "./display";
 
-type SceneSection = "atem" | "mixer" | "hue" | "ptz" | "display";
+type SceneSection = "atem" | "obs" | "mixer" | "hue" | "ptz" | "display";
 
 interface MixerAction {
   section: MixerSection;
@@ -54,6 +54,9 @@ function getScenePreview(button: SceneButton) {
   if (button.atemInputId !== null && button.atemInputId !== undefined) {
     preview.push(`ATEM: ${button.atemTransitionType === "auto" ? "auto transition" : "cut"} to input ${button.atemInputId}`);
   }
+  if (button.obsSceneName) {
+    preview.push(`OBS: switch program scene to ${button.obsSceneName}`);
+  }
   if (button.cameraId !== null && button.cameraId !== undefined && button.presetNumber !== null && button.presetNumber !== undefined) {
     preview.push(`PTZ: camera ${button.cameraId} recalls preset ${button.presetNumber + 1}`);
   }
@@ -70,7 +73,7 @@ function getScenePreview(button: SceneButton) {
 }
 
 export function registerSceneRoutes(ctx: RouteContext) {
-  const { app, storage, cameraManager, x32Manager, atemManager, broadcast, pushUndo, addSessionLog } = ctx;
+  const { app, storage, cameraManager, x32Manager, atemManager, obsManager, broadcast, pushUndo, addSessionLog } = ctx;
 
   async function executeSceneButton(button: SceneButton, sections?: SceneSection[]) {
     const results: string[] = [];
@@ -95,6 +98,24 @@ export function registerSceneRoutes(ctx: RouteContext) {
         results.push(`ATEM: switched to input ${button.atemInputId} (${button.atemTransitionType})`);
       } else {
         results.push("ATEM: not connected, skipped");
+      }
+    }
+
+    if (sectionEnabled("obs", sections) && button.obsSceneName) {
+      const obsClient = obsManager.getClient();
+      if (obsClient && obsClient.isConnected()) {
+        const previousScene = obsClient.getState().currentProgramScene;
+        if (previousScene) {
+          undoSteps.push(async () => {
+            const currentClient = obsManager.getClient();
+            if (!currentClient || !currentClient.isConnected()) return;
+            await currentClient.setCurrentProgramScene(previousScene);
+          });
+        }
+        await obsClient.setCurrentProgramScene(button.obsSceneName);
+        results.push(`OBS: switched to scene ${button.obsSceneName}`);
+      } else {
+        results.push("OBS: not connected, skipped");
       }
     }
 
@@ -330,7 +351,7 @@ export function registerSceneRoutes(ctx: RouteContext) {
     try {
       const id = parseInt(req.params.id);
       const section = req.body?.section as SceneSection | undefined;
-      if (!section || !["atem", "mixer", "hue", "ptz", "display"].includes(section)) {
+      if (!section || !["atem", "obs", "mixer", "hue", "ptz", "display"].includes(section)) {
         return res.status(400).json({ message: "Invalid scene test section" });
       }
       const button = await storage.getSceneButton(id);

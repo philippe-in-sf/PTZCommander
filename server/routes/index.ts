@@ -1,6 +1,7 @@
 export { registerCameraRoutes } from "./camera";
 export { registerMixerRoutes } from "./mixer";
 export { registerSwitcherRoutes } from "./switcher";
+export { registerObsRoutes } from "./obs";
 export { registerSceneRoutes } from "./scene";
 export { registerLayoutRoutes } from "./layout";
 export { registerMacroRoutes } from "./macro";

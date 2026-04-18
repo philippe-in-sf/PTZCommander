@@ -65,13 +65,15 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const allSceneButtons = await storage.getAllSceneButtons();
       const allMixers = await storage.getAllMixers();
       const allSwitchers = await storage.getAllSwitchers();
+      const allObsConnections = await storage.getAllObsConnections();
 
       const snapshot = JSON.stringify({
         cameras: allCameras.map(c => ({ name: c.name, ip: c.ip, port: c.port, protocol: c.protocol, username: c.username, password: c.password, streamUrl: c.streamUrl, previewType: c.previewType, previewRefreshMs: c.previewRefreshMs, atemInputId: c.atemInputId })),
         presets: allPresets.map(p => ({ cameraIp: allCameras.find(c => c.id === p.cameraId)?.ip, presetNumber: p.presetNumber, name: p.name, pan: p.pan, tilt: p.tilt, zoom: p.zoom, focus: p.focus })),
-        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
+        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, obsSceneName: s.obsSceneName, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
         mixers: allMixers.map(m => ({ name: m.name, ip: m.ip, port: m.port })),
         switchers: allSwitchers.map(s => ({ name: s.name, ip: s.ip, type: s.type })),
+        obsConnections: allObsConnections.map(o => ({ name: o.name, host: o.host, port: o.port, password: o.password })),
       });
 
       const layout = await storage.createLayout({
@@ -111,6 +113,8 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       for (const m of existingMixers) await storage.deleteMixer(m.id);
       const existingSwitchers = await storage.getAllSwitchers();
       for (const s of existingSwitchers) await storage.deleteSwitcher(s.id);
+      const existingObsConnections = await storage.getAllObsConnections();
+      for (const obs of existingObsConnections) await storage.deleteObsConnection(obs.id);
 
       const cameraIdMap: Record<string, number> = {};
       if (snapshot.cameras) {
@@ -153,10 +157,16 @@ export function registerLayoutRoutes(ctx: RouteContext) {
         }
       }
 
+      if (snapshot.obsConnections) {
+        for (const obs of snapshot.obsConnections) {
+          try { await storage.createObsConnection(obs); } catch {}
+        }
+      }
+
       await storage.setActiveLayout(id);
 
       logger.info("system", `Layout loaded: ${layout.name}`, { action: "layout:load" });
-      broadcast({ type: "invalidate", keys: ["layouts", "cameras", "presets", "mixers", "switchers", "scene-buttons"] });
+      broadcast({ type: "invalidate", keys: ["layouts", "cameras", "presets", "mixers", "switchers", "obs", "scene-buttons"] });
       res.json({ success: true, message: `Layout "${layout.name}" loaded successfully` });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to load layout" });
@@ -178,13 +188,15 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const allSceneButtons = await storage.getAllSceneButtons();
       const allMixers = await storage.getAllMixers();
       const allSwitchers = await storage.getAllSwitchers();
+      const allObsConnections = await storage.getAllObsConnections();
 
       const snapshot = JSON.stringify({
         cameras: allCameras.map(c => ({ name: c.name, ip: c.ip, port: c.port, protocol: c.protocol, username: c.username, password: c.password, streamUrl: c.streamUrl, previewType: c.previewType, previewRefreshMs: c.previewRefreshMs, atemInputId: c.atemInputId })),
         presets: allPresets.map(p => ({ cameraIp: allCameras.find(c => c.id === p.cameraId)?.ip, presetNumber: p.presetNumber, name: p.name, pan: p.pan, tilt: p.tilt, zoom: p.zoom, focus: p.focus })),
-        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
+        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, obsSceneName: s.obsSceneName, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
         mixers: allMixers.map(m => ({ name: m.name, ip: m.ip, port: m.port })),
         switchers: allSwitchers.map(s => ({ name: s.name, ip: s.ip, type: s.type })),
+        obsConnections: allObsConnections.map(o => ({ name: o.name, host: o.host, port: o.port, password: o.password })),
       });
 
       const updated = await storage.updateLayout(id, { snapshot });

@@ -1,4 +1,4 @@
-import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, runsheetCues, auditLogs, hueBridges, displayDevices, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type RunsheetCue, type InsertRunsheetCue, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
+import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, obsConnections, runsheetCues, auditLogs, hueBridges, displayDevices, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type ObsConnection, type InsertObsConnection, type RunsheetCue, type InsertRunsheetCue, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
@@ -59,6 +59,14 @@ export interface IStorage {
   createMacro(macro: InsertMacro): Promise<Macro>;
   updateMacro(id: number, updates: Partial<Macro>): Promise<Macro | undefined>;
   deleteMacro(id: number): Promise<void>;
+
+  // OBS operations
+  getAllObsConnections(): Promise<ObsConnection[]>;
+  getObsConnection(id: number): Promise<ObsConnection | undefined>;
+  createObsConnection(connection: InsertObsConnection): Promise<ObsConnection>;
+  updateObsConnection(id: number, updates: Partial<ObsConnection>): Promise<ObsConnection | undefined>;
+  deleteObsConnection(id: number): Promise<void>;
+  updateObsConnectionStatus(id: number, status: string, state?: { currentProgramScene?: string | null; studioMode?: boolean }): Promise<void>;
 
   // Runsheet operations
   getAllRunsheetCues(): Promise<RunsheetCue[]>;
@@ -159,6 +167,20 @@ function sqliteRowToMacro(row: any): Macro {
   };
 }
 
+function sqliteRowToObsConnection(row: any): ObsConnection {
+  return {
+    id: row.id,
+    name: row.name,
+    host: row.host,
+    port: row.port,
+    password: row.password,
+    status: row.status,
+    currentProgramScene: row.current_program_scene,
+    studioMode: Boolean(row.studio_mode),
+    createdAt: new Date(row.created_at),
+  };
+}
+
 function sqliteRowToRunsheetCue(row: any): RunsheetCue {
   return {
     id: row.id,
@@ -179,6 +201,7 @@ function sqliteRowToSceneButton(row: any): SceneButton {
     groupName: row.group_name || "General",
     atemInputId: row.atem_input_id,
     atemTransitionType: row.atem_transition_type,
+    obsSceneName: row.obs_scene_name,
     cameraId: row.camera_id,
     presetNumber: row.preset_number,
     mixerActions: row.mixer_actions,
@@ -648,8 +671,8 @@ export class DatabaseStorage implements IStorage {
   async createSceneButton(insert: InsertSceneButton): Promise<SceneButton> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO scene_buttons (button_number, name, color, group_name, atem_input_id, atem_transition_type, camera_id, preset_number, mixer_actions, hue_actions, display_actions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scene_buttons (button_number, name, color, group_name, atem_input_id, atem_transition_type, obs_scene_name, camera_id, preset_number, mixer_actions, hue_actions, display_actions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         insert.buttonNumber,
         insert.name,
@@ -657,6 +680,7 @@ export class DatabaseStorage implements IStorage {
         insert.groupName || 'General',
         insert.atemInputId ?? null,
         insert.atemTransitionType || 'cut',
+        insert.obsSceneName ?? null,
         insert.cameraId ?? null,
         insert.presetNumber ?? null,
         insert.mixerActions ?? null,
@@ -680,6 +704,7 @@ export class DatabaseStorage implements IStorage {
       if (updates.groupName !== undefined) { setClauses.push('group_name = ?'); values.push(updates.groupName || 'General'); }
       if (updates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(updates.atemInputId); }
       if (updates.atemTransitionType !== undefined) { setClauses.push('atem_transition_type = ?'); values.push(updates.atemTransitionType); }
+      if (updates.obsSceneName !== undefined) { setClauses.push('obs_scene_name = ?'); values.push(updates.obsSceneName); }
       if (updates.cameraId !== undefined) { setClauses.push('camera_id = ?'); values.push(updates.cameraId); }
       if (updates.presetNumber !== undefined) { setClauses.push('preset_number = ?'); values.push(updates.presetNumber); }
       if (updates.mixerActions !== undefined) { setClauses.push('mixer_actions = ?'); values.push(updates.mixerActions); }
@@ -864,6 +889,82 @@ export class DatabaseStorage implements IStorage {
       return;
     }
     await db.delete(macros).where(eq(macros.id, id));
+  }
+
+  // OBS operations
+  async getAllObsConnections(): Promise<ObsConnection[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare('SELECT * FROM obs_connections ORDER BY id').all();
+      return rows.map(sqliteRowToObsConnection);
+    }
+    return await db.select().from(obsConnections);
+  }
+
+  async getObsConnection(id: number): Promise<ObsConnection | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare('SELECT * FROM obs_connections WHERE id = ?').get(id);
+      return row ? sqliteRowToObsConnection(row) : undefined;
+    }
+    const [connection] = await db.select().from(obsConnections).where(eq(obsConnections.id, id));
+    return connection || undefined;
+  }
+
+  async createObsConnection(connection: InsertObsConnection): Promise<ObsConnection> {
+    if (useSqlite && sqlite) {
+      const result = sqlite.prepare(`
+        INSERT INTO obs_connections (name, host, port, password, status, current_program_scene, studio_mode)
+        VALUES (?, ?, ?, ?, 'offline', NULL, 0)
+      `).run(
+        connection.name,
+        connection.host,
+        connection.port || 4455,
+        connection.password || null
+      );
+      return this.getObsConnection(Number(result.lastInsertRowid)) as Promise<ObsConnection>;
+    }
+    const [created] = await db.insert(obsConnections).values(connection).returning();
+    return created;
+  }
+
+  async updateObsConnection(id: number, updates: Partial<ObsConnection>): Promise<ObsConnection | undefined> {
+    if (useSqlite && sqlite) {
+      const fields: string[] = [];
+      const values: any[] = [];
+      if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+      if (updates.host !== undefined) { fields.push('host = ?'); values.push(updates.host); }
+      if (updates.port !== undefined) { fields.push('port = ?'); values.push(updates.port); }
+      if (updates.password !== undefined) { fields.push('password = ?'); values.push(updates.password); }
+      if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
+      if (updates.currentProgramScene !== undefined) { fields.push('current_program_scene = ?'); values.push(updates.currentProgramScene); }
+      if (updates.studioMode !== undefined) { fields.push('studio_mode = ?'); values.push(updates.studioMode ? 1 : 0); }
+      if (!fields.length) return this.getObsConnection(id);
+      values.push(id);
+      sqlite.prepare(`UPDATE obs_connections SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+      return this.getObsConnection(id);
+    }
+    const [updated] = await db.update(obsConnections).set(updates).where(eq(obsConnections.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deleteObsConnection(id: number): Promise<void> {
+    if (useSqlite && sqlite) {
+      sqlite.prepare('DELETE FROM obs_connections WHERE id = ?').run(id);
+      return;
+    }
+    await db.delete(obsConnections).where(eq(obsConnections.id, id));
+  }
+
+  async updateObsConnectionStatus(id: number, status: string, state: { currentProgramScene?: string | null; studioMode?: boolean } = {}): Promise<void> {
+    if (useSqlite && sqlite) {
+      const fields = ['status = ?'];
+      const values: any[] = [status];
+      if (state.currentProgramScene !== undefined) { fields.push('current_program_scene = ?'); values.push(state.currentProgramScene); }
+      if (state.studioMode !== undefined) { fields.push('studio_mode = ?'); values.push(state.studioMode ? 1 : 0); }
+      values.push(id);
+      sqlite.prepare(`UPDATE obs_connections SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+      return;
+    }
+    await db.update(obsConnections).set({ status, ...state }).where(eq(obsConnections.id, id));
   }
 
   // Runsheet operations

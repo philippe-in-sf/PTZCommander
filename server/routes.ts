@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { cameraManager } from "./visca";
 import { x32Manager } from "./x32";
 import { atemManager } from "./atem";
+import { obsManager } from "./obs";
 import { logger, setupAuditLogging } from "./logger";
 import { setHueClient, getHueClient } from "./hue";
 import { APP_VERSION } from "@shared/version";
@@ -15,6 +16,7 @@ import {
   registerCameraRoutes,
   registerMixerRoutes,
   registerSwitcherRoutes,
+  registerObsRoutes,
   registerSceneRoutes,
   registerLayoutRoutes,
   registerMacroRoutes,
@@ -102,6 +104,7 @@ export async function registerRoutes(
     cameraManager,
     x32Manager,
     atemManager,
+    obsManager,
     broadcast,
     pushUndo,
     addSessionLog,
@@ -114,6 +117,7 @@ export async function registerRoutes(
   registerCameraRoutes(ctx);
   registerMixerRoutes(ctx);
   registerSwitcherRoutes(ctx);
+  registerObsRoutes(ctx);
   registerSceneRoutes(ctx);
   registerLayoutRoutes(ctx);
   registerMacroRoutes(ctx);
@@ -172,6 +176,10 @@ export async function registerRoutes(
     updateTallyLights(state.programInput, state.previewInput);
   });
 
+  obsManager.setStateChangeCallback((state) => {
+    broadcast({ type: "obs_state", ...state });
+  });
+
   wss.on("connection", (ws: WebSocket) => {
     logger.info("websocket", "Client connected", { action: "ws_connect" });
 
@@ -190,6 +198,14 @@ export async function registerRoutes(
       ws.send(JSON.stringify({
         type: "atem_state",
         ...atemState
+      }));
+    }
+
+    const obsState = obsManager.getState();
+    if (obsState && obsState.connected) {
+      ws.send(JSON.stringify({
+        type: "obs_state",
+        ...obsState
       }));
     }
 
@@ -499,6 +515,16 @@ export async function registerRoutes(
             }
             break;
           }
+
+          case "obs_program_scene": {
+            const obsClient = obsManager.getClient();
+            if (obsClient && obsClient.isConnected()) {
+              await obsClient.setCurrentProgramScene(message.sceneName as string);
+              addSessionLog("switcher", "OBS Scene", `Program scene set to ${message.sceneName}`);
+              broadcast({ type: "obs_state", ...obsClient.getState() });
+            }
+            break;
+          }
         }
       } catch (error: unknown) {
         logger.error("websocket", `Error processing message: ${error instanceof Error ? error.message : String(error)}`, { action: "ws_message_error" });
@@ -520,6 +546,20 @@ export async function registerRoutes(
       logger.info("camera", `Initialized ${cameras.length} camera connection(s)`, { action: "visca_init" });
     } catch (error: unknown) {
       logger.error("camera", `Error initializing camera connections: ${error instanceof Error ? error.message : String(error)}`, { action: "visca_init_error" });
+    }
+    try {
+      const obsConnections = await storage.getAllObsConnections();
+      const obsConnection = obsConnections[0];
+      if (obsConnection) {
+        const connected = await obsManager.connect(obsConnection);
+        const state = obsManager.getState();
+        await storage.updateObsConnectionStatus(obsConnection.id, connected ? "online" : "offline", {
+          currentProgramScene: state?.currentProgramScene ?? null,
+          studioMode: state?.studioMode ?? false,
+        });
+      }
+    } catch (error: unknown) {
+      logger.error("switcher", `Error initializing OBS connection: ${error instanceof Error ? error.message : String(error)}`, { action: "obs_init_error" });
     }
     try {
       const bridges = await storage.getAllHueBridges();
