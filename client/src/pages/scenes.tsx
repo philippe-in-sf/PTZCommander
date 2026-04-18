@@ -310,6 +310,13 @@ export default function ScenesPage() {
   });
 
   const obsSceneOptions = obsScenesResult?.scenes ?? [];
+  const obsSceneNames = useMemo(() => {
+    const names = obsSceneOptions.map((scene) => scene.sceneName);
+    if (formData.obsSceneName && !names.includes(formData.obsSceneName)) {
+      return [formData.obsSceneName, ...names];
+    }
+    return names;
+  }, [formData.obsSceneName, obsSceneOptions]);
 
   const sceneGroups = useMemo(() => {
     const groups = new Map<string, SceneButton[]>();
@@ -870,16 +877,21 @@ export default function ScenesPage() {
               <div className="space-y-2">
                 <div>
                   <Label>Program Scene</Label>
-                  <Input
-                    value={formData.obsSceneName}
-                    onChange={(e) => setFormData(p => ({ ...p, obsSceneName: e.target.value }))}
-                    placeholder="None"
-                    list="obs-scene-options"
-                    data-testid="input-scene-obs-scene"
-                  />
-                  <datalist id="obs-scene-options">
-                    {obsSceneOptions.map((scene) => <option key={scene.sceneName} value={scene.sceneName} />)}
-                  </datalist>
+                  <Select
+                    value={formData.obsSceneName || "_none"}
+                    onValueChange={(value) => setFormData(p => ({ ...p, obsSceneName: value === "_none" ? "" : value }))}
+                    disabled={!obsConnection && !formData.obsSceneName}
+                  >
+                    <SelectTrigger data-testid="select-scene-obs-scene">
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">None</SelectItem>
+                      {obsSceneNames.map((sceneName) => (
+                        <SelectItem key={sceneName} value={sceneName}>{sceneName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {obsConnection

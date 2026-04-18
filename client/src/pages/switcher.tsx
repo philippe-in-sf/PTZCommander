@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { MonitorPlay, Plus, Wifi, WifiOff, Zap, ArrowRightLeft, Settings, Trash2, AlertTriangle, Play, Square, SkipForward, Repeat, Radio, LogOut } from "lucide-react";
 import { toast } from "sonner";
@@ -345,6 +346,10 @@ function OBSConnectionCard({
 }) {
   const connected = Boolean(status?.connected || connection?.status === "online");
   const currentScene = status?.currentProgramScene || connection?.currentProgramScene;
+  const sceneNames = scenes.map((scene) => scene.sceneName);
+  const selectableSceneNames = selectedSceneName && !sceneNames.includes(selectedSceneName)
+    ? [selectedSceneName, ...sceneNames]
+    : sceneNames;
 
   return (
     <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4">
@@ -406,17 +411,21 @@ function OBSConnectionCard({
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             {connected && scenes.length > 0 && (
               <>
-                <Input
+                <Select
                   value={selectedSceneName}
-                  onChange={(e) => onSelectedSceneNameChange(e.target.value)}
-                  placeholder="OBS scene"
-                  list="switcher-obs-scenes"
-                  className="sm:w-56"
-                  data-testid="input-switcher-obs-scene"
-                />
-                <datalist id="switcher-obs-scenes">
-                  {scenes.map((scene) => <option key={scene.sceneName} value={scene.sceneName} />)}
-                </datalist>
+                  onValueChange={onSelectedSceneNameChange}
+                >
+                  <SelectTrigger className="sm:w-56" data-testid="select-switcher-obs-scene">
+                    <SelectValue placeholder="OBS scene" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectableSceneNames.map((sceneName) => (
+                      <SelectItem key={sceneName} value={sceneName}>
+                        {sceneName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button variant="outline" onClick={onSwitchScene} disabled={!selectedSceneName || switching} data-testid="button-switch-obs-scene">
                   <Play className="h-4 w-4 mr-2" /> Go
                 </Button>
