@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { errorDetails, logger } from "./logger";
 
 const app = express();
 const httpServer = createServer(app);
@@ -67,6 +68,16 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     log(`Internal Server Error: ${message}`, "error");
+    logger.error("api", `Unhandled request error: ${message}`, {
+      action: "api_unhandled_error",
+      details: {
+        status,
+        method: _req.method,
+        path: _req.path,
+        query: _req.query,
+        ...errorDetails(err),
+      },
+    });
 
     if (res.headersSent) {
       return next(err);

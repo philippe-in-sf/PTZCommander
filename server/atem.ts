@@ -1,4 +1,4 @@
-import { logger } from "./logger";
+import { errorDetails, logger } from "./logger";
 
 export interface AtemConfig {
   ip: string;
@@ -80,13 +80,33 @@ export interface AtemSwitcherState {
 }
 
 type AtemInstance = any;
-type AtemConstructor = new () => AtemInstance;
+type AtemConstructor = new (options?: { disableMultithreaded?: boolean }) => AtemInstance;
 
 let atemConstructorPromise: Promise<AtemConstructor> | null = null;
+const ATEM_CONNECT_TIMEOUT_MS = 10000;
 
 async function loadAtemConstructor(): Promise<AtemConstructor> {
   if (!atemConstructorPromise) {
-    atemConstructorPromise = import("atem-connection").then((module) => module.Atem as AtemConstructor);
+    logger.debug("switcher", "Loading ATEM connection module", {
+      action: "atem_module_load",
+      details: { nodeVersion: process.version, platform: process.platform, pid: process.pid },
+    });
+    atemConstructorPromise = import("atem-connection")
+      .then((module) => {
+        logger.debug("switcher", "ATEM connection module loaded", {
+          action: "atem_module_loaded",
+          details: { exports: Object.keys(module).slice(0, 12) },
+        });
+        return module.Atem as AtemConstructor;
+      })
+      .catch((error) => {
+        atemConstructorPromise = null;
+        logger.error("switcher", "Failed to load ATEM connection module", {
+          action: "atem_module_load_error",
+          details: errorDetails(error),
+        });
+        throw error;
+      });
   }
   return atemConstructorPromise;
 }
@@ -105,7 +125,15 @@ export class AtemClient {
     if (this.atem) return this.atem;
 
     const Atem = await loadAtemConstructor();
-    const atem = new Atem();
+    const atem = new Atem({
+      // Avoid the threaded socket worker under launchd/Node 24. That worker can
+      // fail while reading its child module and prevent ATEM connections.
+      disableMultithreaded: true,
+    });
+    logger.debug("switcher", "ATEM client instance created", {
+      action: "atem_client_created",
+      details: { ip: this.config.ip, disableMultithreaded: true, timeoutMs: ATEM_CONNECT_TIMEOUT_MS },
+    });
 
     atem.on("connected", () => {
       logger.info("switcher", `ATEM connected to ${this.config.ip}`, { action: "atem_connected", details: { ip: this.config.ip } });
@@ -125,7 +153,10 @@ export class AtemClient {
 
     atem.on("error", (error: string | Error) => {
       const message = error instanceof Error ? error.message : error;
-      logger.error("switcher", `ATEM error: ${message}`, { action: "atem_error", details: { error: message } });
+      logger.error("switcher", `ATEM error: ${message}`, {
+        action: "atem_error",
+        details: error instanceof Error ? errorDetails(error) : { error: message },
+      });
     });
 
     this.atem = atem;
@@ -143,13 +174,83 @@ export class AtemClient {
   }
 
   async connect(): Promise<boolean> {
+    const startedAt = Date.now();
     try {
       const atem = await this.getAtem();
-      await atem.connect(this.config.ip);
-      return true;
+      logger.info("switcher", `Connecting to ATEM at ${this.config.ip}`, {
+        action: "atem_connect_start",
+        details: { ip: this.config.ip, timeoutMs: ATEM_CONNECT_TIMEOUT_MS },
+      });
+
+      if (this.connected) {
+        logger.debug("switcher", `ATEM already connected at ${this.config.ip}`, {
+          action: "atem_connect_already_connected",
+          details: { ip: this.config.ip },
+        });
+        return true;
+      }
+
+      const connected = await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const cleanup = () => {
+          clearTimeout(timer);
+          atem.off?.("connected", onConnected);
+          atem.off?.("disconnected", onDisconnected);
+          atem.off?.("error", onError);
+        };
+        const finish = (success: boolean) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve(success);
+        };
+        const onConnected = () => finish(true);
+        const onDisconnected = () => finish(false);
+        const onError = (error: unknown) => {
+          logger.error("switcher", "ATEM emitted an error during connection", {
+            action: "atem_connect_event_error",
+            details: errorDetails(error),
+          });
+          finish(false);
+        };
+        const timer = setTimeout(() => {
+          logger.warn("switcher", `ATEM connection timed out after ${ATEM_CONNECT_TIMEOUT_MS}ms`, {
+            action: "atem_connect_timeout",
+            details: { ip: this.config.ip, elapsedMs: Date.now() - startedAt },
+          });
+          finish(false);
+        }, ATEM_CONNECT_TIMEOUT_MS);
+
+        atem.once?.("connected", onConnected);
+        atem.once?.("disconnected", onDisconnected);
+        atem.once?.("error", onError);
+
+        atem.connect(this.config.ip).catch((error: unknown) => {
+          logger.error("switcher", "ATEM connect call rejected", {
+            action: "atem_connect_rejected",
+            details: errorDetails(error),
+          });
+          finish(false);
+        });
+      });
+
+      if (!connected) {
+        await this.resetAtem("connect_failed");
+      } else {
+        logger.info("switcher", `ATEM connection ready at ${this.config.ip}`, {
+          action: "atem_connect_ready",
+          details: { ip: this.config.ip, elapsedMs: Date.now() - startedAt },
+        });
+      }
+
+      return connected;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      logger.error("switcher", `ATEM connection error: ${message}`, { action: "atem_connect_error", details: { error: message } });
+      logger.error("switcher", `ATEM connection error: ${message}`, {
+        action: "atem_connect_error",
+        details: { ...errorDetails(error), ip: this.config.ip, elapsedMs: Date.now() - startedAt },
+      });
+      await this.resetAtem("connect_exception");
       return false;
     }
   }
@@ -157,6 +258,45 @@ export class AtemClient {
   disconnect() {
     this.atem?.disconnect();
     this.connected = false;
+  }
+
+  private async resetAtem(reason: string) {
+    const atem = this.atem;
+    this.atem = null;
+    this.connected = false;
+    if (!atem) return;
+    try {
+      let cleanupMethod = "none";
+      const cleanup = async () => {
+        if (typeof atem.destroy === "function") {
+          cleanupMethod = "destroy";
+          await atem.destroy();
+        } else if (typeof atem.disconnect === "function") {
+          cleanupMethod = "disconnect";
+          await atem.disconnect();
+        }
+      };
+      const cleanupTimeout = new Promise<"timeout">((resolve) => {
+        setTimeout(() => resolve("timeout"), 1500);
+      });
+      const result = await Promise.race([cleanup().then(() => "complete" as const), cleanupTimeout]);
+      if (result === "timeout") {
+        logger.warn("switcher", "ATEM client cleanup timed out", {
+          action: "atem_client_cleanup_timeout",
+          details: { reason, ip: this.config.ip, cleanupMethod },
+        });
+        return;
+      }
+      logger.debug("switcher", "ATEM client cleaned up", {
+        action: "atem_client_cleanup",
+        details: { reason, ip: this.config.ip, cleanupMethod },
+      });
+    } catch (error) {
+      logger.warn("switcher", "ATEM client cleanup failed", {
+        action: "atem_client_cleanup_error",
+        details: { reason, ip: this.config.ip, ...errorDetails(error) },
+      });
+    }
   }
 
   isConnected(): boolean {
