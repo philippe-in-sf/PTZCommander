@@ -21,6 +21,50 @@ export interface LogEntry {
 
 type LogCallback = (entry: LogEntry) => void;
 
+function toJsonSafe(value: unknown, depth = 0): unknown {
+  if (depth > 3) return "[MaxDepth]";
+  if (value === null || value === undefined) return value;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.map((item) => toJsonSafe(item, depth + 1));
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.getOwnPropertyNames(value)) {
+      try {
+        out[key] = toJsonSafe((value as Record<string, unknown>)[key], depth + 1);
+      } catch {
+        out[key] = "[Unreadable]";
+      }
+    }
+    return out;
+  }
+  return String(value);
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(toJsonSafe(value));
+  } catch (error) {
+    return JSON.stringify({ loggingError: errorDetails(error) });
+  }
+}
+
+export function errorDetails(error: unknown): Record<string, any> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      ...Object.fromEntries(
+        Object.getOwnPropertyNames(error)
+          .filter((key) => !["name", "message", "stack", "cause"].includes(key))
+          .map((key) => [key, toJsonSafe((error as any)[key])])
+      ),
+      ...(error.cause ? { cause: errorDetails(error.cause) } : {}),
+    };
+  }
+  return { value: toJsonSafe(error) };
+}
+
 class Logger {
   private logCallbacks: Set<LogCallback> = new Set();
   private logBuffer: LogEntry[] = [];
@@ -35,7 +79,7 @@ class Logger {
     const level = entry.level.toUpperCase().padEnd(5);
     const category = `[${entry.category}]`.padEnd(12);
     const action = entry.action ? ` action=${entry.action}` : "";
-    const details = entry.details ? ` ${JSON.stringify(entry.details)}` : "";
+    const details = entry.details ? ` ${safeStringify(entry.details)}` : "";
     return `${timestamp} ${level} ${category} ${entry.message}${action}${details}`;
   }
 

@@ -1,6 +1,7 @@
 import type { RouteContext } from "./types";
 import { patchSwitcherSchema, insertSwitcherSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
+import { errorDetails, logger } from "../logger";
 
 export function registerSwitcherRoutes(ctx: RouteContext) {
   const { app, storage, atemManager, broadcast } = ctx;
@@ -80,11 +81,23 @@ export function registerSwitcherRoutes(ctx: RouteContext) {
       if (!switcher) {
         return res.status(404).json({ message: "Switcher not found" });
       }
+      logger.info("switcher", `Manual ATEM connect requested for ${switcher.name}`, {
+        action: "atem_connect_requested",
+        details: { switcherId: id, name: switcher.name, ip: switcher.ip },
+      });
       const connected = await atemManager.connect(switcher.ip);
       await storage.updateSwitcherStatus(id, connected ? "online" : "offline");
+      logger[connected ? "info" : "warn"]("switcher", `Manual ATEM connect ${connected ? "succeeded" : "failed"} for ${switcher.name}`, {
+        action: connected ? "atem_connect_succeeded" : "atem_connect_failed",
+        details: { switcherId: id, name: switcher.name, ip: switcher.ip },
+      });
       broadcast({ type: "invalidate", keys: ["switchers"] });
       res.json({ success: connected, status: connected ? "online" : "offline" });
     } catch (error) {
+      logger.error("switcher", "Manual ATEM connect route failed", {
+        action: "atem_connect_route_error",
+        details: errorDetails(error),
+      });
       res.status(500).json({ message: "Failed to connect to switcher" });
     }
   });
