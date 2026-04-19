@@ -1,6 +1,6 @@
 import dgram from "dgram";
 import net from "net";
-import mqtt, { type IClientOptions, type MqttClient } from "mqtt";
+import type { IClientOptions, MqttClient } from "mqtt";
 
 const SSDP_ADDR = "239.255.255.250";
 const SSDP_PORT = 1900;
@@ -8,6 +8,8 @@ const DEFAULT_PORT = 36669;
 const DEFAULT_USERNAME = "hisenseservice";
 const DEFAULT_PASSWORD = "multimqttservice";
 const DEFAULT_CLIENT_NAME = "PTZCommander";
+
+let mqttModulePromise: Promise<typeof import("mqtt")> | null = null;
 
 export interface HisenseDiscoveryResult {
   ip: string;
@@ -43,6 +45,12 @@ function normalizeClientName(value?: string | null) {
 
 function topic(clientName: string, service: "platform_service" | "remote_service" | "ui_service", action: string) {
   return `/remoteapp/tv/${service}/${clientName}/actions/${action}`;
+}
+
+async function getMqttModule() {
+  mqttModulePromise ??= import("mqtt");
+  const module = await mqttModulePromise;
+  return module.default ?? module;
 }
 
 function tryPort(host: string, port: number, timeoutMs = 900) {
@@ -131,11 +139,12 @@ export async function discoverHisenseDisplays(timeoutMs = 3500): Promise<Hisense
   return Array.from(found.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function connectMqtt(options: HisenseClientOptions) {
+async function connectMqtt(options: HisenseClientOptions) {
   const port = options.port || DEFAULT_PORT;
   const useSsl = options.useSsl !== false;
   const protocol = useSsl ? "mqtts" : "mqtt";
   const clientName = normalizeClientName(options.clientName);
+  const mqtt = await getMqttModule();
   const mqttOptions: IClientOptions = {
     username: options.username || DEFAULT_USERNAME,
     password: options.password || DEFAULT_PASSWORD,
