@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SkinSelector } from "@/components/skin-selector";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { RehearsalToggle } from "@/components/rehearsal-toggle";
 import { useSkin } from "@/lib/skin-context";
 import {
   DropdownMenu,
@@ -158,6 +159,7 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        <RehearsalToggle />
         {rightContent}
         <SkinSelector />
         <ThemeToggle />
@@ -192,6 +194,7 @@ function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
         </nav>
       </div>
       <div className="flex items-center space-x-4 text-[10px] text-zinc-400">
+        <RehearsalToggle />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
@@ -228,6 +231,7 @@ function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        <RehearsalToggle />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
@@ -262,6 +266,7 @@ function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
       </div>
 
       <div className="flex items-center gap-4 text-xs font-mono">
+        <RehearsalToggle />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />

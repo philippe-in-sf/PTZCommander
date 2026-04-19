@@ -3,12 +3,36 @@ import { logger } from "../logger";
 import { APP_VERSION } from "@shared/version";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { getRehearsalMode, setRehearsalMode } from "../rehearsal";
 
 export function registerSystemRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, x32Manager, atemManager, broadcast, undoStack, sessionLog, addSessionLog } = ctx;
 
   app.get("/api/version", (_req, res) => {
     res.json({ version: APP_VERSION });
+  });
+
+  app.get("/api/rehearsal", (_req, res) => {
+    res.json(getRehearsalMode());
+  });
+
+  app.post("/api/rehearsal", (req, res) => {
+    const enabled = Boolean(req.body?.enabled);
+    const previous = getRehearsalMode().enabled;
+    const mode = setRehearsalMode(enabled);
+
+    if (previous !== enabled) {
+      const action = enabled ? "Rehearsal Enabled" : "Rehearsal Disabled";
+      const details = enabled
+        ? "ATEM, OBS, and X32 live-output writes are suppressed; VISCA camera moves remain active"
+        : "Live-output writes are active";
+      addSessionLog("system", action, details);
+      logger.warn("system", action, { action: "rehearsal_mode", details: { enabled } });
+    }
+
+    broadcast({ type: "rehearsal_mode", enabled });
+    broadcast({ type: "invalidate", keys: ["rehearsal"] });
+    res.json(mode);
   });
 
   app.get("/api/mobile/config", (_req, res) => {
@@ -27,6 +51,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
         displays: true,
         switcher: true,
         mixer: true,
+        rehearsal: true,
       },
       endpoints: {
         cameras: "/api/cameras",
@@ -34,6 +59,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
         macros: "/api/macros",
         runsheet: "/api/runsheet/cues",
         displays: "/api/displays",
+        rehearsal: "/api/rehearsal",
         deviceHealth: "/api/health/devices",
       },
     });

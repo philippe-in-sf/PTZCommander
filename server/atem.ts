@@ -1,4 +1,3 @@
-import { Atem } from "atem-connection";
 import { logger } from "./logger";
 
 export interface AtemConfig {
@@ -80,36 +79,57 @@ export interface AtemSwitcherState {
   auxOutputs: number[];
 }
 
+type AtemInstance = any;
+type AtemConstructor = new () => AtemInstance;
+
+let atemConstructorPromise: Promise<AtemConstructor> | null = null;
+
+async function loadAtemConstructor(): Promise<AtemConstructor> {
+  if (!atemConstructorPromise) {
+    atemConstructorPromise = import("atem-connection").then((module) => module.Atem as AtemConstructor);
+  }
+  return atemConstructorPromise;
+}
+
 export class AtemClient {
-  private atem: Atem;
+  private atem: AtemInstance | null = null;
   private connected: boolean = false;
   private config: AtemConfig;
   private onStateChange: ((state: AtemSwitcherState) => void) | null = null;
 
   constructor(config: AtemConfig) {
     this.config = config;
-    this.atem = new Atem();
+  }
 
-    this.atem.on("connected", () => {
+  private async getAtem(): Promise<AtemInstance> {
+    if (this.atem) return this.atem;
+
+    const Atem = await loadAtemConstructor();
+    const atem = new Atem();
+
+    atem.on("connected", () => {
       logger.info("switcher", `ATEM connected to ${this.config.ip}`, { action: "atem_connected", details: { ip: this.config.ip } });
       this.connected = true;
       this.notifyStateChange();
     });
 
-    this.atem.on("disconnected", () => {
+    atem.on("disconnected", () => {
       logger.info("switcher", "ATEM disconnected", { action: "atem_disconnected" });
       this.connected = false;
       this.notifyStateChange();
     });
 
-    this.atem.on("stateChanged", () => {
+    atem.on("stateChanged", () => {
       this.notifyStateChange();
     });
 
-    this.atem.on("error", (error: string | Error) => {
+    atem.on("error", (error: string | Error) => {
       const message = error instanceof Error ? error.message : error;
       logger.error("switcher", `ATEM error: ${message}`, { action: "atem_error", details: { error: message } });
     });
+
+    this.atem = atem;
+    return atem;
   }
 
   setStateChangeCallback(callback: (state: AtemSwitcherState) => void) {
@@ -124,7 +144,8 @@ export class AtemClient {
 
   async connect(): Promise<boolean> {
     try {
-      await this.atem.connect(this.config.ip);
+      const atem = await this.getAtem();
+      await atem.connect(this.config.ip);
       return true;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -134,7 +155,7 @@ export class AtemClient {
   }
 
   disconnect() {
-    this.atem.disconnect();
+    this.atem?.disconnect();
     this.connected = false;
   }
 
@@ -143,7 +164,7 @@ export class AtemClient {
   }
 
   getState(): AtemSwitcherState {
-    const state = this.atem.state;
+    const state = this.atem?.state;
     const mixEffect = state?.video?.mixEffects?.[0];
 
     const inputs: AtemInputInfo[] = [];
@@ -262,107 +283,107 @@ export class AtemClient {
 
   async setProgramInput(inputId: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.changeProgramInput(inputId);
+    await this.atem?.changeProgramInput(inputId);
   }
 
   async setPreviewInput(inputId: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.changePreviewInput(inputId);
+    await this.atem?.changePreviewInput(inputId);
   }
 
   async cut(): Promise<void> {
     if (!this.connected) return;
-    await this.atem.cut();
+    await this.atem?.cut();
   }
 
   async autoTransition(): Promise<void> {
     if (!this.connected) return;
-    await this.atem.autoTransition();
+    await this.atem?.autoTransition();
   }
 
   async fadeToBlack(): Promise<void> {
     if (!this.connected) return;
-    await this.atem.fadeToBlack();
+    await this.atem?.fadeToBlack();
   }
 
   async setTransitionPosition(position: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setTransitionPosition(position);
+    await this.atem?.setTransitionPosition(position);
   }
 
   async setTransitionStyle(style: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setTransitionStyle({ nextStyle: style });
+    await this.atem?.setTransitionStyle({ nextStyle: style });
   }
 
   async setTransitionPreview(enabled: boolean): Promise<void> {
     if (!this.connected) return;
-    await this.atem.previewTransition(enabled);
+    await this.atem?.previewTransition(enabled);
   }
 
   async setMixRate(rate: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setMixTransitionSettings({ rate });
+    await this.atem?.setMixTransitionSettings({ rate });
   }
 
   async setDipRate(rate: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setDipTransitionSettings({ rate });
+    await this.atem?.setDipTransitionSettings({ rate });
   }
 
   async setWipeRate(rate: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setWipeTransitionSettings({ rate });
+    await this.atem?.setWipeTransitionSettings({ rate });
   }
 
   async setFadeToBlackRate(rate: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setFadeToBlackRate(rate);
+    await this.atem?.setFadeToBlackRate(rate);
   }
 
   async setDSKOnAir(dskIndex: number, onAir: boolean): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setDownstreamKeyOnAir(onAir, dskIndex);
+    await this.atem?.setDownstreamKeyOnAir(onAir, dskIndex);
   }
 
   async setDSKTie(dskIndex: number, tie: boolean): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setDownstreamKeyTie(tie, dskIndex);
+    await this.atem?.setDownstreamKeyTie(tie, dskIndex);
   }
 
   async autoDSK(dskIndex: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.autoDownstreamKey(dskIndex);
+    await this.atem?.autoDownstreamKey(dskIndex);
   }
 
   async setDSKRate(dskIndex: number, rate: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setDownstreamKeyRate(rate, dskIndex);
+    await this.atem?.setDownstreamKeyRate(rate, dskIndex);
   }
 
   async setUSKOnAir(uskIndex: number, onAir: boolean): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setUpstreamKeyerOnAir(onAir, 0, uskIndex);
+    await this.atem?.setUpstreamKeyerOnAir(onAir, 0, uskIndex);
   }
 
   async runMacro(macroIndex: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.macroRun(macroIndex);
+    await this.atem?.macroRun(macroIndex);
   }
 
   async stopMacro(): Promise<void> {
     if (!this.connected) return;
-    await this.atem.macroStop();
+    await this.atem?.macroStop();
   }
 
   async continueMacro(): Promise<void> {
     if (!this.connected) return;
-    await this.atem.macroContinue();
+    await this.atem?.macroContinue();
   }
 
   async setAuxSource(auxIndex: number, sourceId: number): Promise<void> {
     if (!this.connected) return;
-    await this.atem.setAuxSource(sourceId, auxIndex);
+    await this.atem?.setAuxSource(sourceId, auxIndex);
   }
 }
 

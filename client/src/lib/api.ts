@@ -91,6 +91,28 @@ export interface ObsState {
   error?: string;
 }
 
+export interface RehearsalMode {
+  enabled: boolean;
+}
+
+export const rehearsalApi = {
+  get: async (): Promise<RehearsalMode> => {
+    const res = await fetch(`${API_BASE}/rehearsal`);
+    if (!res.ok) throw new Error("Failed to fetch rehearsal mode");
+    return res.json();
+  },
+
+  set: async (enabled: boolean): Promise<RehearsalMode> => {
+    const res = await fetch(`${API_BASE}/rehearsal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) throw new Error("Failed to update rehearsal mode");
+    return res.json();
+  },
+};
+
 // Camera API
 export const cameraApi = {
   getAll: async (): Promise<Camera[]> => {

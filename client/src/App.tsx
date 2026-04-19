@@ -1,11 +1,12 @@
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SkinProvider } from "@/lib/skin-context";
 import { useWsInvalidation } from "@/lib/ws-invalidation";
+import { rehearsalApi } from "@/lib/api";
 import { ErrorBoundary } from "@/components/error-boundary";
 import Dashboard from "@/pages/dashboard";
 import MixerPage from "@/pages/mixer";
@@ -22,6 +23,27 @@ import NotFound from "@/pages/not-found";
 function WsSync({ children }: { children: React.ReactNode }) {
   useWsInvalidation();
   return <>{children}</>;
+}
+
+function RehearsalChrome() {
+  const { data } = useQuery({
+    queryKey: ["rehearsal"],
+    queryFn: rehearsalApi.get,
+  });
+  const enabled = data?.enabled ?? false;
+
+  return (
+    <>
+      {enabled && (
+        <div className="fixed inset-x-0 top-0 z-[200] flex h-9 items-center justify-center border-b border-red-300 bg-red-600 px-3 text-center text-xs font-black uppercase tracking-[0.14em] text-white shadow-lg">
+          REHEARSAL MODE - ATEM, OBS, and X32 live outputs suppressed - VISCA cameras still move
+        </div>
+      )}
+      <div className={enabled ? "pt-9" : ""}>
+        <Router />
+      </div>
+    </>
+  );
 }
 
 function Router() {
@@ -51,7 +73,7 @@ function App() {
             <TooltipProvider>
               <WsSync>
                 <Toaster />
-                <Router />
+                <RehearsalChrome />
               </WsSync>
             </TooltipProvider>
           </QueryClientProvider>

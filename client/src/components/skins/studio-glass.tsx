@@ -32,6 +32,7 @@ import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RehearsalToggle } from "@/components/rehearsal-toggle";
 
 const scenes = ["Pre-Service", "Worship", "Sermon", "Altar Call", "Post-Service", "Emergency"];
 const atemInputs = [
@@ -61,20 +62,37 @@ export default function StudioGlass(props: DashboardSkinProps) {
   const [zoomValue, setZoomValue] = useState([50]);
   const [focusValue, setFocusValue] = useState([50]);
   const [location] = useLocation();
+  const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({});
 
   const handleZoomChange = (val: number[]) => {
     setZoomValue(val);
     props.onZoom(val[0]);
   };
 
-  const navItems = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-    { icon: Layers, label: "Scenes", href: "/scenes" },
-    { icon: Settings2, label: "Macros", href: "/macros" },
-    { icon: ListChecks, label: "Runsheet", href: "/runsheet" },
-    { icon: Video, label: "Video Switcher", href: "/switcher" },
-    { icon: Mic, label: "Audio Mixer", href: "/mixer" },
-    { icon: Lightbulb, label: "Lighting", href: "/lighting" },
+  const navSections = [
+    {
+      items: [
+        { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+        { icon: Layers, label: "Scenes", href: "/scenes" },
+        { icon: ListChecks, label: "Runsheet", href: "/runsheet" },
+      ],
+    },
+    {
+      label: "Production",
+      items: [
+        { icon: Video, label: "Switcher", href: "/switcher" },
+        { icon: Mic, label: "Audio", href: "/mixer" },
+        { icon: Lightbulb, label: "Lighting", href: "/lighting" },
+        { icon: MonitorPlay, label: "Displays", href: "/displays" },
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { icon: Settings2, label: "Macros", href: "/macros" },
+        { icon: SlidersHorizontal, label: "Diagnostics", href: "/diagnostics" },
+      ],
+    },
   ];
 
   return (
@@ -91,22 +109,46 @@ export default function StudioGlass(props: DashboardSkinProps) {
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">System Online</span>
             </div>
           </div>
+          <RehearsalToggle className="h-7 px-2 text-[10px]" />
           <ThemeToggle />
           <SkinSelector />
         </div>
 
-        <nav className="flex-1 space-y-2">
-          {navItems.map((item, i) => {
-            const active = location === item.href;
+        <nav className="flex-1 space-y-3">
+          {navSections.map((section, sectionIndex) => {
+            const sectionActive = section.items.some((item) => location === item.href);
+            const sectionOpen = !section.label || openNavSections[section.label] || sectionActive;
+
             return (
-              <Link key={i} href={item.href} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-200 font-medium ${
-                active 
-                  ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 shadow-sm" 
-                  : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-slate-200"
-              }`}>
-                <item.icon className={`w-5 h-5 ${active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500"}`} />
-                {item.label}
-              </Link>
+              <div key={section.label || `primary-${sectionIndex}`} className="space-y-2">
+                {section.label && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenNavSections((current) => ({ ...current, [section.label!]: !sectionOpen }))}
+                    className={`w-full flex items-center justify-between px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
+                      sectionActive
+                        ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                        : "text-slate-400 dark:text-slate-500 hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
+                    }`}
+                  >
+                    {section.label}
+                    <ChevronDown className={`w-4 h-4 transition-transform ${sectionOpen ? "rotate-180" : ""}`} />
+                  </button>
+                )}
+                {sectionOpen && section.items.map((item, i) => {
+                  const active = location === item.href;
+                  return (
+                    <Link key={`${section.label || "primary"}-${i}`} href={item.href} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-200 font-medium ${
+                      active 
+                        ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 shadow-sm" 
+                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}>
+                      <item.icon className={`w-5 h-5 ${active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500"}`} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>

@@ -37,6 +37,9 @@ export function useWsInvalidation() {
         case "mixer_state":
           queryClient.invalidateQueries({ queryKey: ["mixer-status"] });
           break;
+        case "rehearsal_mode":
+          queryClient.invalidateQueries({ queryKey: ["rehearsal"] });
+          break;
       }
     };
 
