@@ -21,6 +21,7 @@ import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RehearsalToggle } from "@/components/rehearsal-toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 // FAKE DATA for secondary panels
@@ -142,6 +143,7 @@ export default function CommandCenter(props: DashboardSkinProps) {
         </div>
 
         <div className="flex items-center gap-6 text-xs">
+          <RehearsalToggle />
           <div className="hidden lg:flex items-center gap-4 text-slate-500">
             <span className="flex items-center gap-1"><CpuIcon /> CPU: 12%</span>
             <span className="flex items-center gap-1"><Database className="w-3.5 h-3.5" /> MEM: 4.2GB</span>

@@ -9,6 +9,7 @@ import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RehearsalToggle } from "@/components/rehearsal-toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export default function BroadcastConsole(props: DashboardSkinProps) {
@@ -97,6 +98,7 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
           </nav>
         </div>
         <div className="flex items-center space-x-4 text-[10px] text-zinc-400">
+          <RehearsalToggle />
           <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-green-400"></div><span>ATEM: OK</span></div>
           <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-green-400"></div><span>X32: OK</span></div>
           <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div><span>HUE: WARN</span></div>

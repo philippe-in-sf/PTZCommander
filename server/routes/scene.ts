@@ -5,6 +5,7 @@ import { fromError } from "zod-validation-error";
 import { getHueClient } from "../hue";
 import type { ChannelState, MixerSection } from "../x32";
 import { executeDisplayAction } from "./display";
+import { isRehearsalMode } from "../rehearsal";
 
 type SceneSection = "atem" | "obs" | "mixer" | "hue" | "ptz" | "display";
 
@@ -49,6 +50,18 @@ function sectionEnabled(section: SceneSection, sections?: SceneSection[]) {
   return !sections || sections.includes(section);
 }
 
+function describeMixerActions(actions: MixerAction[]) {
+  return actions
+    .slice(0, 4)
+    .map((action) => {
+      const changes: string[] = [];
+      if (action.fader !== undefined) changes.push(`fader ${Math.round(action.fader * 100)}%`);
+      if (action.muted !== undefined) changes.push(action.muted ? "mute on" : "mute off");
+      return `${action.section}/${action.channel}: ${changes.length > 0 ? changes.join(", ") : "no change"}`;
+    })
+    .join("; ");
+}
+
 function getScenePreview(button: SceneButton) {
   const preview: string[] = [];
   if (button.atemInputId !== null && button.atemInputId !== undefined) {
@@ -78,54 +91,67 @@ export function registerSceneRoutes(ctx: RouteContext) {
   async function executeSceneButton(button: SceneButton, sections?: SceneSection[]) {
     const results: string[] = [];
     const undoSteps: Array<() => Promise<void>> = [];
+    const rehearsal = isRehearsalMode();
 
     if (sectionEnabled("atem", sections) && button.atemInputId !== null && button.atemInputId !== undefined) {
-      const atemClient = atemManager.getClient();
-      if (atemClient && atemClient.isConnected()) {
-        const previous = atemClient.getState();
-        undoSteps.push(async () => {
-          const currentClient = atemManager.getClient();
-          if (!currentClient || !currentClient.isConnected()) return;
-          await currentClient.setPreviewInput(previous.previewInput);
-          await currentClient.setProgramInput(previous.programInput);
-        });
-        if (button.atemTransitionType === "auto") {
-          await atemClient.setPreviewInput(button.atemInputId);
-          await atemClient.autoTransition();
-        } else {
-          await atemClient.setProgramInput(button.atemInputId);
-        }
-        results.push(`ATEM: switched to input ${button.atemInputId} (${button.atemTransitionType})`);
+      if (rehearsal) {
+        results.push(`REHEARSAL: ATEM would switch to input ${button.atemInputId} (${button.atemTransitionType}); live output suppressed`);
       } else {
-        results.push("ATEM: not connected, skipped");
+        const atemClient = atemManager.getClient();
+        if (atemClient && atemClient.isConnected()) {
+          const previous = atemClient.getState();
+          undoSteps.push(async () => {
+            const currentClient = atemManager.getClient();
+            if (!currentClient || !currentClient.isConnected()) return;
+            await currentClient.setPreviewInput(previous.previewInput);
+            await currentClient.setProgramInput(previous.programInput);
+          });
+          if (button.atemTransitionType === "auto") {
+            await atemClient.setPreviewInput(button.atemInputId);
+            await atemClient.autoTransition();
+          } else {
+            await atemClient.setProgramInput(button.atemInputId);
+          }
+          results.push(`ATEM: switched to input ${button.atemInputId} (${button.atemTransitionType})`);
+        } else {
+          results.push("ATEM: not connected, skipped");
+        }
       }
     }
 
     if (sectionEnabled("obs", sections) && button.obsSceneName) {
-      const obsClient = obsManager.getClient();
-      if (obsClient && obsClient.isConnected()) {
-        const previousScene = obsClient.getState().currentProgramScene;
-        if (previousScene) {
-          undoSteps.push(async () => {
-            const currentClient = obsManager.getClient();
-            if (!currentClient || !currentClient.isConnected()) return;
-            await currentClient.setCurrentProgramScene(previousScene);
-          });
-        }
-        await obsClient.setCurrentProgramScene(button.obsSceneName);
-        results.push(`OBS: switched to scene ${button.obsSceneName}`);
+      if (rehearsal) {
+        results.push(`REHEARSAL: OBS would switch to scene ${button.obsSceneName}; live output suppressed`);
       } else {
-        results.push("OBS: not connected, skipped");
+        const obsClient = obsManager.getClient();
+        if (obsClient && obsClient.isConnected()) {
+          const previousScene = obsClient.getState().currentProgramScene;
+          if (previousScene) {
+            undoSteps.push(async () => {
+              const currentClient = obsManager.getClient();
+              if (!currentClient || !currentClient.isConnected()) return;
+              await currentClient.setCurrentProgramScene(previousScene);
+            });
+          }
+          await obsClient.setCurrentProgramScene(button.obsSceneName);
+          results.push(`OBS: switched to scene ${button.obsSceneName}`);
+        } else {
+          results.push("OBS: not connected, skipped");
+        }
       }
     }
 
     if (sectionEnabled("mixer", sections) && button.mixerActions) {
-      const mixerClient = x32Manager.getClient();
-      if (mixerClient && mixerClient.isConnected()) {
-        const actions = parseJsonArray<MixerAction>(button.mixerActions);
-        if (actions === null) {
-          results.push("Mixer: invalid actions data");
-        } else {
+      const actions = parseJsonArray<MixerAction>(button.mixerActions);
+      if (actions === null) {
+        results.push("Mixer: invalid actions data");
+      } else if (rehearsal) {
+        const preview = describeMixerActions(actions);
+        const suffix = actions.length > 4 ? `; +${actions.length - 4} more` : "";
+        results.push(`REHEARSAL: Mixer would apply ${actions.length} channel action(s); X32 writes suppressed${preview ? ` (${preview}${suffix})` : ""}`);
+      } else {
+        const mixerClient = x32Manager.getClient();
+        if (mixerClient && mixerClient.isConnected()) {
           const snapshots = new Map<string, ChannelState>();
           for (const action of actions) {
             if (action.section && action.channel !== undefined) {
@@ -153,9 +179,9 @@ export function registerSceneRoutes(ctx: RouteContext) {
             });
           }
           results.push(`Mixer: applied ${actions.length} channel action(s)`);
+        } else {
+          results.push("Mixer: not connected, skipped");
         }
-      } else {
-        results.push("Mixer: not connected, skipped");
       }
     }
 

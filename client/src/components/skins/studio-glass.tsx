@@ -32,6 +32,7 @@ import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RehearsalToggle } from "@/components/rehearsal-toggle";
 
 const scenes = ["Pre-Service", "Worship", "Sermon", "Altar Call", "Post-Service", "Emergency"];
 const atemInputs = [
@@ -108,6 +109,7 @@ export default function StudioGlass(props: DashboardSkinProps) {
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">System Online</span>
             </div>
           </div>
+          <RehearsalToggle className="h-7 px-2 text-[10px]" />
           <ThemeToggle />
           <SkinSelector />
         </div>

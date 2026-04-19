@@ -9,6 +9,7 @@ import { obsManager } from "./obs";
 import { logger, setupAuditLogging } from "./logger";
 import { setHueClient, getHueClient } from "./hue";
 import { APP_VERSION } from "@shared/version";
+import { isRehearsalMode } from "./rehearsal";
 import http from "http";
 import https from "https";
 import type { UndoAction, SessionLogEntry, RouteContext } from "./routes/types";
@@ -212,6 +213,14 @@ export async function registerRoutes(
     ws.on("message", async (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString()) as { type: string; [key: string]: unknown };
+        const suppressRehearsal = (category: SessionLogEntry["category"], label: string, detailText: string) => {
+          if (!isRehearsalMode()) return false;
+          const details = `${label} suppressed in rehearsal mode${detailText ? `: ${detailText}` : ""}`;
+          logger.warn(category, details, { action: "rehearsal_suppressed", details: { command: message.type } });
+          addSessionLog(category, "Rehearsal Suppressed", details);
+          ws.send(JSON.stringify({ type: "rehearsal_suppressed", command: message.type, details }));
+          return true;
+        };
 
         switch (message.type) {
           case "pan_tilt": {
@@ -287,6 +296,7 @@ export async function registerRoutes(
             const section = message.section as string;
             const channel = message.channel as number;
             const value = message.value as number;
+            if (suppressRehearsal("mixer", "X32 fader write", `${section}/${channel} to ${value.toFixed(2)}`)) break;
             if (secFaderClient && secFaderClient.isConnected()) {
               secFaderClient.setSectionFader(section as import("./x32").MixerSection, channel, value);
               logger.debug("mixer", `${section}/${channel} fader set to ${value.toFixed(2)}`, { action: "fader_change", details: { section, channel, value } });
@@ -301,6 +311,7 @@ export async function registerRoutes(
             const section = message.section as string;
             const channel = message.channel as number;
             const muted = message.muted as boolean;
+            if (suppressRehearsal("mixer", "X32 mute write", `${section}/${channel} ${muted ? "mute" : "unmute"}`)) break;
             if (secMuteClient && secMuteClient.isConnected()) {
               secMuteClient.setSectionMute(section as import("./x32").MixerSection, channel, muted);
               logger.info("mixer", `${section}/${channel} ${muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { section, channel, muted } });
@@ -314,6 +325,7 @@ export async function registerRoutes(
             const mixerClient = x32Manager.getClient();
             const channel = message.channel as number;
             const value = message.value as number;
+            if (suppressRehearsal("mixer", "X32 fader write", `channel ${channel} to ${value.toFixed(2)}`)) break;
             if (mixerClient && mixerClient.isConnected()) {
               mixerClient.setChannelFader(channel, value);
               logger.debug("mixer", `Channel ${channel} fader set to ${value.toFixed(2)}`, { action: "fader_change", details: { channel, value } });
@@ -325,6 +337,7 @@ export async function registerRoutes(
             const muteClient = x32Manager.getClient();
             const channel = message.channel as number;
             const muted = message.muted as boolean;
+            if (suppressRehearsal("mixer", "X32 mute write", `channel ${channel} ${muted ? "mute" : "unmute"}`)) break;
             if (muteClient && muteClient.isConnected()) {
               muteClient.setChannelMute(channel, muted);
               logger.info("mixer", `Channel ${channel} ${muted ? "muted" : "unmuted"}`, { action: "mute_toggle", details: { channel, muted } });
@@ -335,6 +348,7 @@ export async function registerRoutes(
           case "mixer_main_fader": {
             const mainClient = x32Manager.getClient();
             const value = message.value as number;
+            if (suppressRehearsal("mixer", "X32 main fader write", `main to ${value.toFixed(2)}`)) break;
             if (mainClient && mainClient.isConnected()) {
               mainClient.setMainFader(value);
               logger.debug("mixer", `Main fader set to ${value.toFixed(2)}`, { action: "main_fader_change", details: { value } });
@@ -345,6 +359,7 @@ export async function registerRoutes(
           case "mixer_main_mute": {
             const mainMuteClient = x32Manager.getClient();
             const muted = message.muted as boolean;
+            if (suppressRehearsal("mixer", "X32 main mute write", muted ? "main mute" : "main unmute")) break;
             if (mainMuteClient && mainMuteClient.isConnected()) {
               mainMuteClient.setMainMute(muted);
               logger.info("mixer", `Main output ${muted ? "muted" : "unmuted"}`, { action: "main_mute_toggle", details: { muted } });
@@ -362,6 +377,7 @@ export async function registerRoutes(
 
           case "atem_cut": {
             const atemCutClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM cut", "cut transition")) break;
             if (atemCutClient && atemCutClient.isConnected()) {
               atemCutClient.cut();
               addSessionLog("switcher", "ATEM Cut", "Cut transition executed");
@@ -371,6 +387,7 @@ export async function registerRoutes(
 
           case "atem_auto": {
             const atemAutoClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM auto", "auto transition")) break;
             if (atemAutoClient && atemAutoClient.isConnected()) {
               atemAutoClient.autoTransition();
               addSessionLog("switcher", "ATEM Auto", "Auto transition executed");
@@ -380,6 +397,7 @@ export async function registerRoutes(
 
           case "atem_program": {
             const atemPgmClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM program write", `program input ${message.inputId}`)) break;
             if (atemPgmClient && atemPgmClient.isConnected()) {
               atemPgmClient.setProgramInput(message.inputId as number);
               addSessionLog("switcher", "ATEM Program", `Program input set to ${message.inputId}`);
@@ -389,6 +407,7 @@ export async function registerRoutes(
 
           case "atem_preview": {
             const atemPvwClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM preview write", `preview input ${message.inputId}`)) break;
             if (atemPvwClient && atemPvwClient.isConnected()) {
               atemPvwClient.setPreviewInput(message.inputId as number);
               addSessionLog("switcher", "ATEM Preview", `Preview input set to ${message.inputId}`);
@@ -398,6 +417,7 @@ export async function registerRoutes(
 
           case "atem_ftb": {
             const atemFtbClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM fade to black", "fade to black")) break;
             if (atemFtbClient && atemFtbClient.isConnected()) {
               atemFtbClient.fadeToBlack();
             }
@@ -406,6 +426,7 @@ export async function registerRoutes(
 
           case "atem_transition_style": {
             const atemStyleClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM transition style", `style ${message.style}`)) break;
             if (atemStyleClient && atemStyleClient.isConnected()) {
               atemStyleClient.setTransitionStyle(message.style as number);
             }
@@ -414,6 +435,7 @@ export async function registerRoutes(
 
           case "atem_transition_preview": {
             const atemPrevClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM transition preview", `enabled ${message.enabled}`)) break;
             if (atemPrevClient && atemPrevClient.isConnected()) {
               atemPrevClient.setTransitionPreview(message.enabled as boolean);
             }
@@ -422,6 +444,7 @@ export async function registerRoutes(
 
           case "atem_transition_position": {
             const atemPosClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM transition position", `position ${message.position}`)) break;
             if (atemPosClient && atemPosClient.isConnected()) {
               atemPosClient.setTransitionPosition(message.position as number);
             }
@@ -430,6 +453,7 @@ export async function registerRoutes(
 
           case "atem_mix_rate": {
             const atemMixRateClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM mix rate", `rate ${message.rate}`)) break;
             if (atemMixRateClient && atemMixRateClient.isConnected()) {
               atemMixRateClient.setMixRate(message.rate as number);
             }
@@ -438,6 +462,7 @@ export async function registerRoutes(
 
           case "atem_ftb_rate": {
             const atemFtbRateClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM fade-to-black rate", `rate ${message.rate}`)) break;
             if (atemFtbRateClient && atemFtbRateClient.isConnected()) {
               atemFtbRateClient.setFadeToBlackRate(message.rate as number);
             }
@@ -446,6 +471,7 @@ export async function registerRoutes(
 
           case "atem_dsk_on_air": {
             const atemDskAirClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM DSK on-air", `DSK ${message.index} ${message.onAir ? "on" : "off"}`)) break;
             if (atemDskAirClient && atemDskAirClient.isConnected()) {
               atemDskAirClient.setDSKOnAir(message.index as number, message.onAir as boolean);
             }
@@ -454,6 +480,7 @@ export async function registerRoutes(
 
           case "atem_dsk_tie": {
             const atemDskTieClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM DSK tie", `DSK ${message.index} tie ${message.tie}`)) break;
             if (atemDskTieClient && atemDskTieClient.isConnected()) {
               atemDskTieClient.setDSKTie(message.index as number, message.tie as boolean);
             }
@@ -462,6 +489,7 @@ export async function registerRoutes(
 
           case "atem_dsk_auto": {
             const atemDskAutoClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM DSK auto", `DSK ${message.index}`)) break;
             if (atemDskAutoClient && atemDskAutoClient.isConnected()) {
               atemDskAutoClient.autoDSK(message.index as number);
             }
@@ -470,6 +498,7 @@ export async function registerRoutes(
 
           case "atem_dsk_rate": {
             const atemDskRateClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM DSK rate", `DSK ${message.index} rate ${message.rate}`)) break;
             if (atemDskRateClient && atemDskRateClient.isConnected()) {
               atemDskRateClient.setDSKRate(message.index as number, message.rate as number);
             }
@@ -478,6 +507,7 @@ export async function registerRoutes(
 
           case "atem_usk_on_air": {
             const atemUskClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM USK on-air", `USK ${message.index} ${message.onAir ? "on" : "off"}`)) break;
             if (atemUskClient && atemUskClient.isConnected()) {
               atemUskClient.setUSKOnAir(message.index as number, message.onAir as boolean);
             }
@@ -486,6 +516,7 @@ export async function registerRoutes(
 
           case "atem_macro_run": {
             const atemMacroRunClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM macro run", `macro ${message.index}`)) break;
             if (atemMacroRunClient && atemMacroRunClient.isConnected()) {
               atemMacroRunClient.runMacro(message.index as number);
             }
@@ -494,6 +525,7 @@ export async function registerRoutes(
 
           case "atem_macro_stop": {
             const atemMacroStopClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM macro stop", "macro stop")) break;
             if (atemMacroStopClient && atemMacroStopClient.isConnected()) {
               atemMacroStopClient.stopMacro();
             }
@@ -502,6 +534,7 @@ export async function registerRoutes(
 
           case "atem_macro_continue": {
             const atemMacroContinueClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM macro continue", "macro continue")) break;
             if (atemMacroContinueClient && atemMacroContinueClient.isConnected()) {
               atemMacroContinueClient.continueMacro();
             }
@@ -510,6 +543,7 @@ export async function registerRoutes(
 
           case "atem_aux_source": {
             const atemAuxClient = atemManager.getClient();
+            if (suppressRehearsal("switcher", "ATEM aux source", `aux ${message.auxIndex} source ${message.sourceId}`)) break;
             if (atemAuxClient && atemAuxClient.isConnected()) {
               atemAuxClient.setAuxSource(message.auxIndex as number, message.sourceId as number);
             }
@@ -518,6 +552,7 @@ export async function registerRoutes(
 
           case "obs_program_scene": {
             const obsClient = obsManager.getClient();
+            if (suppressRehearsal("switcher", "OBS program scene", `scene ${message.sceneName}`)) break;
             if (obsClient && obsClient.isConnected()) {
               await obsClient.setCurrentProgramScene(message.sceneName as string);
               addSessionLog("switcher", "OBS Scene", `Program scene set to ${message.sceneName}`);
