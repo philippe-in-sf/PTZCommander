@@ -12,14 +12,15 @@ import { z } from "zod";
 
 const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
 const VISCA_VERSION_INQUIRY = Buffer.from([0x81, 0x09, 0x00, 0x02, 0xff]);
-const RTSP_STARTUP_TIMEOUT_MS = 8000;
-const rtspPreviewRateLimiter = rateLimit({
+const FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS = 8000;
+const ffmpegPreviewRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: "Too many RTSP preview attempts; wait a minute and try again" },
+  message: { message: "Too many network preview attempts; wait a minute and try again" },
 });
+type FfmpegPreviewProtocol = "rtsp" | "rtp";
 
 type DiscoveryConfidence = "confirmed" | "port-open";
 
@@ -62,11 +63,12 @@ function getFfmpegPath() {
   return "ffmpeg";
 }
 
-function normalizeRtspUrl(value: string) {
+function normalizeFfmpegPreviewUrl(value: string, protocol: FfmpegPreviewProtocol) {
   try {
     if (/[\u0000-\u001f\s]/.test(value)) return null;
     const url = new URL(value);
-    if (url.protocol !== "rtsp:" && url.protocol !== "rtsps:") return null;
+    if (protocol === "rtsp" && url.protocol !== "rtsp:" && url.protocol !== "rtsps:") return null;
+    if (protocol === "rtp" && url.protocol !== "rtp:") return null;
     if (!url.hostname) return null;
     return url.toString();
   } catch {
@@ -85,17 +87,17 @@ function redactPreviewUrl(value: string) {
   }
 }
 
-function redactRtspDiagnostics(value: string) {
-  return value.replace(/(rtsps?:\/\/)([^/\s:@]+):([^/\s@]+)@/gi, "$1redacted:redacted@");
+function redactFfmpegPreviewDiagnostics(value: string) {
+  return value.replace(/((?:rtsps?|rtp):\/\/)([^/\s:@]+):([^/\s@]+)@/gi, "$1redacted:redacted@");
 }
 
-function rtspErrorMessage(stderr: string) {
-  const message = redactRtspDiagnostics(stderr).trim().split("\n").pop() || "";
+function ffmpegPreviewErrorMessage(stderr: string, protocol: FfmpegPreviewProtocol) {
+  const message = redactFfmpegPreviewDiagnostics(stderr).trim().split("\n").pop() || "";
   if (/ffmpeg: not found/i.test(message)) return "FFmpeg is not installed on the app host";
-  return message || "RTSP preview ended before video was available";
+  return message || `${protocol.toUpperCase()} preview ended before video was available`;
 }
 
-function rtspPreviewHelperPath() {
+function ffmpegPreviewHelperPath() {
   return path.join(process.cwd(), "server", "rtsp-preview.sh");
 }
 
@@ -499,115 +501,134 @@ export function registerCameraRoutes(ctx: RouteContext) {
     }
   });
 
-  app.get("/api/cameras/:id/rtsp-stream", rtspPreviewRateLimiter, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const camera = await storage.getCamera(id);
-      if (!camera) return res.status(404).json({ message: "Camera not found" });
-      if (!camera.streamUrl) return res.status(404).json({ message: "No RTSP URL configured" });
-      const normalizedUrl = normalizeRtspUrl(camera.streamUrl);
-      if (!normalizedUrl) {
-        return res.status(400).json({ message: "RTSP preview URLs must start with rtsp:// or rtsps://" });
-      }
-
-      const inputUrl = normalizedUrl;
-      const ffmpegPath = getFfmpegPath();
-      const helperPath = rtspPreviewHelperPath();
-
-      logger.info("camera", `Opening RTSP preview for ${camera.name}`, {
-        action: "camera:rtsp_preview_start",
-        details: { cameraId: camera.id, name: camera.name, url: redactPreviewUrl(camera.streamUrl), ffmpegPath, helperPath },
-      });
-
-      const ffmpeg = spawn("/bin/sh", [helperPath], {
-        stdio: ["ignore", "pipe", "pipe"],
-        shell: false,
-        env: {
-          ...process.env,
-          FFMPEG_PATH: ffmpegPath,
-          RTSP_URL: inputUrl,
-        },
-      });
-      let stderr = "";
-      let streamStarted = false;
-      let closedByClient = false;
-      let settled = false;
-
-      const finishWithError = (status: number, message: string) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(startupTimer);
-        if (!res.headersSent && !res.destroyed) {
-          res.status(status).json({ message });
-        } else if (!res.destroyed) {
-          res.end();
+  const registerFfmpegPreviewStreamRoute = (routePath: string, protocol: FfmpegPreviewProtocol) => {
+    app.get(routePath, ffmpegPreviewRateLimiter, async (req, res) => {
+      const label = protocol.toUpperCase();
+      try {
+        const id = parseInt(req.params.id);
+        const camera = await storage.getCamera(id);
+        if (!camera) return res.status(404).json({ message: "Camera not found" });
+        if (!camera.streamUrl) return res.status(404).json({ message: `No ${label} URL configured` });
+        const normalizedUrl = normalizeFfmpegPreviewUrl(camera.streamUrl, protocol);
+        if (!normalizedUrl) {
+          const allowed = protocol === "rtsp" ? "rtsp:// or rtsps://" : "rtp://";
+          return res.status(400).json({ message: `${label} preview URLs must start with ${allowed}` });
         }
-      };
 
-      const startupTimer = setTimeout(() => {
-        if (streamStarted) return;
-        logger.warn("camera", `RTSP preview timed out for ${camera.name}`, {
-          action: "camera:rtsp_preview_timeout",
-          details: { cameraId: camera.id, timeoutMs: RTSP_STARTUP_TIMEOUT_MS, stderr: redactRtspDiagnostics(stderr).trim().slice(-1200) },
+        const inputUrl = normalizedUrl;
+        const ffmpegPath = getFfmpegPath();
+        const helperPath = ffmpegPreviewHelperPath();
+
+        logger.info("camera", `Opening ${label} preview for ${camera.name}`, {
+          action: `camera:${protocol}_preview_start`,
+          details: { cameraId: camera.id, name: camera.name, url: redactPreviewUrl(camera.streamUrl), ffmpegPath, helperPath },
         });
-        ffmpeg.kill("SIGTERM");
-        finishWithError(504, "RTSP preview timed out while waiting for video");
-      }, RTSP_STARTUP_TIMEOUT_MS);
 
-      req.on("close", () => {
-        closedByClient = true;
-        clearTimeout(startupTimer);
-        if (!ffmpeg.killed) ffmpeg.kill("SIGTERM");
-      });
+        const ffmpeg = spawn("/bin/sh", [helperPath], {
+          stdio: ["ignore", "pipe", "pipe"],
+          shell: false,
+          env: {
+            ...process.env,
+            FFMPEG_PATH: ffmpegPath,
+            PREVIEW_PROTOCOL: protocol,
+            PREVIEW_URL: inputUrl,
+            RTSP_URL: protocol === "rtsp" ? inputUrl : undefined,
+          },
+        });
+        let stderr = "";
+        let streamStarted = false;
+        let closedByClient = false;
+        let settled = false;
 
-      ffmpeg.stderr.on("data", (chunk) => {
-        stderr = `${stderr}${chunk.toString()}`.slice(-4000);
-      });
-
-      ffmpeg.stdout.on("data", (chunk) => {
-        if (!streamStarted) {
-          streamStarted = true;
+        const finishWithError = (status: number, message: string) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(startupTimer);
-          res.setHeader("Content-Type", "multipart/x-mixed-replace; boundary=frame");
-          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-          res.setHeader("Connection", "close");
-        }
-        if (!res.destroyed) res.write(chunk);
-      });
+          if (!res.headersSent && !res.destroyed) {
+            res.status(status).json({ message });
+          } else if (!res.destroyed) {
+            res.end();
+          }
+        };
 
-      ffmpeg.once("error", (error: NodeJS.ErrnoException) => {
-        logger.error("camera", `RTSP preview helper failed to start for ${camera.name}`, {
-          action: "camera:rtsp_preview_spawn_error",
-          details: { cameraId: camera.id, ffmpegPath, helperPath, ...errorDetails(error) },
-        });
-        const message = error.code === "ENOENT"
-          ? "RTSP preview helper is not available."
-          : error.message || "Failed to start RTSP preview";
-        finishWithError(error.code === "ENOENT" ? 501 : 502, message);
-      });
-
-      ffmpeg.once("close", (code, signal) => {
-        clearTimeout(startupTimer);
-        if (!closedByClient) {
-          logger[code === 0 || streamStarted ? "info" : "warn"]("camera", `RTSP preview closed for ${camera.name}`, {
-            action: "camera:rtsp_preview_closed",
-            details: { cameraId: camera.id, code, signal, started: streamStarted, stderr: redactRtspDiagnostics(stderr).trim().slice(-1200) },
+        const startupTimer = setTimeout(() => {
+          if (streamStarted) return;
+          logger.warn("camera", `${label} preview timed out for ${camera.name}`, {
+            action: `camera:${protocol}_preview_timeout`,
+            details: {
+              cameraId: camera.id,
+              timeoutMs: FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS,
+              stderr: redactFfmpegPreviewDiagnostics(stderr).trim().slice(-1200),
+            },
           });
-        }
-        if (!res.headersSent && !res.destroyed) {
-          res.status(502).json({ message: rtspErrorMessage(stderr) });
-        } else if (!res.destroyed) {
-          res.end();
-        }
-      });
-    } catch (error: any) {
-      logger.error("camera", "RTSP preview route failed", {
-        action: "camera:rtsp_preview_error",
-        details: errorDetails(error),
-      });
-      if (!res.headersSent) res.status(500).json({ message: error.message || "Failed to open RTSP preview" });
-    }
-  });
+          ffmpeg.kill("SIGTERM");
+          finishWithError(504, `${label} preview timed out while waiting for video`);
+        }, FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS);
+
+        req.on("close", () => {
+          closedByClient = true;
+          clearTimeout(startupTimer);
+          if (!ffmpeg.killed) ffmpeg.kill("SIGTERM");
+        });
+
+        ffmpeg.stderr.on("data", (chunk) => {
+          stderr = `${stderr}${chunk.toString()}`.slice(-4000);
+        });
+
+        ffmpeg.stdout.on("data", (chunk) => {
+          if (!streamStarted) {
+            streamStarted = true;
+            clearTimeout(startupTimer);
+            res.setHeader("Content-Type", "multipart/x-mixed-replace; boundary=frame");
+            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+            res.setHeader("Connection", "close");
+          }
+          if (!res.destroyed) res.write(chunk);
+        });
+
+        ffmpeg.once("error", (error: NodeJS.ErrnoException) => {
+          logger.error("camera", `${label} preview helper failed to start for ${camera.name}`, {
+            action: `camera:${protocol}_preview_spawn_error`,
+            details: { cameraId: camera.id, ffmpegPath, helperPath, ...errorDetails(error) },
+          });
+          const message = error.code === "ENOENT"
+            ? `${label} preview helper is not available.`
+            : error.message || `Failed to start ${label} preview`;
+          finishWithError(error.code === "ENOENT" ? 501 : 502, message);
+        });
+
+        ffmpeg.once("close", (code, signal) => {
+          clearTimeout(startupTimer);
+          if (!closedByClient) {
+            logger[code === 0 || streamStarted ? "info" : "warn"]("camera", `${label} preview closed for ${camera.name}`, {
+              action: `camera:${protocol}_preview_closed`,
+              details: {
+                cameraId: camera.id,
+                code,
+                signal,
+                started: streamStarted,
+                stderr: redactFfmpegPreviewDiagnostics(stderr).trim().slice(-1200),
+              },
+            });
+          }
+          if (!res.headersSent && !res.destroyed) {
+            res.status(502).json({ message: ffmpegPreviewErrorMessage(stderr, protocol) });
+          } else if (!res.destroyed) {
+            res.end();
+          }
+        });
+      } catch (error: any) {
+        logger.error("camera", `${label} preview route failed`, {
+          action: `camera:${protocol}_preview_error`,
+          details: errorDetails(error),
+        });
+        if (!res.headersSent) res.status(500).json({ message: error.message || `Failed to open ${label} preview` });
+      }
+    });
+  };
+
+  registerFfmpegPreviewStreamRoute("/api/cameras/:id/rtsp-stream", "rtsp");
+  registerFfmpegPreviewStreamRoute("/api/cameras/:id/rtp-stream", "rtp");
 
   app.post("/api/cameras/:id/webrtc/offer", async (req, res) => {
     try {

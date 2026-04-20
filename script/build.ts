@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { cp, rm, readFile } from "fs/promises";
+import { cp, rename, rm, readFile } from "fs/promises";
+import path from "path";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -34,10 +35,20 @@ const allowlist = [
 ];
 
 async function buildAll() {
-  await rm("dist", { recursive: true, force: true });
+  const distDir = "dist";
+  const stagingDir = ".dist-next";
+  const previousDir = ".dist-previous";
+
+  await rm(stagingDir, { recursive: true, force: true });
+  await rm(previousDir, { recursive: true, force: true });
 
   console.log("building client...");
-  await viteBuild();
+  await viteBuild({
+    build: {
+      outDir: path.resolve(stagingDir, "public"),
+      emptyOutDir: true,
+    },
+  });
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
@@ -57,7 +68,7 @@ async function buildAll() {
     platform: "node",
     bundle: true,
     format: "cjs",
-    outfile: "dist/index.cjs",
+    outfile: path.join(stagingDir, "index.cjs"),
     define: {
       "process.env.NODE_ENV": '"production"',
     },
@@ -68,8 +79,27 @@ async function buildAll() {
 
   await cp(
     "node_modules/atem-connection/dist/lib/atemSocketChild.js",
-    "dist/atemSocketChild.js",
+    path.join(stagingDir, "atemSocketChild.js"),
   );
+
+  try {
+    await rename(distDir, previousDir);
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
+  try {
+    await rename(stagingDir, distDir);
+  } catch (error) {
+    try {
+      await rename(previousDir, distDir);
+    } catch {
+      // Leave the original error intact if rollback cannot complete.
+    }
+    throw error;
+  }
+
+  await rm(previousDir, { recursive: true, force: true });
 }
 
 buildAll().catch((err) => {
