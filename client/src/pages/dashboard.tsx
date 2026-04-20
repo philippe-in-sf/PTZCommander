@@ -31,7 +31,7 @@ const StudioGlass = lazy(() => import("@/components/skins/studio-glass"));
 const CommandCenter = lazy(() => import("@/components/skins/command-center"));
 
 const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
-type PreviewType = "none" | "snapshot" | "mjpeg" | "webrtc" | "browser";
+type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "webrtc" | "browser";
 
 function discoveredCameraKey(camera: Pick<DiscoveredCamera, "ip" | "port">) {
   return `${camera.ip}:${camera.port}`;
@@ -568,11 +568,12 @@ export default function Dashboard() {
                         <option value="none">No inline preview</option>
                         <option value="snapshot">HTTP snapshot polling</option>
                         <option value="mjpeg">MJPEG stream</option>
+                        <option value="rtsp">RTSP stream</option>
                         <option value="webrtc">WebRTC bridge (WHEP)</option>
                         <option value="browser">Browser USB/UVC input</option>
                       </select>
                       <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                        Add or edit camera settings later to choose local USB inputs.
+                        RTSP previews use FFmpeg on the app host. Add or edit camera settings later to choose local USB inputs.
                       </p>
                     </div>
                     {newCamera.previewType !== "none" && newCamera.previewType !== "browser" && (
@@ -582,7 +583,7 @@ export default function Dashboard() {
                           id="stream-url"
                           value={newCamera.streamUrl}
                           onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
-                          placeholder={newCamera.previewType === "webrtc" ? "http://127.0.0.1:8080/camera/whep" : "http://192.168.0.27/cgi-bin/snapshot.cgi"}
+                          placeholder={newCamera.previewType === "webrtc" ? "http://127.0.0.1:8080/camera/whep" : newCamera.previewType === "rtsp" ? "rtsp://192.168.0.27:554/stream1" : "http://192.168.0.27/cgi-bin/snapshot.cgi"}
                           data-testid="input-new-camera-stream-url"
                         />
                       </div>

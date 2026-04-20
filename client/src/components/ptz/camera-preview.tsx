@@ -13,7 +13,7 @@ interface CameraPreviewProps {
   refreshInterval?: number;
 }
 
-type PreviewType = "none" | "snapshot" | "mjpeg" | "webrtc" | "browser";
+type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "webrtc" | "browser";
 
 function getPreviewType(camera: CameraType): PreviewType {
   return (camera.previewType || (camera.streamUrl ? "snapshot" : "none")) as PreviewType;
@@ -23,6 +23,7 @@ function previewLabel(type: PreviewType) {
   switch (type) {
     case "snapshot": return "Snapshot";
     case "mjpeg": return "MJPEG";
+    case "rtsp": return "RTSP";
     case "webrtc": return "WebRTC";
     case "browser": return "USB";
     default: return "No preview";
@@ -82,7 +83,13 @@ function SnapshotPreview({ camera, refreshInterval, className }: {
   return <PreviewState loading={loading} error={error} label="No snapshot" />;
 }
 
-function MjpegPreview({ camera, className }: { camera: CameraType; className?: string }) {
+function StreamingImagePreview({ camera, className, endpoint, errorLabel, loadingLabel }: {
+  camera: CameraType;
+  className?: string;
+  endpoint: "preview-stream" | "rtsp-stream";
+  errorLabel: string;
+  loadingLabel: string;
+}) {
   const [srcKey, setSrcKey] = useState(Date.now());
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -96,7 +103,7 @@ function MjpegPreview({ camera, className }: { camera: CameraType; className?: s
 
   if (error) {
     return (
-      <PreviewState error label="No MJPEG signal">
+      <PreviewState error label={errorLabel}>
         <Button
           size="sm"
           variant="outline"
@@ -114,9 +121,9 @@ function MjpegPreview({ camera, className }: { camera: CameraType; className?: s
 
   return (
     <>
-      {loading && <PreviewState loading label="Opening stream" />}
+      {loading && <PreviewState loading label={loadingLabel} />}
       <img
-        src={`/api/cameras/${camera.id}/preview-stream?t=${srcKey}`}
+        src={`/api/cameras/${camera.id}/${endpoint}?t=${srcKey}`}
         alt={camera.name}
         onLoad={() => setLoading(false)}
         onError={() => {
@@ -126,6 +133,30 @@ function MjpegPreview({ camera, className }: { camera: CameraType; className?: s
         className={cn("w-full h-full object-cover", loading && "hidden", className)}
       />
     </>
+  );
+}
+
+function MjpegPreview({ camera, className }: { camera: CameraType; className?: string }) {
+  return (
+    <StreamingImagePreview
+      camera={camera}
+      className={className}
+      endpoint="preview-stream"
+      errorLabel="No MJPEG signal"
+      loadingLabel="Opening stream"
+    />
+  );
+}
+
+function RtspPreview({ camera, className }: { camera: CameraType; className?: string }) {
+  return (
+    <StreamingImagePreview
+      camera={camera}
+      className={className}
+      endpoint="rtsp-stream"
+      errorLabel="No RTSP signal"
+      loadingLabel="Opening RTSP"
+    />
   );
 }
 
@@ -278,6 +309,7 @@ function PreviewMedia({ camera, refreshInterval, className }: {
     return <PreviewState label={type === "browser" ? "Use default browser input" : "No preview configured"} />;
   }
   if (type === "mjpeg") return <MjpegPreview camera={camera} className={className} />;
+  if (type === "rtsp") return <RtspPreview camera={camera} className={className} />;
   if (type === "webrtc") return <WebRtcPreview camera={camera} className={className} />;
   if (type === "browser") return <BrowserVideoPreview camera={camera} className={className} />;
   return <SnapshotPreview camera={camera} refreshInterval={refreshInterval} className={className} />;
@@ -425,7 +457,7 @@ export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval =
       </div>
       <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-500">
         <Radio className="w-3 h-3" />
-        Snapshot, MJPEG, WebRTC bridge, and local USB inputs can be set per camera.
+        Snapshot, MJPEG, RTSP, WebRTC bridge, and local USB inputs can be set per camera.
       </div>
     </div>
   );
