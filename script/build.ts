@@ -1,11 +1,12 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { cp, rm, readFile } from "fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
 const allowlist = [
   "@google/generative-ai",
+  "atem-connection",
   "axios",
   "connect-pg-simple",
   "cors",
@@ -44,7 +45,12 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-  const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  const externals = [
+    ...allDeps.filter((dep) => !allowlist.includes(dep)),
+    // Native binding package used by atem-connection; keep it in node_modules
+    // so its prebuilt .node binary resolves from the package directory.
+    "@julusian/freetype2",
+  ];
 
   await esbuild({
     entryPoints: ["server/index.ts"],
@@ -59,6 +65,11 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  await cp(
+    "node_modules/atem-connection/dist/lib/atemSocketChild.js",
+    "dist/atemSocketChild.js",
+  );
 }
 
 buildAll().catch((err) => {
