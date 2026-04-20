@@ -1,6 +1,5 @@
 import express, { type Express } from "express";
 import fs from "fs";
-import { readFile, stat } from "fs/promises";
 import path from "path";
 
 const MIME_TYPES: Record<string, string> = {
@@ -16,37 +15,64 @@ const MIME_TYPES: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+type StaticAsset = {
+  content: Buffer;
+  contentType: string;
+};
+
+function pauseSync(ms: number) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    // Short startup-only pause for transient filesystem read errors.
+  }
 }
 
-async function readFileWithRetry(filePath: string) {
+function readFileWithRetrySync(filePath: string) {
   let lastError: unknown;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      return await readFile(filePath);
+      return fs.readFileSync(filePath);
     } catch (error: any) {
       lastError = error;
       if (error?.errno !== -11 && error?.code !== "EAGAIN") break;
-      await sleep(25 * (attempt + 1));
+      pauseSync(25 * (attempt + 1));
     }
   }
   throw lastError;
 }
 
-function resolveStaticPath(distPath: string, requestPath: string) {
-  let decodedPath: string;
+function loadStaticAssets(distPath: string) {
+  const assets = new Map<string, StaticAsset>();
+
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      const relativePath = path.relative(distPath, entryPath).split(path.sep).join("/");
+      const ext = path.extname(entryPath).toLowerCase();
+      assets.set(`/${relativePath}`, {
+        content: readFileWithRetrySync(entryPath),
+        contentType: MIME_TYPES[ext] || "application/octet-stream",
+      });
+    }
+  }
+
+  walk(distPath);
+  return assets;
+}
+
+function requestAssetPath(requestPath: string) {
   try {
-    decodedPath = decodeURIComponent(requestPath.split("?")[0] || "/");
+    const decoded = decodeURIComponent(requestPath.split("?")[0] || "/");
+    return decoded.startsWith("/") ? decoded : `/${decoded}`;
   } catch {
     return null;
   }
-
-  const resolvedPath = path.resolve(distPath, `.${decodedPath}`);
-  if (resolvedPath !== distPath && !resolvedPath.startsWith(`${distPath}${path.sep}`)) {
-    return null;
-  }
-  return resolvedPath;
 }
 
 export function serveStatic(app: Express) {
@@ -57,46 +83,34 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(async (req, res, next) => {
+  const assets = loadStaticAssets(distPath);
+  const indexAsset = assets.get("/index.html");
+  if (!indexAsset) {
+    throw new Error(`Could not find index.html in the build directory: ${distPath}`);
+  }
+
+  function sendAsset(req: express.Request, res: express.Response, asset: StaticAsset) {
+    res.setHeader("Content-Type", asset.contentType);
+    res.setHeader("Content-Length", asset.content.length);
+    res.setHeader("Cache-Control", "public, max-age=0");
+    if (req.method === "HEAD") return res.end();
+    return res.send(asset.content);
+  }
+
+  app.use((req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") return next();
 
-    const staticPath = resolveStaticPath(distPath, req.path);
-    if (!staticPath) return res.status(400).send("Bad request");
+    const assetPath = requestAssetPath(req.path);
+    if (!assetPath) return res.status(400).send("Bad request");
 
-    try {
-      const fileStat = await stat(staticPath);
-      if (!fileStat.isFile()) return next();
-
-      const ext = path.extname(staticPath).toLowerCase();
-      res.setHeader("Content-Type", MIME_TYPES[ext] || "application/octet-stream");
-      res.setHeader("Content-Length", fileStat.size);
-      res.setHeader("Cache-Control", "public, max-age=0");
-      if (req.method === "HEAD") return res.end();
-
-      const file = await readFileWithRetry(staticPath);
-      return res.send(file);
-    } catch (error: any) {
-      if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return next();
-      return next(error);
-    }
+    const asset = assets.get(assetPath);
+    if (!asset) return next();
+    return sendAsset(req, res, asset);
   });
 
   // fall through to index.html if the file doesn't exist
-  app.use("/{*path}", async (req, res, next) => {
+  app.use("/{*path}", (req, res, next) => {
     if (req.method !== "GET" && req.method !== "HEAD") return next();
-
-    try {
-      const indexPath = path.resolve(distPath, "index.html");
-      const fileStat = await stat(indexPath);
-      res.setHeader("Content-Type", MIME_TYPES[".html"]);
-      res.setHeader("Content-Length", fileStat.size);
-      res.setHeader("Cache-Control", "public, max-age=0");
-      if (req.method === "HEAD") return res.end();
-
-      const file = await readFileWithRetry(indexPath);
-      return res.send(file);
-    } catch (error) {
-      return next(error);
-    }
+    return sendAsset(req, res, indexAsset);
   });
 }
