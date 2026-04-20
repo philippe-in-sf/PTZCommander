@@ -178,7 +178,7 @@ export const insertCameraSchema = createInsertSchema(cameras).omit({
   isProgramOutput: true,
   isPreviewOutput: true,
 }).extend({
-  previewType: z.enum(["none", "snapshot", "mjpeg", "webrtc", "browser"]).optional(),
+  previewType: z.enum(["none", "snapshot", "mjpeg", "rtsp", "webrtc", "browser"]).optional(),
   previewRefreshMs: z.number().int().min(250).max(60000).optional(),
 });
 

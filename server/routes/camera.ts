@@ -1,14 +1,25 @@
 import type { RouteContext } from "./types";
 import { insertCameraSchema, insertPresetSchema, patchCameraSchema, patchPresetSchema } from "@shared/schema";
-import { logger } from "../logger";
+import { errorDetails, logger } from "../logger";
 import { fromError } from "zod-validation-error";
+import { spawn } from "child_process";
+import rateLimit from "express-rate-limit";
 import net from "net";
 import os from "os";
+import path from "path";
 import { Readable } from "stream";
 import { z } from "zod";
 
 const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
 const VISCA_VERSION_INQUIRY = Buffer.from([0x81, 0x09, 0x00, 0x02, 0xff]);
+const RTSP_STARTUP_TIMEOUT_MS = 8000;
+const rtspPreviewRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many RTSP preview attempts; wait a minute and try again" },
+});
 
 type DiscoveryConfidence = "confirmed" | "port-open";
 
@@ -45,6 +56,47 @@ function cameraAuthHeaders(camera: { username: string | null; password: string |
   return camera.username && camera.password
     ? { Authorization: "Basic " + Buffer.from(`${camera.username}:${camera.password}`).toString("base64") }
     : {};
+}
+
+function getFfmpegPath() {
+  return "ffmpeg";
+}
+
+function normalizeRtspUrl(value: string) {
+  try {
+    if (/[\u0000-\u001f\s]/.test(value)) return null;
+    const url = new URL(value);
+    if (url.protocol !== "rtsp:" && url.protocol !== "rtsps:") return null;
+    if (!url.hostname) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function redactPreviewUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.username) url.username = "redacted";
+    if (url.password) url.password = "redacted";
+    return url.toString();
+  } catch {
+    return value.replace(/\/\/([^/@:]+):([^/@]+)@/, "//redacted:redacted@");
+  }
+}
+
+function redactRtspDiagnostics(value: string) {
+  return value.replace(/(rtsps?:\/\/)([^/\s:@]+):([^/\s@]+)@/gi, "$1redacted:redacted@");
+}
+
+function rtspErrorMessage(stderr: string) {
+  const message = redactRtspDiagnostics(stderr).trim().split("\n").pop() || "";
+  if (/ffmpeg: not found/i.test(message)) return "FFmpeg is not installed on the app host";
+  return message || "RTSP preview ended before video was available";
+}
+
+function rtspPreviewHelperPath() {
+  return path.join(process.cwd(), "server", "rtsp-preview.sh");
 }
 
 function ipv4ToInt(ip: string) {
@@ -444,6 +496,116 @@ export function registerCameraRoutes(ctx: RouteContext) {
       } else {
         res.end();
       }
+    }
+  });
+
+  app.get("/api/cameras/:id/rtsp-stream", rtspPreviewRateLimiter, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const camera = await storage.getCamera(id);
+      if (!camera) return res.status(404).json({ message: "Camera not found" });
+      if (!camera.streamUrl) return res.status(404).json({ message: "No RTSP URL configured" });
+      const normalizedUrl = normalizeRtspUrl(camera.streamUrl);
+      if (!normalizedUrl) {
+        return res.status(400).json({ message: "RTSP preview URLs must start with rtsp:// or rtsps://" });
+      }
+
+      const inputUrl = normalizedUrl;
+      const ffmpegPath = getFfmpegPath();
+      const helperPath = rtspPreviewHelperPath();
+
+      logger.info("camera", `Opening RTSP preview for ${camera.name}`, {
+        action: "camera:rtsp_preview_start",
+        details: { cameraId: camera.id, name: camera.name, url: redactPreviewUrl(camera.streamUrl), ffmpegPath, helperPath },
+      });
+
+      const ffmpeg = spawn("/bin/sh", [helperPath], {
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: false,
+        env: {
+          ...process.env,
+          FFMPEG_PATH: ffmpegPath,
+          RTSP_URL: inputUrl,
+        },
+      });
+      let stderr = "";
+      let streamStarted = false;
+      let closedByClient = false;
+      let settled = false;
+
+      const finishWithError = (status: number, message: string) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(startupTimer);
+        if (!res.headersSent && !res.destroyed) {
+          res.status(status).json({ message });
+        } else if (!res.destroyed) {
+          res.end();
+        }
+      };
+
+      const startupTimer = setTimeout(() => {
+        if (streamStarted) return;
+        logger.warn("camera", `RTSP preview timed out for ${camera.name}`, {
+          action: "camera:rtsp_preview_timeout",
+          details: { cameraId: camera.id, timeoutMs: RTSP_STARTUP_TIMEOUT_MS, stderr: redactRtspDiagnostics(stderr).trim().slice(-1200) },
+        });
+        ffmpeg.kill("SIGTERM");
+        finishWithError(504, "RTSP preview timed out while waiting for video");
+      }, RTSP_STARTUP_TIMEOUT_MS);
+
+      req.on("close", () => {
+        closedByClient = true;
+        clearTimeout(startupTimer);
+        if (!ffmpeg.killed) ffmpeg.kill("SIGTERM");
+      });
+
+      ffmpeg.stderr.on("data", (chunk) => {
+        stderr = `${stderr}${chunk.toString()}`.slice(-4000);
+      });
+
+      ffmpeg.stdout.on("data", (chunk) => {
+        if (!streamStarted) {
+          streamStarted = true;
+          clearTimeout(startupTimer);
+          res.setHeader("Content-Type", "multipart/x-mixed-replace; boundary=frame");
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Connection", "close");
+        }
+        if (!res.destroyed) res.write(chunk);
+      });
+
+      ffmpeg.once("error", (error: NodeJS.ErrnoException) => {
+        logger.error("camera", `RTSP preview helper failed to start for ${camera.name}`, {
+          action: "camera:rtsp_preview_spawn_error",
+          details: { cameraId: camera.id, ffmpegPath, helperPath, ...errorDetails(error) },
+        });
+        const message = error.code === "ENOENT"
+          ? "RTSP preview helper is not available."
+          : error.message || "Failed to start RTSP preview";
+        finishWithError(error.code === "ENOENT" ? 501 : 502, message);
+      });
+
+      ffmpeg.once("close", (code, signal) => {
+        clearTimeout(startupTimer);
+        if (!closedByClient) {
+          logger[code === 0 || streamStarted ? "info" : "warn"]("camera", `RTSP preview closed for ${camera.name}`, {
+            action: "camera:rtsp_preview_closed",
+            details: { cameraId: camera.id, code, signal, started: streamStarted, stderr: redactRtspDiagnostics(stderr).trim().slice(-1200) },
+          });
+        }
+        if (!res.headersSent && !res.destroyed) {
+          res.status(502).json({ message: rtspErrorMessage(stderr) });
+        } else if (!res.destroyed) {
+          res.end();
+        }
+      });
+    } catch (error: any) {
+      logger.error("camera", "RTSP preview route failed", {
+        action: "camera:rtsp_preview_error",
+        details: errorDetails(error),
+      });
+      if (!res.headersSent) res.status(500).json({ message: error.message || "Failed to open RTSP preview" });
     }
   });
 

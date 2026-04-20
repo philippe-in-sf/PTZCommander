@@ -12,7 +12,7 @@ export interface CameraData {
   ip: string;
   port?: number;
   streamUrl?: string | null;
-  previewType?: "none" | "snapshot" | "mjpeg" | "webrtc" | "browser" | string;
+  previewType?: "none" | "snapshot" | "mjpeg" | "rtsp" | "webrtc" | "browser" | string;
   previewRefreshMs?: number | null;
   atemInputId?: number | null;
   tallyState?: string;
@@ -237,11 +237,12 @@ export function CameraSelector({
                   <option value="none">No inline preview</option>
                   <option value="snapshot">HTTP snapshot polling</option>
                   <option value="mjpeg">MJPEG stream</option>
+                  <option value="rtsp">RTSP stream</option>
                   <option value="webrtc">WebRTC bridge (WHEP)</option>
                   <option value="browser">Browser USB/UVC input</option>
                 </select>
                 <p className="text-xs text-slate-500 mt-1">
-                  PTZOptics, Fomako, and Marshall cameras commonly expose snapshot or MJPEG URLs. ATEM USB output appears as a browser video input.
+                  RTSP is transcoded by FFmpeg on the app host. ATEM USB output appears as a browser video input.
                 </p>
               </div>
               {editForm.previewType !== 'none' && editForm.previewType !== 'browser' && (
@@ -251,11 +252,11 @@ export function CameraSelector({
                     id="edit-stream"
                     value={editForm.streamUrl}
                     onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
-                    placeholder={editForm.previewType === 'webrtc' ? "http://127.0.0.1:8080/camera/whep" : "http://192.168.0.27/cgi-bin/snapshot.cgi"}
+                    placeholder={editForm.previewType === 'webrtc' ? "http://127.0.0.1:8080/camera/whep" : editForm.previewType === 'rtsp' ? "rtsp://192.168.0.27:554/stream1" : "http://192.168.0.27/cgi-bin/snapshot.cgi"}
                     data-testid="input-camera-stream-url"
                   />
                   <p className="text-xs text-slate-500 mt-1">
-                    Snapshot and MJPEG are proxied by the app. WebRTC expects a WHEP-compatible bridge endpoint.
+                    Snapshot, MJPEG, and RTSP are proxied by the app. WebRTC expects a WHEP-compatible bridge endpoint.
                   </p>
                 </div>
               )}
