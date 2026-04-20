@@ -19,6 +19,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
   const { atemState, switcher, cut, auto, setProgramInput, setPreviewInput } = useAtemControl();
   const [addSwitcherOpen, setAddSwitcherOpen] = useState(false);
   const [newSwitcher, setNewSwitcher] = useState({ name: "ATEM Extreme", ip: "", type: "atem" });
+  const controlTimedOut = switcher?.status === "control-timeout";
 
   const createSwitcherMutation = useMutation({
     mutationFn: switcherApi.create,
@@ -40,7 +41,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
       if (data.success) {
         toast.success("Connected to ATEM");
       } else {
-        toast.error("Failed to connect to ATEM");
+        toast.error(data.message || "ATEM control handshake timed out");
       }
     },
     onError: (error: Error) => {
@@ -152,8 +153,12 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
       ) : !atemState.connected ? (
         <div className="text-center py-8 text-slate-700 dark:text-slate-500">
           <WifiOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
-          <p>Switcher offline</p>
-          <p className="text-sm">Click Connect to establish connection</p>
+          <p>{controlTimedOut ? "ATEM control timed out" : "Switcher not connected"}</p>
+          <p className="text-sm">
+            {controlTimedOut
+              ? "The switcher may be online, but the ATEM control session did not answer."
+              : "Click Connect to establish connection"}
+          </p>
           <Button
             variant="outline"
             size="sm"

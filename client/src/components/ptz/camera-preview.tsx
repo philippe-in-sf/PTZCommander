@@ -13,7 +13,7 @@ interface CameraPreviewProps {
   refreshInterval?: number;
 }
 
-type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "webrtc" | "browser";
+type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser";
 
 function getPreviewType(camera: CameraType): PreviewType {
   return (camera.previewType || (camera.streamUrl ? "snapshot" : "none")) as PreviewType;
@@ -24,6 +24,7 @@ function previewLabel(type: PreviewType) {
     case "snapshot": return "Snapshot";
     case "mjpeg": return "MJPEG";
     case "rtsp": return "RTSP";
+    case "rtp": return "RTP";
     case "webrtc": return "WebRTC";
     case "browser": return "USB";
     default: return "No preview";
@@ -86,7 +87,7 @@ function SnapshotPreview({ camera, refreshInterval, className }: {
 function StreamingImagePreview({ camera, className, endpoint, errorLabel, loadingLabel }: {
   camera: CameraType;
   className?: string;
-  endpoint: "preview-stream" | "rtsp-stream";
+  endpoint: "preview-stream" | "rtsp-stream" | "rtp-stream";
   errorLabel: string;
   loadingLabel: string;
 }) {
@@ -156,6 +157,18 @@ function RtspPreview({ camera, className }: { camera: CameraType; className?: st
       endpoint="rtsp-stream"
       errorLabel="No RTSP signal"
       loadingLabel="Opening RTSP"
+    />
+  );
+}
+
+function RtpPreview({ camera, className }: { camera: CameraType; className?: string }) {
+  return (
+    <StreamingImagePreview
+      camera={camera}
+      className={className}
+      endpoint="rtp-stream"
+      errorLabel="No RTP signal"
+      loadingLabel="Opening RTP"
     />
   );
 }
@@ -310,6 +323,7 @@ function PreviewMedia({ camera, refreshInterval, className }: {
   }
   if (type === "mjpeg") return <MjpegPreview camera={camera} className={className} />;
   if (type === "rtsp") return <RtspPreview camera={camera} className={className} />;
+  if (type === "rtp") return <RtpPreview camera={camera} className={className} />;
   if (type === "webrtc") return <WebRtcPreview camera={camera} className={className} />;
   if (type === "browser") return <BrowserVideoPreview camera={camera} className={className} />;
   return <SnapshotPreview camera={camera} refreshInterval={refreshInterval} className={className} />;
@@ -457,7 +471,7 @@ export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval =
       </div>
       <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-500">
         <Radio className="w-3 h-3" />
-        Snapshot, MJPEG, RTSP, WebRTC bridge, and local USB inputs can be set per camera.
+        Snapshot, MJPEG, RTSP, RTP, WebRTC bridge, and local USB inputs can be set per camera.
       </div>
     </div>
   );
