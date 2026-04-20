@@ -325,11 +325,14 @@ export const switcherApi = {
     if (!res.ok) throw new Error("Failed to delete switcher");
   },
 
-  connect: async (id: number): Promise<{ success: boolean; status: string }> => {
+  connect: async (id: number): Promise<{ success: boolean; status: string; message?: string }> => {
     const res = await fetch(`${API_BASE}/switchers/${id}/connect`, {
       method: "POST",
     });
-    if (!res.ok) throw new Error("Failed to connect to switcher");
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to connect to switcher");
+    }
     return res.json();
   },
 

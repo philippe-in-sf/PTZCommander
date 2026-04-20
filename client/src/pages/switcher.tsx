@@ -43,6 +43,7 @@ const KEY_TYPES: Record<number, string> = {
 export default function SwitcherPage() {
   const queryClient = useQueryClient();
   const { atemState, switcher, switchers, send, cut, auto, setProgramInput, setPreviewInput, getInputLabel, displayInputs } = useAtemControl();
+  const controlTimedOut = switcher?.status === "control-timeout";
   const [activeTab, setActiveTab] = useState<SwitcherTab>("me");
   const [addSwitcherOpen, setAddSwitcherOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -95,7 +96,7 @@ export default function SwitcherPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["switchers"] });
       if (data.success) toast.success("Connected to ATEM");
-      else toast.error("Failed to connect to ATEM");
+      else toast.error(data.message || "ATEM control handshake timed out");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -246,8 +247,14 @@ export default function SwitcherPage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-4">
             <WifiOff className="h-16 w-16 mx-auto text-slate-400 dark:text-slate-600" />
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Switcher Offline</h2>
-            <p className="text-slate-500 dark:text-slate-400">Click Connect to establish connection to {switcher.name}</p>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+              {controlTimedOut ? "ATEM Control Timed Out" : "Switcher Not Connected"}
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400">
+              {controlTimedOut
+                ? `${switcher.name} may be online, but the ATEM control session did not answer.`
+                : `Click Connect to establish connection to ${switcher.name}`}
+            </p>
             <Button onClick={() => connectSwitcherMutation.mutate(switcher.id)} disabled={connectSwitcherMutation.isPending} data-testid="button-connect-switcher-big">
               <Wifi className="h-4 w-4 mr-2" />
               {connectSwitcherMutation.isPending ? "Connecting..." : "Connect"}
