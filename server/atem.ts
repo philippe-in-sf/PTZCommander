@@ -1,3 +1,6 @@
+import dgram from "node:dgram";
+import os from "node:os";
+import { execFileSync } from "node:child_process";
 import { errorDetails, logger } from "./logger";
 
 export interface AtemConfig {
@@ -81,9 +84,130 @@ export interface AtemSwitcherState {
 
 type AtemInstance = any;
 type AtemConstructor = new (options?: { disableMultithreaded?: boolean }) => AtemInstance;
+type AtemSocketChildModule = {
+  ConnectionState: { Established: number };
+  AtemSocketChild: {
+    prototype: {
+      _socket?: dgram.Socket;
+      _connectionState: number;
+      _receivePacket(packet: Buffer, rinfo: dgram.RemoteInfo): void;
+      log(message: string): void;
+      restartConnection(): Promise<void>;
+      _createSocket(): dgram.Socket;
+    };
+  };
+};
 
 let atemConstructorPromise: Promise<AtemConstructor> | null = null;
+let atemSocketPatchApplied = false;
+let atemPreferredLocalAddress: string | null = null;
 const ATEM_CONNECT_TIMEOUT_MS = 10000;
+const ATEM_MODULE_RETRY_COUNT = 5;
+
+function ipv4ToInt(ip: string) {
+  return ip.split(".").reduce((acc, part) => ((acc << 8) + Number(part)) >>> 0, 0);
+}
+
+function maskToPrefix(mask: string) {
+  return mask
+    .split(".")
+    .map((part) => Number(part).toString(2).padStart(8, "0"))
+    .join("")
+    .replace(/0+$/, "").length;
+}
+
+function isSameSubnet(ip: string, candidateAddress: string, netmask: string) {
+  const prefix = maskToPrefix(netmask);
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return (ipv4ToInt(ip) & mask) === (ipv4ToInt(candidateAddress) & mask);
+}
+
+function scoreLocalInterface(name: string) {
+  let score = 0;
+
+  if (/^(utun|awdl|llw|bridge|lo)/.test(name)) return -100;
+  if (/^(en|eth)\d+$/.test(name)) score += 10;
+  if (/^en1$/.test(name)) score -= 15;
+
+  try {
+    const details = execFileSync("ifconfig", [name], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    if (/media: .*baseT/i.test(details)) score += 50;
+    if (/status: active/i.test(details)) score += 5;
+    if (/media: autoselect(?!.*baseT)/i.test(details)) score -= 5;
+  } catch {
+    // Ignore local inspection failures; we'll fall back to interface name scoring.
+  }
+
+  return score;
+}
+
+function selectPreferredAtemLocalAddress(targetIp: string) {
+  const candidates = Object.entries(os.networkInterfaces())
+    .flatMap(([name, entries]) =>
+      (entries || [])
+        .filter((entry) => entry.family === "IPv4" && !entry.internal && entry.netmask && isSameSubnet(targetIp, entry.address, entry.netmask))
+        .map((entry) => ({ interfaceName: name, address: entry.address, netmask: entry.netmask, score: scoreLocalInterface(name) })),
+    )
+    .sort((a, b) => b.score - a.score || a.interfaceName.localeCompare(b.interfaceName));
+
+  const selected = candidates[0] ?? null;
+  logger.debug("switcher", "Resolved ATEM local interface candidates", {
+    action: "atem_local_interface_candidates",
+    details: {
+      targetIp,
+      selected: selected ? { interfaceName: selected.interfaceName, address: selected.address, score: selected.score } : null,
+      candidates,
+    },
+  });
+  return selected;
+}
+
+function patchAtemSocketBinding() {
+  if (atemSocketPatchApplied) return;
+
+  const childModule = require("atem-connection/dist/lib/atemSocketChild") as AtemSocketChildModule;
+  childModule.AtemSocketChild.prototype._createSocket = function createSocketWithPreferredBind(this: AtemSocketChildModule["AtemSocketChild"]["prototype"]) {
+    this._socket = dgram.createSocket("udp4");
+    if (atemPreferredLocalAddress) {
+      this._socket.bind({ address: atemPreferredLocalAddress, port: 0 });
+    } else {
+      this._socket.bind();
+    }
+    this._socket.on("message", (packet, rinfo) => this._receivePacket(packet, rinfo));
+    this._socket.on("error", (err) => {
+      this.log(`Connection error: ${err}`);
+      if (this._connectionState === childModule.ConnectionState.Established) {
+        this.restartConnection().catch((error) => {
+          this.log(`Failed to restartConnection: ${error instanceof Error ? error.message : String(error)}`);
+        });
+      }
+    });
+    return this._socket;
+  };
+
+  atemSocketPatchApplied = true;
+}
+
+function isRetryableAtemLoadError(error: unknown) {
+  return Boolean(
+    error &&
+    typeof error === "object" &&
+    ("errno" in error || "code" in error) &&
+    ((error as NodeJS.ErrnoException).errno === -11 || (error as NodeJS.ErrnoException).code === "EAGAIN"),
+  );
+}
+
+async function wait(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clearAtemModuleCache() {
+  for (const cacheKey of Object.keys(require.cache)) {
+    if (cacheKey.includes(`${require("path").sep}atem-connection${require("path").sep}`)) {
+      delete require.cache[cacheKey];
+    }
+  }
+}
 
 async function loadAtemConstructor(): Promise<AtemConstructor> {
   if (!atemConstructorPromise) {
@@ -91,22 +215,46 @@ async function loadAtemConstructor(): Promise<AtemConstructor> {
       action: "atem_module_load",
       details: { nodeVersion: process.version, platform: process.platform, pid: process.pid },
     });
-    atemConstructorPromise = import("atem-connection")
-      .then((module) => {
-        logger.debug("switcher", "ATEM connection module loaded", {
-          action: "atem_module_loaded",
-          details: { exports: Object.keys(module).slice(0, 12) },
-        });
-        return module.Atem as AtemConstructor;
-      })
-      .catch((error) => {
-        atemConstructorPromise = null;
-        logger.error("switcher", "Failed to load ATEM connection module", {
-          action: "atem_module_load_error",
-          details: errorDetails(error),
-        });
-        throw error;
+    atemConstructorPromise = (async () => {
+      let lastError: unknown;
+
+      for (let attempt = 1; attempt <= ATEM_MODULE_RETRY_COUNT; attempt += 1) {
+        try {
+          patchAtemSocketBinding();
+          const module = require("atem-connection") as typeof import("atem-connection");
+          const Atem = module.Atem ?? (module as { default?: { Atem?: AtemConstructor } }).default?.Atem ?? (module as { default?: AtemConstructor }).default ?? module.BasicAtem;
+          if (typeof Atem !== "function") {
+            throw new TypeError(`atem-connection did not expose a constructor (exports: ${Object.keys(module).slice(0, 12).join(", ")})`);
+          }
+          logger.debug("switcher", "ATEM connection module loaded", {
+            action: "atem_module_loaded",
+            details: { exports: Object.keys(module).slice(0, 12), attempts: attempt, constructor: Atem.name || "anonymous" },
+          });
+          return Atem as AtemConstructor;
+        } catch (error) {
+          lastError = error;
+          if (!isRetryableAtemLoadError(error) || attempt === ATEM_MODULE_RETRY_COUNT) {
+            break;
+          }
+
+          logger.warn("switcher", `ATEM module load hit a transient read error; retrying (${attempt}/${ATEM_MODULE_RETRY_COUNT})`, {
+            action: "atem_module_load_retry",
+            details: { attempt, ...errorDetails(error) },
+          });
+
+          clearAtemModuleCache();
+
+          await wait(50 * attempt);
+        }
+      }
+
+      atemConstructorPromise = null;
+      logger.error("switcher", "Failed to load ATEM connection module", {
+        action: "atem_module_load_error",
+        details: errorDetails(lastError),
       });
+      throw lastError;
+    })();
   }
   return atemConstructorPromise;
 }
@@ -124,6 +272,9 @@ export class AtemClient {
   private async getAtem(): Promise<AtemInstance> {
     if (this.atem) return this.atem;
 
+    const preferredLocalInterface = selectPreferredAtemLocalAddress(this.config.ip);
+    atemPreferredLocalAddress = preferredLocalInterface?.address ?? null;
+
     const Atem = await loadAtemConstructor();
     const atem = new Atem({
       // Avoid the threaded socket worker under launchd/Node 24. That worker can
@@ -132,7 +283,13 @@ export class AtemClient {
     });
     logger.debug("switcher", "ATEM client instance created", {
       action: "atem_client_created",
-      details: { ip: this.config.ip, disableMultithreaded: true, timeoutMs: ATEM_CONNECT_TIMEOUT_MS },
+      details: {
+        ip: this.config.ip,
+        disableMultithreaded: true,
+        timeoutMs: ATEM_CONNECT_TIMEOUT_MS,
+        localAddress: atemPreferredLocalAddress,
+        localInterface: preferredLocalInterface?.interfaceName ?? null,
+      },
     });
 
     atem.on("connected", () => {

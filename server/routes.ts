@@ -9,10 +9,12 @@ import { obsManager } from "./obs";
 import { logger, setupAuditLogging } from "./logger";
 import { setHueClient, getHueClient } from "./hue";
 import { APP_VERSION } from "@shared/version";
+import { insertPresetSchema } from "@shared/schema";
 import { isRehearsalMode } from "./rehearsal";
 import http from "http";
 import https from "https";
 import type { UndoAction, SessionLogEntry, RouteContext } from "./routes/types";
+import { fromError } from "zod-validation-error";
 import {
   registerCameraRoutes,
   registerMixerRoutes,
@@ -43,6 +45,10 @@ let broadcastFn: ((msg: Record<string, unknown>) => void) | null = null;
 async function captureSnapshot(url: string): Promise<string | null> {
   return new Promise((resolve) => {
     try {
+      if (!/^https?:\/\//i.test(url)) {
+        resolve(null);
+        return;
+      }
       const mod = url.startsWith("https") ? https : http;
       const req = mod.get(url, { timeout: 3000 }, (res) => {
         if (res.statusCode !== 200) { resolve(null); return; }
@@ -87,6 +93,21 @@ export async function registerRoutes(
   logger.info("system", `Application started — PTZ Command v${APP_VERSION}`);
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+
+  wss.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
+      logger.error("websocket", "WebSocket server failed to bind because the port is already in use", {
+        action: "ws_bind_error",
+        details: errorDetails(error),
+      });
+      return;
+    }
+
+    logger.error("websocket", "WebSocket server error", {
+      action: "ws_error",
+      details: errorDetails(error),
+    });
+  });
 
   function broadcast(message: Record<string, unknown>) {
     const data = JSON.stringify(message);
@@ -136,24 +157,25 @@ export async function registerRoutes(
     try {
       const cameras = await storage.getAllCameras();
       const newTallyMap = new Map<number, string>();
+      let changed = false;
 
       for (const camera of cameras) {
-        if (!camera.atemInputId) continue;
-
         let tallyState = "off";
-        if (camera.atemInputId === programInput) {
+        if (camera.atemInputId && camera.atemInputId === programInput) {
           tallyState = "program";
-        } else if (camera.atemInputId === previewInput) {
+        } else if (camera.atemInputId && camera.atemInputId === previewInput) {
           tallyState = "preview";
         }
 
         newTallyMap.set(camera.id, tallyState);
-        const previousState = previousTallyMap.get(camera.id) || "off";
+        const previousState = previousTallyMap.get(camera.id) ?? camera.tallyState ?? "off";
+        const storedState = camera.tallyState ?? "off";
 
-        if (tallyState !== previousState) {
+        if (tallyState !== previousState || tallyState !== storedState) {
           logger.info("camera", `Tally: ${camera.name} (ID:${camera.id}): ${previousState} → ${tallyState}`, { action: "tally_change", details: { cameraId: camera.id, from: previousState, to: tallyState } });
 
           await storage.updateCamera(camera.id, { tallyState });
+          changed = true;
 
           const client = cameraManager.getClient(camera.id);
           if (client && client.isConnected()) {
@@ -167,6 +189,9 @@ export async function registerRoutes(
       }
 
       previousTallyMap = newTallyMap;
+      if (changed) {
+        broadcast({ type: "invalidate", keys: ["cameras", "health-devices"] });
+      }
     } catch (error) {
       logger.error("camera", `Error updating tally lights: ${error instanceof Error ? error.message : String(error)}`, { action: "tally_error" });
     }
@@ -287,6 +312,84 @@ export async function registerRoutes(
             const recallClient = cameraManager.getClient(message.cameraId as number);
             if (recallClient && recallClient.isConnected()) {
               recallClient.recallPreset(message.presetNumber as number);
+            }
+            break;
+          }
+
+          case "store_preset": {
+            const requestId = typeof message.requestId === "string" ? message.requestId : "";
+            const respond = (payload: Record<string, unknown>) => {
+              ws.send(JSON.stringify({ type: "preset_store_result", requestId, ...payload }));
+            };
+
+            const parsedPreset = insertPresetSchema.safeParse(message.preset);
+            if (!parsedPreset.success) {
+              respond({ ok: false, message: fromError(parsedPreset.error).toString() });
+              break;
+            }
+
+            const presetData = parsedPreset.data;
+            const camera = await storage.getCamera(presetData.cameraId);
+            if (!camera) {
+              respond({ ok: false, message: "Camera not found" });
+              break;
+            }
+
+            const storeClient = cameraManager.getClient(presetData.cameraId);
+            if (!storeClient || !storeClient.isConnected()) {
+              logger.warn("preset", `Preset store rejected because camera ${camera.name} is offline`, {
+                action: "preset_store_offline",
+                details: { cameraId: camera.id, presetNumber: presetData.presetNumber },
+              });
+              respond({ ok: false, message: `Camera ${camera.name} is offline. Reconnect it, then try saving the preset again.` });
+              break;
+            }
+
+            let thumbnailData = presetData.thumbnail || null;
+            if (!thumbnailData && camera.streamUrl) {
+              try {
+                thumbnailData = await captureSnapshot(camera.streamUrl);
+              } catch (thumbnailError) {
+                logger.warn("preset", `Preset thumbnail capture failed for ${camera.name}: ${thumbnailError instanceof Error ? thumbnailError.message : String(thumbnailError)}`, {
+                  action: "preset_thumbnail_failed",
+                  details: { cameraId: camera.id, presetNumber: presetData.presetNumber },
+                });
+              }
+            }
+
+            logger.info("preset", `Storing preset ${presetData.presetNumber + 1} on ${camera.name}`, {
+              action: "preset_store_start",
+              details: {
+                cameraId: camera.id,
+                presetNumber: presetData.presetNumber,
+                hasThumbnail: Boolean(thumbnailData),
+                transport: "websocket",
+              },
+            });
+
+            try {
+              await storeClient.storePresetAsync(presetData.presetNumber);
+              const preset = await storage.savePreset({ ...presetData, thumbnail: thumbnailData });
+
+              logger.info("preset", `Stored preset ${presetData.presetNumber + 1} on ${camera.name}`, {
+                action: "preset_store_success",
+                details: {
+                  cameraId: camera.id,
+                  presetId: preset.id,
+                  presetNumber: presetData.presetNumber,
+                  transport: "websocket",
+                },
+              });
+
+              addSessionLog("preset", "Store Preset", `Preset ${presetData.presetNumber + 1}${presetData.name ? ` (${presetData.name})` : ""} saved`);
+              broadcast({ type: "invalidate", keys: ["presets"] });
+              respond({ ok: true, preset });
+            } catch (error: any) {
+              logger.error("preset", `Failed to save preset: ${error?.message || "Unknown error"}`, {
+                action: "preset_store_error",
+                details: errorDetails(error),
+              });
+              respond({ ok: false, message: error?.message || "Failed to save preset" });
             }
             break;
           }
@@ -581,6 +684,39 @@ export async function registerRoutes(
       logger.info("camera", `Initialized ${cameras.length} camera connection(s)`, { action: "visca_init" });
     } catch (error: unknown) {
       logger.error("camera", `Error initializing camera connections: ${error instanceof Error ? error.message : String(error)}`, { action: "visca_init_error" });
+    }
+    try {
+      const mixers = await storage.getAllMixers();
+      const mixer = mixers[0];
+      if (mixer) {
+        const connected = await x32Manager.connect(mixer.ip, mixer.port);
+        await storage.updateMixerStatus(mixer.id, connected ? "online" : "offline");
+        logger.info("mixer", `Initialized mixer ${mixer.name} at ${mixer.ip}:${mixer.port} (${connected ? "online" : "offline"})`, {
+          action: "x32_init",
+          details: { mixerId: mixer.id, ip: mixer.ip, port: mixer.port, connected },
+        });
+        broadcast({ type: "invalidate", keys: ["mixers", "health-devices", "mixer-status"] });
+      }
+    } catch (error: unknown) {
+      logger.error("mixer", `Error initializing mixer connection: ${error instanceof Error ? error.message : String(error)}`, { action: "x32_init_error" });
+    }
+    try {
+      const switchers = await storage.getAllSwitchers();
+      const switcher = switchers[0];
+      if (switcher) {
+        const connected = await atemManager.connect(switcher.ip);
+        const status = connected ? "online" : "control-timeout";
+        await storage.updateSwitcherStatus(switcher.id, status);
+        logger.info("switcher", `Initialized switcher ${switcher.name} at ${switcher.ip} (${status})`, {
+          action: "atem_init",
+          details: { switcherId: switcher.id, ip: switcher.ip, connected, status },
+        });
+        broadcast({ type: "invalidate", keys: ["switchers", "switcher-status", "health-devices"] });
+      }
+    } catch (error: unknown) {
+      logger.error("switcher", `Error initializing switcher connection: ${error instanceof Error ? error.message : String(error)}`, {
+        action: "atem_init_error",
+      });
     }
     try {
       const obsConnections = await storage.getAllObsConnections();

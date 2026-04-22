@@ -169,7 +169,9 @@ export const cameraApi = {
   },
 
   getPresets: async (id: number): Promise<Preset[]> => {
-    const res = await fetch(`${API_BASE}/cameras/${id}/presets`);
+    const res = await fetch(`${API_BASE}/cameras/${id}/presets`, {
+      cache: "no-store",
+    });
     if (!res.ok) throw new Error("Failed to fetch presets");
     return res.json();
   },
@@ -209,7 +211,10 @@ export const presetApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(preset),
     });
-    if (!res.ok) throw new Error("Failed to save preset");
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to save preset");
+    }
     return res.json();
   },
 
@@ -217,7 +222,10 @@ export const presetApi = {
     const res = await fetch(`${API_BASE}/presets/${id}/recall`, {
       method: "POST",
     });
-    if (!res.ok) throw new Error("Failed to recall preset");
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to recall preset");
+    }
   },
 
   delete: async (id: number): Promise<void> => {

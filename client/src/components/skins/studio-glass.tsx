@@ -63,6 +63,7 @@ export default function StudioGlass(props: DashboardSkinProps) {
   const [focusValue, setFocusValue] = useState([50]);
   const [location] = useLocation();
   const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({});
+  const [isStoreMode, setIsStoreMode] = useState(false);
 
   const handleZoomChange = (val: number[]) => {
     setZoomValue(val);
@@ -299,12 +300,22 @@ export default function StudioGlass(props: DashboardSkinProps) {
             <GlassPanel className="p-8">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Presets</h2>
-                <Tabs defaultValue="grid" className="w-[120px]">
-                  <TabsList className="grid w-full grid-cols-2 bg-slate-100 dark:bg-slate-700 rounded-full h-9 p-1">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant={isStoreMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsStoreMode((current) => !current)}
+                    className={isStoreMode ? "bg-rose-600 hover:bg-rose-700 text-white" : ""}
+                  >
+                    {isStoreMode ? "Store Armed" : "Store"}
+                  </Button>
+                  <Tabs defaultValue="grid" className="w-[120px]">
+                    <TabsList className="grid w-full grid-cols-2 bg-slate-100 dark:bg-slate-700 rounded-full h-9 p-1">
                     <TabsTrigger value="grid" className="rounded-full text-xs data-[state=active]:bg-white dark:data-[state=active]:bg-slate-600 data-[state=active]:shadow-sm">Grid</TabsTrigger>
                     <TabsTrigger value="list" className="rounded-full text-xs data-[state=active]:bg-white dark:data-[state=active]:bg-slate-600 data-[state=active]:shadow-sm">List</TabsTrigger>
-                  </TabsList>
-                </Tabs>
+                    </TabsList>
+                  </Tabs>
+                </div>
               </div>
               
               <div className="grid grid-cols-4 gap-3">
@@ -313,13 +324,20 @@ export default function StudioGlass(props: DashboardSkinProps) {
                   return (
                     <button 
                       key={i}
-                      onClick={() => props.onRecallPreset(i)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        props.onStorePreset(i);
+                      onClick={() => {
+                        if (isStoreMode) {
+                          props.onStorePreset(i);
+                          setIsStoreMode(false);
+                        } else {
+                          props.onRecallPreset(i);
+                        }
                       }}
-                      className="h-16 rounded-2xl bg-slate-50 dark:bg-slate-700/50 border border-slate-100 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-600 hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-500/30 transition-all flex flex-col items-center justify-center gap-1 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 group relative"
-                      title="Left-click to recall, Right-click to store"
+                      className={`h-16 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 group relative ${
+                        isStoreMode
+                          ? "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/50 hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-600 dark:text-rose-300"
+                          : "bg-slate-50 dark:bg-slate-700/50 border-slate-100 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-600 hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-500/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+                      }`}
+                      title={isStoreMode ? "Click to store this preset" : "Click to recall this preset"}
                     >
                       <span className="text-xs font-bold text-slate-400 dark:text-slate-500 group-hover:text-indigo-300 transition-colors">{(i + 1).toString().padStart(2, '0')}</span>
                       <span className="text-sm font-medium">{preset?.name || `Preset ${i + 1}`}</span>

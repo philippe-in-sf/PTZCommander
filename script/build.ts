@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { cp, rename, rm, readFile } from "fs/promises";
+import { cp, rename, rm, readFile, writeFile } from "fs/promises";
 import path from "path";
 
 // server deps to bundle to reduce openat(2) syscalls
@@ -80,6 +80,12 @@ async function buildAll() {
   await cp(
     "node_modules/atem-connection/dist/lib/atemSocketChild.js",
     path.join(stagingDir, "atemSocketChild.js"),
+  );
+
+  await writeFile(
+    path.join(stagingDir, "package.json"),
+    JSON.stringify({ type: "commonjs" }, null, 2) + "\n",
+    "utf-8",
   );
 
   try {

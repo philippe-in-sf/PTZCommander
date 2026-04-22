@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import type { InsertPreset, Preset } from "@shared/schema";
 
 export type MixerChannelState = {
   channel: number;
@@ -13,9 +14,11 @@ export type WsMessageInbound =
   | { type: "atem_state"; [key: string]: unknown }
   | { type: "mixer_state"; section?: string; channels: MixerChannelState[] }
   | { type: "mixer_section_state"; section: string; channels: MixerChannelState[] }
+  | { type: "preset_store_result"; requestId: string; ok: boolean; preset?: Preset; message?: string }
   | { type: string; [key: string]: unknown };
 
 export type WebSocketMessageHandler = (message: WsMessageInbound) => void;
+export type WebSocketConnectionHandler = (connected: boolean) => void;
 
 export class PTZWebSocket {
   private ws: WebSocket | null = null;
@@ -24,6 +27,12 @@ export class PTZWebSocket {
   private reconnectAttempts = 0;
   private maxReconnectDelay = 30000;
   private messageHandlers: Set<WebSocketMessageHandler> = new Set();
+  private connectionHandlers: Set<WebSocketConnectionHandler> = new Set();
+  private pendingPresetStores = new Map<string, {
+    resolve: (preset: Preset) => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }>();
 
   constructor(private url: string) {}
 
@@ -37,11 +46,19 @@ export class PTZWebSocket {
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
+      this.connectionHandlers.forEach((handler) => handler(true));
       onOpen?.();
     };
 
     this.ws.onclose = () => {
+      this.connectionHandlers.forEach((handler) => handler(false));
       onClose?.();
+
+      this.pendingPresetStores.forEach((pending) => {
+        clearTimeout(pending.timeout);
+        pending.reject(new Error("Control WebSocket disconnected"));
+      });
+      this.pendingPresetStores.clear();
       
       this.reconnectAttempts++;
       const jitter = Math.random() * 500;
@@ -56,6 +73,18 @@ export class PTZWebSocket {
     this.ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data) as WsMessageInbound;
+        if (message.type === "preset_store_result" && typeof message.requestId === "string") {
+          const pending = this.pendingPresetStores.get(message.requestId);
+          if (pending) {
+            clearTimeout(pending.timeout);
+            this.pendingPresetStores.delete(message.requestId);
+            if (message.ok && message.preset) {
+              pending.resolve(message.preset);
+            } else {
+              pending.reject(new Error(message.message || "Failed to save preset"));
+            }
+          }
+        }
         this.messageHandlers.forEach(handler => handler(message));
       } catch {
       }
@@ -70,6 +99,14 @@ export class PTZWebSocket {
     this.messageHandlers.delete(handler);
   }
 
+  addConnectionHandler(handler: WebSocketConnectionHandler): void {
+    this.connectionHandlers.add(handler);
+  }
+
+  removeConnectionHandler(handler: WebSocketConnectionHandler): void {
+    this.connectionHandlers.delete(handler);
+  }
+
   disconnect(): void {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -79,6 +116,12 @@ export class PTZWebSocket {
       this.ws.close();
       this.ws = null;
     }
+
+    this.pendingPresetStores.forEach((pending) => {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error("WebSocket disconnected"));
+    });
+    this.pendingPresetStores.clear();
   }
 
   isConnected(): boolean {
@@ -141,6 +184,27 @@ export class PTZWebSocket {
       type: "recall_preset",
       cameraId,
       presetNumber,
+    });
+  }
+
+  storePreset(preset: InsertPreset): Promise<Preset> {
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error("Control WebSocket is not connected"));
+    }
+
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return new Promise<Preset>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingPresetStores.delete(requestId);
+        reject(new Error("Preset save timed out"));
+      }, 10000);
+
+      this.pendingPresetStores.set(requestId, { resolve, reject, timeout });
+      this.send({
+        type: "store_preset",
+        requestId,
+        preset,
+      });
     });
   }
 }
