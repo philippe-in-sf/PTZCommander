@@ -76,6 +76,79 @@ function requestAssetPath(requestPath: string) {
   }
 }
 
+const MIME_TYPES: Record<string, string> = {
+  ".css": "text/css; charset=utf-8",
+  ".gif": "image/gif",
+  ".html": "text/html; charset=utf-8",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
+
+type StaticAsset = {
+  content: Buffer;
+  contentType: string;
+};
+
+function pauseSync(ms: number) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    // Short startup-only pause for transient filesystem read errors.
+  }
+}
+
+function readFileWithRetrySync(filePath: string) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return fs.readFileSync(filePath);
+    } catch (error: any) {
+      lastError = error;
+      if (error?.errno !== -11 && error?.code !== "EAGAIN") break;
+      pauseSync(25 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
+function loadStaticAssets(distPath: string) {
+  const assets = new Map<string, StaticAsset>();
+
+  function walk(dir: string) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+
+      const relativePath = path.relative(distPath, entryPath).split(path.sep).join("/");
+      const ext = path.extname(entryPath).toLowerCase();
+      assets.set(`/${relativePath}`, {
+        content: readFileWithRetrySync(entryPath),
+        contentType: MIME_TYPES[ext] || "application/octet-stream",
+      });
+    }
+  }
+
+  walk(distPath);
+  return assets;
+}
+
+function requestAssetPath(requestPath: string) {
+  try {
+    const decoded = decodeURIComponent(requestPath.split("?")[0] || "/");
+    return decoded.startsWith("/") ? decoded : `/${decoded}`;
+  } catch {
+    return null;
+  }
+}
+
 export function serveStatic(app: Express) {
   const moduleDir = typeof __dirname !== "undefined"
     ? __dirname
