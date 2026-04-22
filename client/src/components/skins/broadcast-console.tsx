@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
+import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
@@ -59,12 +60,13 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
            backgroundImage: `linear-gradient(rgba(30, 30, 40, 0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(30, 30, 40, 0.5) 1px, transparent 1px)`,
            backgroundSize: '20px 20px'
          }}>
+      <BrandWatermark className="bottom-4 right-4 opacity-[0.12]" />
       
       <header className="h-12 bg-[#16161e] border-b border-[#2a2a3a] flex items-center justify-between px-4 shrink-0 z-50 relative shadow-lg">
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
-            <span className="text-red-400 font-bold tracking-widest text-sm">PTZCOMMAND</span>
+            <BrandLogo imageClassName="h-7 w-auto brightness-110" />
           </div>
           <nav className="flex space-x-1">
             {tabs.map((tab) => {

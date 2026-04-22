@@ -30,6 +30,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useLocation } from "wouter";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
+import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
@@ -100,11 +101,8 @@ export default function StudioGlass(props: DashboardSkinProps) {
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 font-sans flex">
       <aside className="w-64 h-screen fixed left-0 top-0 p-6 flex flex-col gap-8 z-10">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
-            <Radio className="w-6 h-6" />
-          </div>
           <div className="flex-1">
-            <h1 className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">PTZCOMMAND</h1>
+            <BrandLogo imageClassName="h-12 w-auto" />
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">System Online</span>
@@ -168,6 +166,7 @@ export default function StudioGlass(props: DashboardSkinProps) {
       </aside>
 
       <main className="flex-1 ml-64 p-6 lg:p-10 space-y-8 h-screen overflow-y-auto">
+        <BrandWatermark className="fixed bottom-6 right-6 opacity-[0.12]" />
         
         <section>
           <div className="flex items-center justify-between mb-4">

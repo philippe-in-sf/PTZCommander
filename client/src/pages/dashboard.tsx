@@ -12,6 +12,7 @@ import { CameraMonitor, CameraPreview } from "@/components/ptz/camera-preview";
 import { SessionLog } from "@/components/logs/session-log";
 import { ConnectionHealth } from "@/components/ptz/connection-health";
 import { AppHeader } from "@/components/app-header";
+import { BrandWatermark, StartupSplash } from "@/components/branding/brand";
 import { OBSConnectionCard } from "@/components/obs/obs-connection-card";
 import { useSkin } from "@/lib/skin-context";
 import { Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
@@ -407,14 +408,7 @@ export default function Dashboard() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-700 dark:text-slate-400 font-mono">Initializing PTZ Command...</p>
-        </div>
-      </div>
-    );
+    return <StartupSplash detail="Discovering devices and restoring your control workspace" />;
   }
 
   const skinProps = {
@@ -436,9 +430,7 @@ export default function Dashboard() {
     const SkinComponent = skin === "broadcast" ? BroadcastConsole : skin === "glass" ? StudioGlass : CommandCenter;
     return (
       <Suspense fallback={
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <StartupSplash detail="Loading your selected operator skin" />
       }>
         <SkinComponent {...skinProps} />
       </Suspense>
@@ -446,7 +438,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
+      <BrandWatermark />
       <AppHeader
         activePage="/"
         rightContent={
