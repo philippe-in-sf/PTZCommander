@@ -2,6 +2,21 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.6.0] - 2026-04-22
+
+### Added
+- **OBS Dashboard Control** — moved OBS connection and scene switching to the Dashboard so operators can manage it alongside cameras, ATEM, mixer, and lighting
+- **Manual and First-Run Camera Discovery** — added camera discovery flows that can run automatically on first launch and manually later from the dashboard
+- **RTSP / RTP Preview Expansion** — added richer preview support for RTSP and RTP streams, including FoMaKo-friendly setup guidance and inline preview configuration
+- **Better Runtime Diagnostics** — expanded logging around ATEM, VISCA preset storage, mixer startup, and preview failures to make troubleshooting less opaque
+
+### Changed
+- **ATEM Reliability** — ATEM connections now rehydrate on startup, bind more reliably to the correct local interface, and refresh UI state after reconnect/focus events
+- **Preset Save Reliability** — preset saves now use the control WebSocket, update slot state immediately in the UI, and fall back more gracefully for cameras that do not acknowledge VISCA store commands consistently
+- **Mixer Startup Behavior** — saved X32 mixers now reconnect automatically after app restart instead of requiring delete/re-add
+- **Joystick Preview Behavior** — selected-camera preview ownership is cleaner so the joystick monitor and preview rail do not fight over the same RTSP session
+- **Version Display** — interface version labels now report v1.6.0
+
 ## [1.5.0] - 2026-04-17
 
 ### Added

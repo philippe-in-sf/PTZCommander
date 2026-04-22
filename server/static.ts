@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -76,10 +77,18 @@ function requestAssetPath(requestPath: string) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
-  if (!fs.existsSync(distPath)) {
+  const moduleDir = typeof __dirname !== "undefined"
+    ? __dirname
+    : path.dirname(fileURLToPath(new URL(import.meta.url)));
+  const candidatePaths = [
+    path.resolve(moduleDir, "public"),
+    path.resolve(moduleDir, "..", "dist", "public"),
+    path.resolve(process.cwd(), "dist", "public"),
+  ];
+  const distPath = candidatePaths.find((candidate) => fs.existsSync(candidate));
+  if (!distPath) {
     throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      `Could not find the build directory. Checked: ${candidatePaths.join(", ")}`,
     );
   }
 

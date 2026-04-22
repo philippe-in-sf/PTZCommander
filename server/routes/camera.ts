@@ -6,7 +6,6 @@ import { spawn } from "child_process";
 import rateLimit from "express-rate-limit";
 import net from "net";
 import os from "os";
-import path from "path";
 import { Readable } from "stream";
 import { z } from "zod";
 
@@ -76,6 +75,22 @@ function normalizeFfmpegPreviewUrl(value: string, protocol: FfmpegPreviewProtoco
   }
 }
 
+function applyCameraCredentialsToPreviewUrl(
+  value: string,
+  camera: { username: string | null; password: string | null },
+) {
+  try {
+    const url = new URL(value);
+    if (!camera.username || !camera.password) return url.toString();
+    if (url.username || url.password) return url.toString();
+    url.username = camera.username;
+    url.password = camera.password;
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
 function redactPreviewUrl(value: string) {
   try {
     const url = new URL(value);
@@ -95,10 +110,6 @@ function ffmpegPreviewErrorMessage(stderr: string, protocol: FfmpegPreviewProtoc
   const message = redactFfmpegPreviewDiagnostics(stderr).trim().split("\n").pop() || "";
   if (/ffmpeg: not found/i.test(message)) return "FFmpeg is not installed on the app host";
   return message || `${protocol.toUpperCase()} preview ended before video was available`;
-}
-
-function ffmpegPreviewHelperPath() {
-  return path.join(process.cwd(), "server", "rtsp-preview.sh");
 }
 
 function ipv4ToInt(ip: string) {
@@ -515,25 +526,38 @@ export function registerCameraRoutes(ctx: RouteContext) {
           return res.status(400).json({ message: `${label} preview URLs must start with ${allowed}` });
         }
 
-        const inputUrl = normalizedUrl;
+        const inputUrl = applyCameraCredentialsToPreviewUrl(normalizedUrl, camera);
         const ffmpegPath = getFfmpegPath();
-        const helperPath = ffmpegPreviewHelperPath();
+        const ffmpegArgs = [
+          "-hide_banner",
+          "-loglevel",
+          "warning",
+          ...(protocol === "rtsp" ? ["-rtsp_transport", "tcp"] : []),
+          "-i",
+          inputUrl,
+          "-an",
+          "-sn",
+          "-dn",
+          "-r",
+          "12",
+          "-q:v",
+          "6",
+          "-f",
+          "mpjpeg",
+          "-boundary_tag",
+          "frame",
+          "pipe:1",
+        ];
 
         logger.info("camera", `Opening ${label} preview for ${camera.name}`, {
           action: `camera:${protocol}_preview_start`,
-          details: { cameraId: camera.id, name: camera.name, url: redactPreviewUrl(camera.streamUrl), ffmpegPath, helperPath },
+          details: { cameraId: camera.id, name: camera.name, url: redactPreviewUrl(inputUrl), ffmpegPath },
         });
 
-        const ffmpeg = spawn("/bin/sh", [helperPath], {
+        const ffmpeg = spawn(ffmpegPath, ffmpegArgs, {
           stdio: ["ignore", "pipe", "pipe"],
           shell: false,
-          env: {
-            ...process.env,
-            FFMPEG_PATH: ffmpegPath,
-            PREVIEW_PROTOCOL: protocol,
-            PREVIEW_URL: inputUrl,
-            RTSP_URL: protocol === "rtsp" ? inputUrl : undefined,
-          },
+          env: process.env,
         });
         let stderr = "";
         let streamStarted = false;
@@ -587,12 +611,12 @@ export function registerCameraRoutes(ctx: RouteContext) {
         });
 
         ffmpeg.once("error", (error: NodeJS.ErrnoException) => {
-          logger.error("camera", `${label} preview helper failed to start for ${camera.name}`, {
+          logger.error("camera", `${label} preview process failed to start for ${camera.name}`, {
             action: `camera:${protocol}_preview_spawn_error`,
-            details: { cameraId: camera.id, ffmpegPath, helperPath, ...errorDetails(error) },
+            details: { cameraId: camera.id, ffmpegPath, ...errorDetails(error) },
           });
           const message = error.code === "ENOENT"
-            ? `${label} preview helper is not available.`
+            ? "FFmpeg is not installed on the app host."
             : error.message || `Failed to start ${label} preview`;
           finishWithError(error.code === "ENOENT" ? 501 : 502, message);
         });
@@ -692,27 +716,63 @@ export function registerCameraRoutes(ctx: RouteContext) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }
 
+      const camera = await storage.getCamera(result.data.cameraId);
+      if (!camera) {
+        return res.status(404).json({ message: "Camera not found" });
+      }
+
+      const client = cameraManager.getClient(result.data.cameraId);
+      if (!client || !client.isConnected()) {
+        logger.warn("preset", `Preset store rejected because camera ${camera.name} is offline`, {
+          action: "preset_store_offline",
+          details: { cameraId: camera.id, presetNumber: result.data.presetNumber },
+        });
+        return res.status(409).json({ message: `Camera ${camera.name} is offline. Reconnect it, then try saving the preset again.` });
+      }
+
       let thumbnailData = result.data.thumbnail || null;
       if (!thumbnailData) {
         try {
-          const camera = await storage.getCamera(result.data.cameraId);
           if (camera?.streamUrl) {
             thumbnailData = await captureSnapshot(camera.streamUrl);
           }
-        } catch {}
+        } catch (thumbnailError) {
+          logger.warn("preset", `Preset thumbnail capture failed for ${camera.name}: ${thumbnailError instanceof Error ? thumbnailError.message : String(thumbnailError)}`, {
+            action: "preset_thumbnail_failed",
+            details: { cameraId: camera.id, presetNumber: result.data.presetNumber },
+          });
+        }
       }
 
+      logger.info("preset", `Storing preset ${result.data.presetNumber + 1} on ${camera.name}`, {
+        action: "preset_store_start",
+        details: {
+          cameraId: camera.id,
+          presetNumber: result.data.presetNumber,
+          hasThumbnail: Boolean(thumbnailData),
+        },
+      });
+
+      await client.storePresetAsync(result.data.presetNumber);
       const preset = await storage.savePreset({ ...result.data, thumbnail: thumbnailData });
 
-      const client = cameraManager.getClient(result.data.cameraId);
-      if (client && client.isConnected()) {
-        client.storePreset(result.data.presetNumber);
-      }
+      logger.info("preset", `Stored preset ${result.data.presetNumber + 1} on ${camera.name}`, {
+        action: "preset_store_success",
+        details: {
+          cameraId: camera.id,
+          presetId: preset.id,
+          presetNumber: result.data.presetNumber,
+        },
+      });
 
       addSessionLog("preset", "Store Preset", `Preset ${result.data.presetNumber + 1}${result.data.name ? ` (${result.data.name})` : ""} saved`);
       broadcast({ type: "invalidate", keys: ["presets"] });
       res.json(preset);
     } catch (error: any) {
+      logger.error("preset", `Failed to save preset: ${error?.message || "Unknown error"}`, {
+        action: "preset_store_error",
+        details: errorDetails(error),
+      });
       res.status(500).json({ message: error.message || "Failed to save preset" });
     }
   });
