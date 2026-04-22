@@ -142,7 +142,7 @@ export class SamsungLocalDisplayClient {
     return new Promise<{ ws: WebSocket; token?: string }>((resolve, reject) => {
       const ws = new WebSocket(this.endpoint(token), { rejectUnauthorized: false });
       const timer = setTimeout(() => {
-        ws.close();
+        ws.terminate();
         reject(new Error("Timed out waiting for Samsung TV pairing"));
       }, timeoutMs);
 
@@ -166,7 +166,7 @@ export class SamsungLocalDisplayClient {
 
   async pair() {
     const { ws, token } = await this.connect(null, 45000);
-    ws.close();
+    ws.terminate();
     if (!token) throw new Error("TV did not return a pairing token. Accept the prompt on the TV and try again.");
     return token;
   }
@@ -183,7 +183,7 @@ export class SamsungLocalDisplayClient {
       },
     }));
     await new Promise((resolve) => setTimeout(resolve, 150));
-    ws.close();
+    ws.terminate();
   }
 
   async getInfo() {

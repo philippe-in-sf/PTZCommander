@@ -1,5 +1,6 @@
 import { useSkin } from "@/lib/skin-context";
 import { AppHeader } from "@/components/app-header";
+import { BrandWatermark } from "@/components/branding/brand";
 
 interface AppLayoutProps {
   activePage: string;
@@ -24,8 +25,9 @@ export function AppLayout({ activePage, headerRight, children }: AppLayoutProps)
   })();
 
   return (
-    <div className={`min-h-screen flex flex-col overflow-hidden ${bgClass}`}>
+    <div className={`relative min-h-screen flex flex-col overflow-hidden ${bgClass}`}>
       <AppHeader activePage={activePage} rightContent={headerRight} />
+      <BrandWatermark />
       {children}
     </div>
   );

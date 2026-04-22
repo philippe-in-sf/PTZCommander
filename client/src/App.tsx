@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -20,6 +21,7 @@ import LightingPage from "@/pages/lighting";
 import DisplaysPage from "@/pages/displays";
 import DiagnosticsPage from "@/pages/diagnostics";
 import NotFound from "@/pages/not-found";
+import { StartupSplash } from "@/components/branding/brand";
 
 function WsSync({ children }: { children: React.ReactNode }) {
   useWsInvalidation();
@@ -66,6 +68,16 @@ function Router() {
 }
 
 function App() {
+  const [showStartupSplash, setShowStartupSplash] = useState(true);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setShowStartupSplash(false);
+    }, 1400);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
@@ -76,6 +88,15 @@ function App() {
                 <Toaster />
                 <SonnerToaster />
                 <RehearsalChrome />
+                {showStartupSplash && (
+                  <div className="transition-opacity duration-500">
+                    <StartupSplash
+                      overlay
+                      label="Bringing the control surface online"
+                      detail="Cameras, switcher, mixer, and lighting are syncing"
+                    />
+                  </div>
+                )}
               </WsSync>
             </TooltipProvider>
           </QueryClientProvider>

@@ -97,6 +97,37 @@ async function getSmartThingsClientForDisplay(ctx: RouteContext, display: Displa
   return new SmartThingsClient(display.smartthingsToken);
 }
 
+function optimisticDisplayState(display: DisplayDevice, action: z.infer<typeof displayCommandSchema>): Partial<DisplayDevice> {
+  const updates: Partial<DisplayDevice> = { status: "online" };
+
+  switch (action.command) {
+    case "power_on":
+      updates.powerState = "on";
+      break;
+    case "power_off":
+      updates.powerState = "off";
+      break;
+    case "set_volume":
+      if (typeof action.value === "number" && Number.isFinite(action.value)) {
+        updates.volume = Math.max(0, Math.min(100, Math.round(action.value)));
+      }
+      break;
+    case "mute":
+      updates.muted = true;
+      break;
+    case "unmute":
+      updates.muted = false;
+      break;
+    case "set_input":
+      if (typeof action.value === "string" || typeof action.value === "number") {
+        updates.inputSource = String(action.value);
+      }
+      break;
+  }
+
+  return updates;
+}
+
 export async function executeDisplayAction(ctx: RouteContext, action: z.infer<typeof displayCommandSchema> & { displayId: number }) {
   const display = await ctx.storage.getDisplayDevice(action.displayId);
   if (!display) throw new Error("Display not found");
@@ -134,18 +165,31 @@ export async function executeDisplayAction(ctx: RouteContext, action: z.infer<ty
     throw new Error(`Unsupported display protocol: ${display.protocol}`);
   }
 
-  const refreshed = await refreshDisplayStatus(ctx, display.id);
   ctx.addSessionLog("system", "Display", `${display.name}: ${action.command}`);
   logger.info("system", `Display command: ${display.name} ${action.command}`, {
     action: "display:command",
     details: { displayId: display.id, command: action.command },
   });
-  return refreshed;
+
+  try {
+    return await refreshDisplayStatus(ctx, display.id, { markOfflineOnFailure: false });
+  } catch (error) {
+    logger.warn("system", `Display status refresh failed after command for ${display.name}: ${error instanceof Error ? error.message : String(error)}`, {
+      action: "display:refresh_after_command_failed",
+      details: {
+        displayId: display.id,
+        command: action.command,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+    return await ctx.storage.updateDisplayDevice(display.id, optimisticDisplayState(display, action)) || display;
+  }
 }
 
-async function refreshDisplayStatus(ctx: RouteContext, id: number) {
+async function refreshDisplayStatus(ctx: RouteContext, id: number, options?: { markOfflineOnFailure?: boolean }) {
   const display = await ctx.storage.getDisplayDevice(id);
   if (!display) throw new Error("Display not found");
+  const markOfflineOnFailure = options?.markOfflineOnFailure !== false;
   if (display.protocol === "samsung_local") {
     if (!display.ip) return display;
     try {
@@ -157,7 +201,9 @@ async function refreshDisplayStatus(ctx: RouteContext, id: number) {
         samsungModel: info.modelName || display.samsungModel,
       }) || display;
     } catch (error) {
-      await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+      if (markOfflineOnFailure) {
+        await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+      }
       throw error;
     }
   }
@@ -173,7 +219,9 @@ async function refreshDisplayStatus(ctx: RouteContext, id: number) {
         hisenseUseSsl: info.useSsl,
       }) || display;
     } catch (error) {
-      await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+      if (markOfflineOnFailure) {
+        await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+      }
       throw error;
     }
   }
@@ -192,7 +240,9 @@ async function refreshDisplayStatus(ctx: RouteContext, id: number) {
       inputSource: status.inputSource,
     }) || display;
   } catch (error) {
-    await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+    if (markOfflineOnFailure) {
+      await ctx.storage.updateDisplayDevice(id, { status: "offline" });
+    }
     throw error;
   }
 }
