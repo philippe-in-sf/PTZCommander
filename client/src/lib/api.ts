@@ -1,6 +1,25 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, ObsConnection, InsertObsConnection, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, ObsConnection, InsertObsConnection, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice, UserRole } from "@shared/schema";
 
 const API_BASE = "/api";
+
+export interface AppUser {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  isActive: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthSessionResponse {
+  user: AppUser;
+}
+
+export interface BootstrapStatus {
+  needsSetup: boolean;
+}
 
 export interface DiscoveredCamera {
   ip: string;
@@ -94,6 +113,90 @@ export interface ObsState {
 export interface RehearsalMode {
   enabled: boolean;
 }
+
+export const authApi = {
+  getSession: async (): Promise<AuthSessionResponse> => {
+    const res = await fetch(`${API_BASE}/auth/session`, { credentials: "include" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to load session");
+    return data;
+  },
+
+  getBootstrapStatus: async (): Promise<BootstrapStatus> => {
+    const res = await fetch(`${API_BASE}/auth/bootstrap-status`, { credentials: "include" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to load setup status");
+    return data;
+  },
+
+  bootstrap: async (payload: { username: string; displayName: string; password: string }): Promise<AuthSessionResponse> => {
+    const res = await fetch(`${API_BASE}/auth/bootstrap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to complete initial setup");
+    return data;
+  },
+
+  login: async (payload: { username: string; password: string }): Promise<AuthSessionResponse> => {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Login failed");
+    return data;
+  },
+
+  logout: async (): Promise<void> => {
+    const res = await fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.message || "Logout failed");
+    }
+  },
+};
+
+export const userAdminApi = {
+  getAll: async (): Promise<AppUser[]> => {
+    const res = await fetch(`${API_BASE}/users`, { credentials: "include" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to fetch users");
+    return data;
+  },
+
+  create: async (payload: { username: string; displayName: string; password: string; role: UserRole }): Promise<AppUser> => {
+    const res = await fetch(`${API_BASE}/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to create user");
+    return data;
+  },
+
+  update: async (id: number, payload: { displayName?: string; password?: string; role?: UserRole; isActive?: boolean }): Promise<AppUser> => {
+    const res = await fetch(`${API_BASE}/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to update user");
+    return data;
+  },
+};
 
 export const rehearsalApi = {
   get: async (): Promise<RehearsalMode> => {

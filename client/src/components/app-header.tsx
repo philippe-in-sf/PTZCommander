@@ -1,13 +1,14 @@
 import { Link } from "wouter";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Video, Radio, Lock, LogOut } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SkinSelector } from "@/components/skin-selector";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
-import { BrandLogo } from "@/components/branding/brand";
+import { Button } from "@/components/ui/button";
 import { useSkin } from "@/lib/skin-context";
+import { useAuth } from "@/lib/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -127,7 +128,39 @@ function NavGroupMenu({ group, activePage, className, activeClassName, inactiveC
   );
 }
 
+function UserMenu() {
+  const { user, isAdmin, logout, logoutPending } = useAuth();
+
+  if (!user) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Lock className="h-4 w-4" />
+          <span className="max-w-32 truncate">{user.displayName}</span>
+          <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-300">
+            {user.role}
+          </span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {isAdmin && (
+          <DropdownMenuItem asChild>
+            <Link href="/users" className="cursor-pointer">Users</Link>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={() => logout()} disabled={logoutPending} className="cursor-pointer">
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
+  const { isAdmin } = useAuth();
   const navClass = "px-3 py-1.5 rounded text-sm font-medium transition-colors inline-flex items-center";
   const activeClass = "text-slate-900 dark:text-white bg-slate-400/70 dark:bg-slate-800 border border-slate-400 dark:border-slate-700";
   const inactiveClass = "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800";
@@ -151,6 +184,7 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
           {NAV_GROUPS.map((group) => (
             <NavGroupMenu key={group.name} group={group} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} />
           ))}
+          {isAdmin && <NavButton item={{ name: "Users", path: "/users", testId: "nav-users" }} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} />}
         </nav>
       </div>
 
@@ -161,12 +195,14 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
         <ThemeToggle />
         <LayoutSelector />
         <LogViewer />
+        <UserMenu />
       </div>
     </header>
   );
 }
 
 function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
+  const { isAdmin } = useAuth();
   const navClass = "px-3 py-1.5 transition-colors inline-flex items-center";
   const activeClass = "bg-[#252535] text-cyan-400 border-t-2 border-cyan-400";
   const inactiveClass = "text-zinc-400 hover:text-zinc-100 hover:bg-[#1e1e2a]";
@@ -189,6 +225,7 @@ function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
           {NAV_GROUPS.map((group) => (
             <NavGroupMenu key={group.name} group={group} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} label={group.shortName || group.name} />
           ))}
+          {isAdmin && <NavButton item={{ name: "Users", shortName: "Users", path: "/users", testId: "nav-users" }} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} label="Users" />}
         </nav>
       </div>
       <div className="flex items-center space-x-4 text-[10px] text-zinc-400">
@@ -196,12 +233,14 @@ function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
+        <UserMenu />
       </div>
     </header>
   );
 }
 
 function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
+  const { isAdmin } = useAuth();
   const navClass = "px-3 py-2 rounded text-sm font-medium transition-colors inline-flex items-center";
   const activeClass = "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 shadow-sm";
   const inactiveClass = "text-slate-500 dark:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-slate-200";
@@ -222,6 +261,7 @@ function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
           {NAV_GROUPS.map((group) => (
             <NavGroupMenu key={group.name} group={group} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} />
           ))}
+          {isAdmin && <NavButton item={{ name: "Users", path: "/users", testId: "nav-users" }} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} />}
         </nav>
       </div>
 
@@ -230,12 +270,14 @@ function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
+        <UserMenu />
       </div>
     </header>
   );
 }
 
 function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
+  const { isAdmin } = useAuth();
   const navClass = "px-3 py-1.5 text-xs font-semibold rounded-full transition-colors inline-flex items-center";
   const activeClass = "bg-amber-500/20 text-amber-400";
   const inactiveClass = "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50";
@@ -256,6 +298,7 @@ function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
           {NAV_GROUPS.map((group) => (
             <NavGroupMenu key={group.name} group={group} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} label={(group.shortName || group.name).toUpperCase()} />
           ))}
+          {isAdmin && <NavButton item={{ name: "Users", path: "/users", testId: "nav-users" }} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} label="USERS" />}
         </nav>
       </div>
 
@@ -264,6 +307,7 @@ function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
+        <UserMenu />
       </div>
     </header>
   );

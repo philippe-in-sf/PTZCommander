@@ -2,11 +2,12 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
+import { hasRequiredRole, resolveWsUser, wsCommandRequiresOperator } from "./auth";
 import { cameraManager } from "./visca";
 import { x32Manager } from "./x32";
 import { atemManager } from "./atem";
 import { obsManager } from "./obs";
-import { logger, setupAuditLogging } from "./logger";
+import { errorDetails, logger, setupAuditLogging } from "./logger";
 import { setHueClient, getHueClient } from "./hue";
 import { APP_VERSION } from "@shared/version";
 import { insertPresetSchema } from "@shared/schema";
@@ -16,6 +17,7 @@ import https from "https";
 import type { UndoAction, SessionLogEntry, RouteContext } from "./routes/types";
 import { fromError } from "zod-validation-error";
 import {
+  registerAuthRoutes,
   registerCameraRoutes,
   registerMixerRoutes,
   registerSwitcherRoutes,
@@ -135,6 +137,7 @@ export async function registerRoutes(
     sessionLog,
   };
 
+  registerAuthRoutes(ctx);
   registerSystemRoutes(ctx);
   registerCameraRoutes(ctx);
   registerMixerRoutes(ctx);
@@ -206,10 +209,17 @@ export async function registerRoutes(
     broadcast({ type: "obs_state", ...state });
   });
 
-  wss.on("connection", (ws: WebSocket) => {
-    logger.info("websocket", "Client connected", { action: "ws_connect" });
+  wss.on("connection", async (ws: WebSocket, request) => {
+    const currentUser = await resolveWsUser(request);
+    if (!currentUser) {
+      ws.close(4401, "Authentication required");
+      return;
+    }
+
+    logger.info("websocket", "Client connected", { action: "ws_connect", userId: String(currentUser.id) });
 
     ws.send(JSON.stringify({ type: "version", version: APP_VERSION }));
+    ws.send(JSON.stringify({ type: "auth", user: currentUser }));
 
     const mixerClient = x32Manager.getClient();
     if (mixerClient && mixerClient.isConnected()) {
@@ -238,6 +248,11 @@ export async function registerRoutes(
     ws.on("message", async (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString()) as { type: string; [key: string]: unknown };
+        if (wsCommandRequiresOperator(message.type) && !hasRequiredRole(currentUser.role, "operator")) {
+          ws.send(JSON.stringify({ type: "permission_error", message: "Operator access required for live control." }));
+          return;
+        }
+
         const suppressRehearsal = (category: SessionLogEntry["category"], label: string, detailText: string) => {
           if (!isRehearsalMode()) return false;
           const details = `${label} suppressed in rehearsal mode${detailText ? `: ${detailText}` : ""}`;
@@ -670,7 +685,7 @@ export async function registerRoutes(
     });
 
     ws.on("close", () => {
-      logger.info("websocket", "Client disconnected", { action: "ws_disconnect" });
+      logger.info("websocket", "Client disconnected", { action: "ws_disconnect", userId: String(currentUser.id) });
     });
   });
 

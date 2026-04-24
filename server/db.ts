@@ -25,6 +25,18 @@ if (useSqlite) {
   sqlite = new Database(dbPath);
   
   sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      last_login_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS cameras (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -83,6 +95,7 @@ if (useSqlite) {
       color TEXT NOT NULL DEFAULT '#06b6d4',
       group_name TEXT DEFAULT 'General',
       atem_input_id INTEGER,
+      atem_state TEXT,
       atem_transition_type TEXT DEFAULT 'cut',
       obs_scene_name TEXT,
       camera_id INTEGER,
@@ -188,6 +201,7 @@ if (useSqlite) {
   `);
 
   try {
+    sqlite.exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)");
     sqlite.exec("CREATE INDEX IF NOT EXISTS idx_presets_camera_id ON presets(camera_id)");
     sqlite.exec("CREATE INDEX IF NOT EXISTS idx_runsheet_cues_scene_button_id ON runsheet_cues(scene_button_id)");
     sqlite.exec("CREATE INDEX IF NOT EXISTS idx_audit_logs_category_timestamp ON audit_logs(category, timestamp)");
@@ -215,6 +229,12 @@ if (useSqlite) {
 
   try {
     sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN obs_scene_name TEXT");
+  } catch {
+    // Column already exists — ignore
+  }
+
+  try {
+    sqlite.exec("ALTER TABLE scene_buttons ADD COLUMN atem_state TEXT");
   } catch {
     // Column already exists — ignore
   }
@@ -264,6 +284,7 @@ if (useSqlite) {
   db = drizzlePg(pool, { schema });
   console.log("[Database] Using PostgreSQL database");
 
+  pool.query("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)").catch(() => {});
   pool.query("CREATE INDEX IF NOT EXISTS idx_presets_camera_id ON presets(camera_id)").catch(() => {});
   pool.query("CREATE INDEX IF NOT EXISTS idx_audit_logs_category_timestamp ON audit_logs(category, timestamp)").catch(() => {});
 }

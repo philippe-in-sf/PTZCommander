@@ -7,6 +7,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SkinProvider } from "@/lib/skin-context";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { useWsInvalidation } from "@/lib/ws-invalidation";
 import { rehearsalApi } from "@/lib/api";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -20,6 +21,8 @@ import MobilePage from "@/pages/mobile";
 import LightingPage from "@/pages/lighting";
 import DisplaysPage from "@/pages/displays";
 import DiagnosticsPage from "@/pages/diagnostics";
+import UsersPage from "@/pages/users";
+import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import { StartupSplash } from "@/components/branding/brand";
 
@@ -62,8 +65,27 @@ function Router() {
       <Route path="/lighting" component={LightingPage}/>
       <Route path="/displays" component={DisplaysPage}/>
       <Route path="/diagnostics" component={DiagnosticsPage}/>
+      <Route path="/users" component={UsersPage}/>
       <Route component={NotFound} />
     </Switch>
+  );
+}
+
+function Shell() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return (
+    <WsSync>
+      <RehearsalChrome />
+    </WsSync>
   );
 }
 
@@ -83,22 +105,13 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <SkinProvider>
           <QueryClientProvider client={queryClient}>
-            <TooltipProvider>
-              <WsSync>
+            <AuthProvider>
+              <TooltipProvider>
                 <Toaster />
                 <SonnerToaster />
-                <RehearsalChrome />
-                {showStartupSplash && (
-                  <div className="transition-opacity duration-500">
-                    <StartupSplash
-                      overlay
-                      label="Bringing the control surface online"
-                      detail="Cameras, switcher, mixer, and lighting are syncing"
-                    />
-                  </div>
-                )}
-              </WsSync>
-            </TooltipProvider>
+                <Shell />
+              </TooltipProvider>
+            </AuthProvider>
           </QueryClientProvider>
         </SkinProvider>
       </ThemeProvider>

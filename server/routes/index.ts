@@ -1,3 +1,4 @@
+export { registerAuthRoutes } from "./auth";
 export { registerCameraRoutes } from "./camera";
 export { registerMixerRoutes } from "./mixer";
 export { registerSwitcherRoutes } from "./switcher";
