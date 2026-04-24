@@ -1,5 +1,6 @@
 # PTZ Command - Camera & Audio Control System
 
+Current version: **1.7.0**
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, a Behringer X32 audio mixer via OSC, and a Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
@@ -72,6 +73,12 @@ Touch-optimized mobile web view with camera control, scene execution, and switch
 - Persistent audit logs stored in database
 - All mixer, camera, and switcher operations are logged for troubleshooting
 
+### Multi-User Access
+- Shared backend database for cameras, layouts, macros, scenes, and logs
+- Role-based accounts for `viewer`, `operator`, and `admin`
+- Browser sessions per station with protected live-control actions
+- First-run admin bootstrap flow for new installs
+
 ## Prerequisites
 
 - **Node.js 18+** (https://nodejs.org/)
@@ -131,6 +138,7 @@ If you prefer PostgreSQL instead of SQLite, set up a database and create a `.env
 
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/ptz_command
+SESSION_SECRET=change-this-in-production
 ```
 
 Then push the schema:
@@ -140,6 +148,12 @@ npm run db:push
 ```
 
 The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
+
+### Multi-User Setup Notes
+
+- On a brand-new install, open PTZ Command once and create the first admin account.
+- After that, admins can create additional viewer, operator, or admin users from the in-app **Users** page.
+- For shared deployments, set `SESSION_SECRET` explicitly before running the app.
 
 ## Camera Setup
 
