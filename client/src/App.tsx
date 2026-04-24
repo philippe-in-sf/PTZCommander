@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -23,6 +24,7 @@ import DiagnosticsPage from "@/pages/diagnostics";
 import UsersPage from "@/pages/users";
 import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
+import { StartupSplash } from "@/components/branding/brand";
 
 function WsSync({ children }: { children: React.ReactNode }) {
   useWsInvalidation();
@@ -88,6 +90,16 @@ function Shell() {
 }
 
 function App() {
+  const [showStartupSplash, setShowStartupSplash] = useState(true);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setShowStartupSplash(false);
+    }, 1400);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">

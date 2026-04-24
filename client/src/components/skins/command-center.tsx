@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DashboardSkinProps } from "./types";
+import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { Joystick } from "@/components/ptz/joystick";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -82,13 +83,13 @@ export default function CommandCenter(props: DashboardSkinProps) {
       {/* Background Grid Pattern */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 
            style={{ backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
+      <BrandWatermark className="bottom-5 right-5 opacity-[0.12]" />
 
       {/* HEADER / TOP NAV */}
       <header className="h-14 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur flex items-center justify-between px-4 z-50 shrink-0 relative">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-amber-500 font-bold tracking-widest text-lg">
-            <Radio className="w-5 h-5 animate-pulse" />
-            <span>PTZCOMMAND<span className="text-slate-600">_</span></span>
+          <div className="flex items-center gap-2">
+            <BrandLogo imageClassName="h-8 w-auto" />
           </div>
           
           <nav className="hidden md:flex gap-1 bg-[#020617] p-1 rounded-full border border-slate-800">

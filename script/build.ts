@@ -1,11 +1,13 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { cp, rename, rm, readFile, writeFile } from "fs/promises";
+import path from "path";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
 const allowlist = [
   "@google/generative-ai",
+  "atem-connection",
   "axios",
   "connect-pg-simple",
   "cors",
@@ -33,10 +35,20 @@ const allowlist = [
 ];
 
 async function buildAll() {
-  await rm("dist", { recursive: true, force: true });
+  const distDir = "dist";
+  const stagingDir = ".dist-next";
+  const previousDir = ".dist-previous";
+
+  await rm(stagingDir, { recursive: true, force: true });
+  await rm(previousDir, { recursive: true, force: true });
 
   console.log("building client...");
-  await viteBuild();
+  await viteBuild({
+    build: {
+      outDir: path.resolve(stagingDir, "public"),
+      emptyOutDir: true,
+    },
+  });
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
@@ -44,14 +56,19 @@ async function buildAll() {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.devDependencies || {}),
   ];
-  const externals = allDeps.filter((dep) => !allowlist.includes(dep));
+  const externals = [
+    ...allDeps.filter((dep) => !allowlist.includes(dep)),
+    // Native binding package used by atem-connection; keep it in node_modules
+    // so its prebuilt .node binary resolves from the package directory.
+    "@julusian/freetype2",
+  ];
 
   await esbuild({
     entryPoints: ["server/index.ts"],
     platform: "node",
     bundle: true,
     format: "cjs",
-    outfile: "dist/index.cjs",
+    outfile: path.join(stagingDir, "index.cjs"),
     define: {
       "process.env.NODE_ENV": '"production"',
     },
@@ -59,6 +76,36 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  await cp(
+    "node_modules/atem-connection/dist/lib/atemSocketChild.js",
+    path.join(stagingDir, "atemSocketChild.js"),
+  );
+
+  await writeFile(
+    path.join(stagingDir, "package.json"),
+    JSON.stringify({ type: "commonjs" }, null, 2) + "\n",
+    "utf-8",
+  );
+
+  try {
+    await rename(distDir, previousDir);
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
+  try {
+    await rename(stagingDir, distDir);
+  } catch (error) {
+    try {
+      await rename(previousDir, distDir);
+    } catch {
+      // Leave the original error intact if rollback cannot complete.
+    }
+    throw error;
+  }
+
+  await rm(previousDir, { recursive: true, force: true });
 }
 
 buildAll().catch((err) => {

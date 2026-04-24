@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { switcherApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
 
@@ -83,35 +83,49 @@ export const DEFAULT_ATEM_STATE: AtemState = {
 
 export function useAtemControl() {
   const ws = useWebSocket();
+  const queryClient = useQueryClient();
   const [atemState, setAtemState] = useState<AtemState>(DEFAULT_ATEM_STATE);
 
   const { data: switchers = [] } = useQuery({
     queryKey: ["switchers"],
     queryFn: switcherApi.getAll,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   const switcher = switchers[0] ?? null;
 
+  const hydrateAtemState = useCallback((stateMessage: Partial<AtemState>) => {
+    setAtemState({
+      connected: stateMessage.connected ?? false,
+      programInput: stateMessage.programInput ?? 0,
+      previewInput: stateMessage.previewInput ?? 0,
+      inTransition: stateMessage.inTransition ?? false,
+      transitionPosition: stateMessage.transitionPosition ?? 0,
+      inputs: stateMessage.inputs ?? [],
+      transition: stateMessage.transition ?? DEFAULT_TRANSITION,
+      fadeToBlack: stateMessage.fadeToBlack ?? DEFAULT_FTB,
+      downstreamKeyers: stateMessage.downstreamKeyers ?? [],
+      upstreamKeyers: stateMessage.upstreamKeyers ?? [],
+      macroPlayer: stateMessage.macroPlayer ?? DEFAULT_MACRO_PLAYER,
+      macros: stateMessage.macros ?? [],
+      auxOutputs: stateMessage.auxOutputs ?? [],
+    });
+  }, []);
+
+  const { data: switcherStatus, refetch: refetchSwitcherStatus } = useQuery({
+    queryKey: ["switcher-status", switcher?.id],
+    queryFn: () => switcherApi.getStatus(switcher!.id),
+    enabled: !!switcher,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+
   const handleAtemState = useCallback((message: Record<string, unknown>) => {
     if (message.type === "atem_state") {
-      const stateMessage = message as Partial<AtemState>;
-      setAtemState({
-        connected: stateMessage.connected ?? false,
-        programInput: stateMessage.programInput ?? 0,
-        previewInput: stateMessage.previewInput ?? 0,
-        inTransition: stateMessage.inTransition ?? false,
-        transitionPosition: stateMessage.transitionPosition ?? 0,
-        inputs: stateMessage.inputs ?? [],
-        transition: stateMessage.transition ?? DEFAULT_TRANSITION,
-        fadeToBlack: stateMessage.fadeToBlack ?? DEFAULT_FTB,
-        downstreamKeyers: stateMessage.downstreamKeyers ?? [],
-        upstreamKeyers: stateMessage.upstreamKeyers ?? [],
-        macroPlayer: stateMessage.macroPlayer ?? DEFAULT_MACRO_PLAYER,
-        macros: stateMessage.macros ?? [],
-        auxOutputs: stateMessage.auxOutputs ?? [],
-      });
+      hydrateAtemState(message as Partial<AtemState>);
     }
-  }, []);
+  }, [hydrateAtemState]);
 
   useEffect(() => {
     ws.addMessageHandler(handleAtemState);
@@ -119,12 +133,43 @@ export function useAtemControl() {
   }, [ws, handleAtemState]);
 
   useEffect(() => {
-    if (switcher && switcher.status === "online") {
-      switcherApi.getStatus(switcher.id).then((status) => {
-        if (status.connected) setAtemState({ ...DEFAULT_ATEM_STATE, ...status });
-      }).catch(console.error);
+    if (!switcherStatus) return;
+    hydrateAtemState(switcherStatus);
+  }, [hydrateAtemState, switcherStatus]);
+
+  useEffect(() => {
+    if (!switcher) {
+      setAtemState(DEFAULT_ATEM_STATE);
+      return;
     }
-  }, [switcher]);
+
+    const refreshSwitcherState = () => {
+      queryClient.invalidateQueries({ queryKey: ["switchers"] });
+      void refetchSwitcherStatus();
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
+        refreshSwitcherState();
+      }
+    };
+
+    const handleWsConnection = (connected: boolean) => {
+      if (connected) {
+        refreshSwitcherState();
+      }
+    };
+
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    ws.addConnectionHandler(handleWsConnection);
+
+    return () => {
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      ws.removeConnectionHandler(handleWsConnection);
+    };
+  }, [queryClient, refetchSwitcherStatus, switcher, ws]);
 
   const send = useCallback((data: Record<string, any>) => ws.send(data), [ws]);
   const cut = useCallback(() => ws.send({ type: "atem_cut" }), [ws]);

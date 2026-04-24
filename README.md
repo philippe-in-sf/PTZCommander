@@ -164,6 +164,22 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 5. Use the settings gear icon on any camera card to edit IP, port, or name
 6. Cameras auto-connect on startup
 
+### Inline Camera Preview Setup
+
+- **RTSP**: Set the preview source to `RTSP stream` and enter the RTSP URL
+- **RTP**: Set the preview source to `RTP stream` and enter an `rtp://...` URL
+- **Snapshot / MJPEG**: Use the camera's HTTP snapshot or MJPEG endpoint
+- **Browser USB/UVC**: Use `Browser USB/UVC input` for local capture devices in the browser
+
+RTSP and RTP previews are opened by FFmpeg on the app host and then proxied into the web UI.
+
+#### FoMaKo RTSP examples
+
+- Main stream: `rtsp://CAMERA_IP:554/live/av0`
+- Sub stream: `rtsp://CAMERA_IP:554/live/av1`
+
+If the camera requires RTSP authentication, save the camera username and password in PTZ Command. RTSP preview will use those saved credentials automatically.
+
 ### Supported Camera Protocols
 
 - **VISCA over IP** (Sony, PTZOptics, Marshall, Fomako, and most PTZ cameras)
@@ -258,6 +274,13 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 - Some cameras need VISCA over IP enabled in their settings
 - Check the Logs viewer (Camera category) for connection error details
 
+### Camera preview not loading
+- For FoMaKo cameras, try `rtsp://CAMERA_IP:554/live/av0` first, then `.../live/av1`
+- If the preview returns `401 Unauthorized`, verify the saved camera username/password
+- RTSP and RTP previews require FFmpeg on the computer running PTZ Command
+- RTP streams may require SDP or camera-side stream settings that FFmpeg can open directly
+- Use the Logs viewer (Camera category) to see the exact preview error from FFmpeg
+
 ### Joystick not responding
 - Check the Logs viewer for WebSocket connection errors
 - Ensure no other application is controlling the camera simultaneously
@@ -278,8 +301,14 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 ### ATEM Switcher shows "Offline"
 - Verify the ATEM IP address is correct
 - Ensure the ATEM is powered on and connected to the network
-- Check that no firewall is blocking TCP connections to the ATEM
+- Check that no firewall or routing issue is blocking ATEM control traffic
 - Check the Logs viewer (Switcher category) for connection error details
+
+### Program / Preview tally does not update
+- Confirm each camera has the correct **ATEM Input Number** in camera settings
+- Open the ATEM page and confirm the switcher status is `online`
+- The dashboard PRG/PVW badges and red/green tally states follow the current ATEM program and preview inputs
+- If the switcher still looks stale after reconnecting, tab away and back or reopen the ATEM page so the UI can refetch the current switcher state
 
 ### Database issues
 - Local installations use SQLite automatically (stored in `data/ptzcommand.db`)

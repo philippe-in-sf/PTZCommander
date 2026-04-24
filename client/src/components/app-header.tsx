@@ -170,13 +170,8 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
       <div className="flex items-center gap-3 min-w-0">
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.4)]">
-              <Video className="text-white w-4 h-4" />
-            </div>
             <div>
-              <h1 className="font-bold tracking-tight text-lg leading-none">
-                PTZ<span className="text-cyan-500 font-light">COMMAND</span>
-              </h1>
+              <BrandLogo imageClassName="h-9 w-auto" />
               <ChangelogDialog />
             </div>
           </div>
@@ -218,7 +213,9 @@ function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
         <div className="flex items-center space-x-2">
           <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
           <Link href="/">
-            <span className="text-red-400 font-bold tracking-widest text-sm cursor-pointer hover:text-red-300 transition-colors">PTZCOMMAND</span>
+            <span className="cursor-pointer hover:opacity-85 transition-opacity">
+              <BrandLogo imageClassName="h-7 w-auto brightness-110" />
+            </span>
           </Link>
         </div>
         <nav className="flex space-x-1">
@@ -253,10 +250,7 @@ function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
       <div className="flex items-center gap-3 min-w-0">
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
-              <Radio className="w-5 h-5" />
-            </div>
-            <h1 className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">PTZCOMMAND</h1>
+            <BrandLogo imageClassName="h-10 w-auto" />
           </div>
         </Link>
 
@@ -292,9 +286,8 @@ function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
     <header className="h-14 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur flex items-center justify-between px-4 z-50 shrink-0 relative">
       <div className="flex items-center gap-6">
         <Link href="/">
-          <div className="flex items-center gap-2 text-amber-500 font-bold tracking-widest text-lg cursor-pointer hover:text-amber-400 transition-colors font-mono">
-            <Radio className="w-5 h-5 animate-pulse" />
-            <span>PTZCOMMAND<span className="text-slate-600">_</span></span>
+          <div className="flex items-center gap-2 cursor-pointer hover:opacity-85 transition-opacity">
+            <BrandLogo imageClassName="h-8 w-auto" />
           </div>
         </Link>
 

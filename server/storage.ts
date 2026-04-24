@@ -559,14 +559,15 @@ export class DatabaseStorage implements IStorage {
       
       if (existing) {
         sqlite.prepare(`
-          UPDATE presets SET name = ?, pan = ?, tilt = ?, zoom = ?, focus = ?, updated_at = ?
+          UPDATE presets SET name = ?, thumbnail = ?, pan = ?, tilt = ?, zoom = ?, focus = ?, updated_at = ?
           WHERE camera_id = ? AND preset_number = ?
         `).run(
           insertPreset.name || null,
-          insertPreset.pan || null,
-          insertPreset.tilt || null,
-          insertPreset.zoom || null,
-          insertPreset.focus || null,
+          insertPreset.thumbnail ?? null,
+          insertPreset.pan ?? null,
+          insertPreset.tilt ?? null,
+          insertPreset.zoom ?? null,
+          insertPreset.focus ?? null,
           now,
           insertPreset.cameraId,
           insertPreset.presetNumber
@@ -575,16 +576,17 @@ export class DatabaseStorage implements IStorage {
       }
       
       const result = sqlite.prepare(`
-        INSERT INTO presets (camera_id, preset_number, name, pan, tilt, zoom, focus)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO presets (camera_id, preset_number, name, thumbnail, pan, tilt, zoom, focus)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         insertPreset.cameraId,
         insertPreset.presetNumber,
         insertPreset.name || null,
-        insertPreset.pan || null,
-        insertPreset.tilt || null,
-        insertPreset.zoom || null,
-        insertPreset.focus || null
+        insertPreset.thumbnail ?? null,
+        insertPreset.pan ?? null,
+        insertPreset.tilt ?? null,
+        insertPreset.zoom ?? null,
+        insertPreset.focus ?? null
       );
       
       const row = sqlite.prepare('SELECT * FROM presets WHERE id = ?').get(Number(result.lastInsertRowid));

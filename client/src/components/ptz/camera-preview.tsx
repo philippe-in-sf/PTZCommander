@@ -11,9 +11,12 @@ interface CameraPreviewProps {
   selectedId: number | null;
   onSelect: (id: number) => void;
   refreshInterval?: number;
+  suppressSelectedLivePreview?: boolean;
+  persistActivatedPreview?: boolean;
+  suspendAllLivePreview?: boolean;
 }
 
-type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "webrtc" | "browser";
+type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser";
 
 function getPreviewType(camera: CameraType): PreviewType {
   return (camera.previewType || (camera.streamUrl ? "snapshot" : "none")) as PreviewType;
@@ -24,6 +27,7 @@ function previewLabel(type: PreviewType) {
     case "snapshot": return "Snapshot";
     case "mjpeg": return "MJPEG";
     case "rtsp": return "RTSP";
+    case "rtp": return "RTP";
     case "webrtc": return "WebRTC";
     case "browser": return "USB";
     default: return "No preview";
@@ -86,7 +90,7 @@ function SnapshotPreview({ camera, refreshInterval, className }: {
 function StreamingImagePreview({ camera, className, endpoint, errorLabel, loadingLabel }: {
   camera: CameraType;
   className?: string;
-  endpoint: "preview-stream" | "rtsp-stream";
+  endpoint: "preview-stream" | "rtsp-stream" | "rtp-stream";
   errorLabel: string;
   loadingLabel: string;
 }) {
@@ -156,6 +160,18 @@ function RtspPreview({ camera, className }: { camera: CameraType; className?: st
       endpoint="rtsp-stream"
       errorLabel="No RTSP signal"
       loadingLabel="Opening RTSP"
+    />
+  );
+}
+
+function RtpPreview({ camera, className }: { camera: CameraType; className?: string }) {
+  return (
+    <StreamingImagePreview
+      camera={camera}
+      className={className}
+      endpoint="rtp-stream"
+      errorLabel="No RTP signal"
+      loadingLabel="Opening RTP"
     />
   );
 }
@@ -299,17 +315,22 @@ function BrowserVideoPreview({ camera, className }: { camera: CameraType; classN
   );
 }
 
-function PreviewMedia({ camera, refreshInterval, className }: {
+function PreviewMedia({ camera, refreshInterval, className, active = true }: {
   camera: CameraType;
   refreshInterval: number;
   className?: string;
+  active?: boolean;
 }) {
   const type = getPreviewType(camera);
   if (type === "none" || (!camera.streamUrl && type !== "browser")) {
-    return <PreviewState label={type === "browser" ? "Use default browser input" : "No preview configured"} />;
+    return <PreviewState label="No preview configured" />;
+  }
+  if (!active && type !== "snapshot") {
+    return <PreviewState label={`Select for ${previewLabel(type)} preview`} />;
   }
   if (type === "mjpeg") return <MjpegPreview camera={camera} className={className} />;
   if (type === "rtsp") return <RtspPreview camera={camera} className={className} />;
+  if (type === "rtp") return <RtpPreview camera={camera} className={className} />;
   if (type === "webrtc") return <WebRtcPreview camera={camera} className={className} />;
   if (type === "browser") return <BrowserVideoPreview camera={camera} className={className} />;
   return <SnapshotPreview camera={camera} refreshInterval={refreshInterval} className={className} />;
@@ -336,18 +357,30 @@ function PreviewState({ loading = false, error = false, label, children }: {
   );
 }
 
-function CameraFeed({ camera, isSelected, onSelect, refreshInterval }: {
+function CameraFeed({ camera, isSelected, onSelect, refreshInterval, suppressLivePreview, persistActivatedPreview = true }: {
   camera: CameraType;
   isSelected: boolean;
   onSelect: () => void;
   refreshInterval: number;
+  suppressLivePreview?: boolean;
+  persistActivatedPreview?: boolean;
 }) {
   const [fullscreen, setFullscreen] = useState(false);
+  const [hasActivatedPreview, setHasActivatedPreview] = useState(false);
   const previewType = getPreviewType(camera);
   const hasPreview = previewType !== "none" && (!!camera.streamUrl || previewType === "browser");
   const tallyState = camera.tallyState || (camera.isProgramOutput ? "program" : camera.isPreviewOutput ? "preview" : "off");
   const isPgm = tallyState === "program";
   const isPvw = tallyState === "preview";
+  const shouldStreamPreview = persistActivatedPreview
+    ? ((hasActivatedPreview || isSelected || fullscreen || isPgm || isPvw) && !suppressLivePreview)
+    : (hasPreview && !suppressLivePreview);
+
+  useEffect(() => {
+    if (isSelected || fullscreen || isPgm || isPvw) {
+      setHasActivatedPreview(true);
+    }
+  }, [fullscreen, isPgm, isPvw, isSelected]);
 
   return (
     <>
@@ -365,7 +398,11 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval }: {
         )}
         data-testid={`camera-preview-${camera.id}`}
       >
-        <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} />
+        <PreviewMedia
+          camera={camera}
+          refreshInterval={camera.previewRefreshMs || refreshInterval}
+          active={shouldStreamPreview}
+        />
 
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-gradient-to-b from-black/70 to-transparent">
           <span className={cn(
@@ -403,7 +440,11 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval }: {
       <Dialog open={fullscreen} onOpenChange={setFullscreen}>
         <DialogContent className="max-w-5xl p-0 overflow-hidden bg-black border-slate-300 dark:border-slate-800">
           <div className="relative aspect-video">
-            <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} />
+            <PreviewMedia
+              camera={camera}
+              refreshInterval={camera.previewRefreshMs || refreshInterval}
+              active
+            />
             <div className="absolute top-3 left-3 text-sm font-mono font-bold text-white bg-black/50 px-2 py-1 rounded">
               {camera.name} / {previewLabel(previewType)}
             </div>
@@ -414,10 +455,11 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval }: {
   );
 }
 
-export function CameraMonitor({ camera, refreshInterval = 2000, className }: {
+export function CameraMonitor({ camera, refreshInterval = 2000, className, active = true }: {
   camera: CameraType;
   refreshInterval?: number;
   className?: string;
+  active?: boolean;
 }) {
   const previewType = getPreviewType(camera);
 
@@ -426,7 +468,7 @@ export function CameraMonitor({ camera, refreshInterval = 2000, className }: {
       className={cn("relative aspect-video overflow-hidden rounded-lg border border-slate-300 dark:border-slate-800 bg-black", className)}
       data-testid={`camera-monitor-${camera.id}`}
     >
-      <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} />
+      <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} active={active} />
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-gradient-to-b from-black/70 to-transparent">
         <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-white/80">{camera.name}</span>
         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white/70">{previewLabel(previewType)}</span>
@@ -435,7 +477,15 @@ export function CameraMonitor({ camera, refreshInterval = 2000, className }: {
   );
 }
 
-export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval = 2000 }: CameraPreviewProps) {
+export function CameraPreview({
+  cameras,
+  selectedId,
+  onSelect,
+  refreshInterval = 2000,
+  suppressSelectedLivePreview = false,
+  persistActivatedPreview = true,
+  suspendAllLivePreview = false,
+}: CameraPreviewProps) {
   return (
     <div className="bg-slate-200/80 dark:bg-slate-900/30 border border-slate-400/50 dark:border-slate-800 rounded-xl p-4">
       <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest mb-3 flex items-center gap-2 font-bold">
@@ -452,12 +502,14 @@ export function CameraPreview({ cameras, selectedId, onSelect, refreshInterval =
             isSelected={selectedId === camera.id}
             onSelect={() => onSelect(camera.id)}
             refreshInterval={refreshInterval}
+            suppressLivePreview={suspendAllLivePreview || (suppressSelectedLivePreview && selectedId === camera.id)}
+            persistActivatedPreview={persistActivatedPreview}
           />
         ))}
       </div>
       <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-500">
         <Radio className="w-3 h-3" />
-        Snapshot, MJPEG, RTSP, WebRTC bridge, and local USB inputs can be set per camera.
+        Snapshot, MJPEG, RTSP, RTP, WebRTC bridge, and local USB inputs can be set per camera.
       </div>
     </div>
   );

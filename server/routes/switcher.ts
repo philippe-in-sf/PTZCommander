@@ -3,6 +3,10 @@ import { patchSwitcherSchema, insertSwitcherSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 import { errorDetails, logger } from "../logger";
 
+const ATEM_CONTROL_TIMEOUT_STATUS = "control-timeout";
+const ATEM_CONTROL_TIMEOUT_MESSAGE =
+  "ATEM control handshake timed out. The switcher may be online, but it did not answer the ATEM control protocol.";
+
 export function registerSwitcherRoutes(ctx: RouteContext) {
   const { app, storage, atemManager, broadcast } = ctx;
 
@@ -36,9 +40,9 @@ export function registerSwitcherRoutes(ctx: RouteContext) {
       }
       const switcher = await storage.createSwitcher(result.data);
       const connected = await atemManager.connect(switcher.ip);
-      await storage.updateSwitcherStatus(switcher.id, connected ? "online" : "offline");
+      await storage.updateSwitcherStatus(switcher.id, connected ? "online" : ATEM_CONTROL_TIMEOUT_STATUS);
       broadcast({ type: "invalidate", keys: ["switchers"] });
-      res.json(switcher);
+      res.json(await storage.getSwitcher(switcher.id) || switcher);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to create switcher" });
     }
@@ -86,13 +90,15 @@ export function registerSwitcherRoutes(ctx: RouteContext) {
         details: { switcherId: id, name: switcher.name, ip: switcher.ip },
       });
       const connected = await atemManager.connect(switcher.ip);
-      await storage.updateSwitcherStatus(id, connected ? "online" : "offline");
+      const status = connected ? "online" : ATEM_CONTROL_TIMEOUT_STATUS;
+      const message = connected ? "Connected to ATEM" : ATEM_CONTROL_TIMEOUT_MESSAGE;
+      await storage.updateSwitcherStatus(id, status);
       logger[connected ? "info" : "warn"]("switcher", `Manual ATEM connect ${connected ? "succeeded" : "failed"} for ${switcher.name}`, {
         action: connected ? "atem_connect_succeeded" : "atem_connect_failed",
-        details: { switcherId: id, name: switcher.name, ip: switcher.ip },
+        details: { switcherId: id, name: switcher.name, ip: switcher.ip, status, message },
       });
       broadcast({ type: "invalidate", keys: ["switchers"] });
-      res.json({ success: connected, status: connected ? "online" : "offline" });
+      res.json({ success: connected, status, message });
     } catch (error) {
       logger.error("switcher", "Manual ATEM connect route failed", {
         action: "atem_connect_route_error",

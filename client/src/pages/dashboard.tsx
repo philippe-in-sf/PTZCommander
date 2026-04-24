@@ -12,10 +12,12 @@ import { CameraMonitor, CameraPreview } from "@/components/ptz/camera-preview";
 import { SessionLog } from "@/components/logs/session-log";
 import { ConnectionHealth } from "@/components/ptz/connection-health";
 import { AppHeader } from "@/components/app-header";
+import { BrandWatermark, StartupSplash } from "@/components/branding/brand";
+import { OBSConnectionCard } from "@/components/obs/obs-connection-card";
 import { useSkin } from "@/lib/skin-context";
 import { Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { cameraApi, presetApi, undoApi, type DiscoveredCamera } from "@/lib/api";
+import { cameraApi, obsApi, presetApi, undoApi, type DiscoveredCamera } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -24,14 +26,14 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import type { Camera } from "@shared/schema";
+import type { Camera, Preset } from "@shared/schema";
 
 const BroadcastConsole = lazy(() => import("@/components/skins/broadcast-console"));
 const StudioGlass = lazy(() => import("@/components/skins/studio-glass"));
 const CommandCenter = lazy(() => import("@/components/skins/command-center"));
 
 const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
-type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "webrtc" | "browser";
+type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser";
 
 function discoveredCameraKey(camera: Pick<DiscoveredCamera, "ip" | "port">) {
   return `${camera.ip}:${camera.port}`;
@@ -74,6 +76,7 @@ export default function Dashboard() {
     previewRefreshMs: 2000,
   });
   const [panTiltSpeed, setPanTiltSpeed] = useState(0.5);
+  const [suspendPreviewStreaming, setSuspendPreviewStreaming] = useState(false);
 
   const ws = useWebSocket();
 
@@ -87,6 +90,37 @@ export default function Dashboard() {
     queryFn: () => selectedId ? cameraApi.getPresets(selectedId) : Promise.resolve([]),
     enabled: !!selectedId,
   });
+
+  const [addObsOpen, setAddObsOpen] = useState(false);
+  const [obsSceneName, setObsSceneName] = useState("");
+  const [newObs, setNewObs] = useState({ name: "OBS Studio", host: "127.0.0.1", port: 4455, password: "" });
+
+  const { data: obsConnections = [] } = useQuery({
+    queryKey: ["obs"],
+    queryFn: obsApi.getAll,
+  });
+  const obsConnection = obsConnections[0] ?? null;
+
+  const { data: obsStatus } = useQuery({
+    queryKey: ["obs-status", obsConnection?.id],
+    queryFn: () => obsApi.getStatus(obsConnection!.id),
+    enabled: !!obsConnection,
+  });
+
+  const { data: obsScenesResult } = useQuery({
+    queryKey: ["obs-scenes", obsConnection?.id],
+    queryFn: () => obsApi.getScenes(obsConnection!.id),
+    enabled: !!obsConnection && Boolean(obsStatus?.connected),
+    retry: false,
+  });
+  const obsScenes = obsScenesResult?.scenes ?? obsStatus?.scenes ?? [];
+
+  useEffect(() => {
+    const preferredScene = obsStatus?.currentProgramScene || obsConnection?.currentProgramScene || obsScenes[0]?.sceneName;
+    if (!obsSceneName && preferredScene) {
+      setObsSceneName(preferredScene);
+    }
+  }, [obsConnection?.currentProgramScene, obsSceneName, obsScenes, obsStatus?.currentProgramScene]);
 
   useEffect(() => {
     if (cameras.length > 0 && !selectedId) {
@@ -121,6 +155,59 @@ export default function Dashboard() {
     onError: (error: Error) => {
       toast.error(error.message);
     },
+  });
+
+  const createObsMutation = useMutation({
+    mutationFn: obsApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["obs"] });
+      queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+      setAddObsOpen(false);
+      setNewObs({ name: "OBS Studio", host: "127.0.0.1", port: 4455, password: "" });
+      toast.success("OBS connection added");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const connectObsMutation = useMutation({
+    mutationFn: obsApi.connect,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["obs"] });
+      queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+      queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
+      if (data.success) toast.success("Connected to OBS");
+      else toast.error("Failed to connect to OBS");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const disconnectObsMutation = useMutation({
+    mutationFn: obsApi.disconnect,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["obs"] });
+      queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+      toast.success("OBS disconnected");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteObsMutation = useMutation({
+    mutationFn: obsApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["obs"] });
+      toast.success("OBS connection removed");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const setObsSceneMutation = useMutation({
+    mutationFn: ({ id, sceneName }: { id: number; sceneName: string }) => obsApi.setProgramScene(id, sceneName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+      queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
+      toast.success("OBS scene switched");
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const discoverCamerasMutation = useMutation({
@@ -199,13 +286,27 @@ export default function Dashboard() {
   });
 
   const savePresetMutation = useMutation({
-    mutationFn: presetApi.save,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["presets", selectedId] });
-      toast.success("Preset saved");
+    mutationFn: (preset: Parameters<typeof presetApi.save>[0]) =>
+      ws.isConnected() ? ws.storePreset(preset) : presetApi.save(preset),
+    onMutate: (preset) => {
+      const toastId = toast.loading(`Saving preset ${preset.presetNumber + 1}...`);
+      return { toastId, preset };
     },
-    onError: (error: Error) => {
+    onSuccess: (savedPreset, preset, context) => {
+      if (context?.toastId) toast.dismiss(context.toastId);
+      queryClient.setQueryData<Preset[]>(["presets", preset.cameraId], (current = []) => {
+        const withoutSavedSlot = current.filter((item) => item.presetNumber !== savedPreset.presetNumber);
+        return [...withoutSavedSlot, savedPreset].sort((a, b) => a.presetNumber - b.presetNumber);
+      });
+      queryClient.invalidateQueries({ queryKey: ["presets", preset.cameraId] });
+      toast.success(`${selectedCam?.name || "Camera"} preset ${preset.presetNumber + 1} saved`);
+    },
+    onError: (error: Error, _preset, context) => {
+      if (context?.toastId) toast.dismiss(context.toastId);
       toast.error(error.message);
+    },
+    onSettled: () => {
+      setSuspendPreviewStreaming(false);
     },
   });
 
@@ -277,8 +378,12 @@ export default function Dashboard() {
   };
 
   const handleStorePreset = (index: number) => {
-    if (!selectedId) return;
-    
+    if (!selectedId) {
+      toast.error("Select a camera before storing a preset");
+      return;
+    }
+
+    setSuspendPreviewStreaming(true);
     savePresetMutation.mutate({
       cameraId: selectedId,
       presetNumber: index,
@@ -303,14 +408,7 @@ export default function Dashboard() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-700 dark:text-slate-400 font-mono">Initializing PTZ Command...</p>
-        </div>
-      </div>
-    );
+    return <StartupSplash detail="Discovering devices and restoring your control workspace" />;
   }
 
   const skinProps = {
@@ -332,9 +430,7 @@ export default function Dashboard() {
     const SkinComponent = skin === "broadcast" ? BroadcastConsole : skin === "glass" ? StudioGlass : CommandCenter;
     return (
       <Suspense fallback={
-        <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <StartupSplash detail="Loading your selected operator skin" />
       }>
         <SkinComponent {...skinProps} />
       </Suspense>
@@ -342,7 +438,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
+      <BrandWatermark />
       <AppHeader
         activePage="/"
         rightContent={
@@ -379,6 +476,34 @@ export default function Dashboard() {
           <SceneButtons />
         </section>
 
+        <section>
+          <OBSConnectionCard
+            connection={obsConnection}
+            status={obsStatus}
+            scenes={obsScenes}
+            selectedSceneName={obsSceneName}
+            onSelectedSceneNameChange={setObsSceneName}
+            addOpen={addObsOpen}
+            onAddOpenChange={setAddObsOpen}
+            newObs={newObs}
+            onNewObsChange={setNewObs}
+            onCreate={() => createObsMutation.mutate({ ...newObs, password: newObs.password || null })}
+            creating={createObsMutation.isPending}
+            onConnect={() => obsConnection && connectObsMutation.mutate(obsConnection.id)}
+            connecting={connectObsMutation.isPending}
+            onDisconnect={() => obsConnection && disconnectObsMutation.mutate(obsConnection.id)}
+            disconnecting={disconnectObsMutation.isPending}
+            onDelete={() => obsConnection && deleteObsMutation.mutate(obsConnection.id)}
+            deleting={deleteObsMutation.isPending}
+            onSwitchScene={() => obsConnection && obsSceneName && setObsSceneMutation.mutate({ id: obsConnection.id, sceneName: obsSceneName })}
+            switching={setObsSceneMutation.isPending}
+            onRefreshScenes={() => {
+              queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+              queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
+            }}
+          />
+        </section>
+
         {/* ATEM & Mixer Summary */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AtemPanel />
@@ -393,6 +518,9 @@ export default function Dashboard() {
               cameras={cameras}
               selectedId={selectedId}
               onSelect={handleSelect}
+              suppressSelectedLivePreview
+              persistActivatedPreview={false}
+              suspendAllLivePreview={suspendPreviewStreaming}
             />
           </section>
         )}
@@ -569,11 +697,12 @@ export default function Dashboard() {
                         <option value="snapshot">HTTP snapshot polling</option>
                         <option value="mjpeg">MJPEG stream</option>
                         <option value="rtsp">RTSP stream</option>
+                        <option value="rtp">RTP stream</option>
                         <option value="webrtc">WebRTC bridge (WHEP)</option>
                         <option value="browser">Browser USB/UVC input</option>
                       </select>
                       <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                        RTSP previews use FFmpeg on the app host. Add or edit camera settings later to choose local USB inputs.
+                        RTSP and RTP previews use FFmpeg on the app host. Add or edit camera settings later to choose local USB inputs.
                       </p>
                     </div>
                     {newCamera.previewType !== "none" && newCamera.previewType !== "browser" && (
@@ -583,7 +712,15 @@ export default function Dashboard() {
                           id="stream-url"
                           value={newCamera.streamUrl}
                           onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
-                          placeholder={newCamera.previewType === "webrtc" ? "http://127.0.0.1:8080/camera/whep" : newCamera.previewType === "rtsp" ? "rtsp://192.168.0.27:554/stream1" : "http://192.168.0.27/cgi-bin/snapshot.cgi"}
+                          placeholder={
+                            newCamera.previewType === "webrtc"
+                              ? "http://127.0.0.1:8080/camera/whep"
+                              : newCamera.previewType === "rtsp"
+                                ? "rtsp://192.168.0.27:554/stream1"
+                                : newCamera.previewType === "rtp"
+                                  ? "rtp://192.168.0.27:5004"
+                                  : "http://192.168.0.27/cgi-bin/snapshot.cgi"
+                          }
                           data-testid="input-new-camera-stream-url"
                         />
                       </div>
@@ -657,7 +794,7 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="relative z-10 w-full grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_220px] gap-5 items-center mt-6">
-                  <CameraMonitor camera={selectedCam} />
+                  <CameraMonitor key={selectedCam.id} camera={selectedCam} active={!suspendPreviewStreaming} />
                   <div className="flex justify-center">
                     <Joystick
                       className="border-cyan-500/30"

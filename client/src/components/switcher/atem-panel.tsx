@@ -19,6 +19,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
   const { atemState, switcher, cut, auto, setProgramInput, setPreviewInput } = useAtemControl();
   const [addSwitcherOpen, setAddSwitcherOpen] = useState(false);
   const [newSwitcher, setNewSwitcher] = useState({ name: "ATEM Extreme", ip: "", type: "atem" });
+  const controlTimedOut = switcher?.status === "control-timeout";
 
   const createSwitcherMutation = useMutation({
     mutationFn: switcherApi.create,
@@ -40,7 +41,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
       if (data.success) {
         toast.success("Connected to ATEM");
       } else {
-        toast.error("Failed to connect to ATEM");
+        toast.error(data.message || "ATEM control handshake timed out");
       }
     },
     onError: (error: Error) => {
@@ -77,11 +78,12 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => connectSwitcherMutation.mutate(switcher.id)}
+                disabled={connectSwitcherMutation.isPending}
                 className="text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 data-testid="button-connect-switcher"
               >
                 <WifiOff className="h-4 w-4 mr-1" />
-                Connect
+                {connectSwitcherMutation.isPending ? "Connecting..." : "Connect"}
               </Button>
             )}
           </div>
@@ -137,12 +139,37 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
           <MonitorPlay className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No switcher configured</p>
           <p className="text-sm">Add your ATEM to get started</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => setAddSwitcherOpen(true)}
+            data-testid="button-add-switcher-empty"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add ATEM
+          </Button>
         </div>
       ) : !atemState.connected ? (
         <div className="text-center py-8 text-slate-700 dark:text-slate-500">
           <WifiOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
-          <p>Switcher offline</p>
-          <p className="text-sm">Click Connect to establish connection</p>
+          <p>{controlTimedOut ? "ATEM control timed out" : "Switcher not connected"}</p>
+          <p className="text-sm">
+            {controlTimedOut
+              ? "The switcher may be online, but the ATEM control session did not answer."
+              : "Click Connect to establish connection"}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => connectSwitcherMutation.mutate(switcher.id)}
+            disabled={connectSwitcherMutation.isPending}
+            data-testid="button-connect-switcher-empty"
+          >
+            <WifiOff className="h-4 w-4 mr-2" />
+            {connectSwitcherMutation.isPending ? "Connecting..." : "Connect ATEM"}
+          </Button>
         </div>
       ) : (
         <div className="space-y-4">
