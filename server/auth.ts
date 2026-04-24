@@ -31,6 +31,12 @@ declare global {
 }
 
 const sessionSecret = process.env.SESSION_SECRET || "ptzcommand-dev-session-secret";
+const sessionCookieSecure =
+  process.env.SESSION_COOKIE_SECURE === "true"
+    ? true
+    : process.env.SESSION_COOKIE_SECURE === "false"
+      ? false
+      : "auto";
 
 const sessionStore = !useSqlite && pool
   ? new PgStore({
@@ -50,7 +56,7 @@ export const sessionMiddleware = session({
   cookie: {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: sessionCookieSecure,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 });
