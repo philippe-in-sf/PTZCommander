@@ -1,19 +1,35 @@
 import { APP_VERSION } from "@shared/version";
 import ptzCommandLogoDark from "@/assets/ptzcommand-logo-dark.png";
 import ptzCommandLogoLight from "@/assets/ptzcommand-logo-light.png";
+import ptzCommandLogoTransparent from "@/assets/ptzcommand-logo-transparent.png";
 import { cn } from "@/lib/utils";
 
 interface BrandLogoProps {
   className?: string;
   imageClassName?: string;
   alt?: string;
+  variant?: "default" | "transparent";
 }
 
 export function BrandLogo({
   className,
   imageClassName,
   alt = "PTZ Command",
+  variant = "default",
 }: BrandLogoProps) {
+  if (variant === "transparent") {
+    return (
+      <div className={cn("flex items-center", className)}>
+        <img
+          src={ptzCommandLogoTransparent}
+          alt={alt}
+          className={cn("h-10 w-auto object-contain select-none", imageClassName)}
+          draggable={false}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={cn("flex items-center", className)}>
       <img

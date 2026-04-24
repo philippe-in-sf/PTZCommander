@@ -59,21 +59,33 @@ export function OBSConnectionCard({
     : sceneNames;
 
   return (
-    <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="obs-websocket-controller">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className={cn("w-10 h-10 rounded-lg border flex items-center justify-center", connected ? "border-green-500/50 bg-green-500/10" : "border-slate-500/40 bg-slate-500/10")}>
+    <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg px-4 py-3" data-testid="obs-websocket-controller">
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] lg:items-start">
+        <div className="min-w-0 flex items-start gap-3">
+          <div className={cn("mt-0.5 w-10 h-10 shrink-0 rounded-lg border flex items-center justify-center", connected ? "border-green-500/50 bg-green-500/10" : "border-slate-500/40 bg-slate-500/10")}>
             <Radio className={cn("h-5 w-5", connected ? "text-green-500" : "text-slate-500")} />
           </div>
-          <div>
-            <h3 className="font-semibold text-slate-900 dark:text-white">OBS WebSocket</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-semibold text-slate-900 dark:text-white">OBS WebSocket</h3>
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
+                  connected
+                    ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                    : "bg-slate-500/10 text-slate-500 dark:text-slate-400",
+                )}
+              >
+                {connected ? "Online" : "Offline"}
+              </span>
+            </div>
+            <p className="truncate text-sm text-slate-500 dark:text-slate-400">
               {connection
                 ? `${connection.name} · ${connection.host}:${connection.port}`
                 : "Switch OBS program scenes from PTZ Command scenes."}
             </p>
             {connection && (
-              <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
                 {connected ? `Connected${currentScene ? ` · live: ${currentScene}` : ""}` : status?.error || "Offline"}
               </p>
             )}
@@ -83,7 +95,7 @@ export function OBSConnectionCard({
         {!connection ? (
           <Dialog open={addOpen} onOpenChange={onAddOpenChange}>
             <DialogTrigger asChild>
-              <Button data-testid="button-add-obs">
+              <Button className="w-full lg:w-auto lg:justify-self-end" data-testid="button-add-obs">
                 <Plus className="h-4 w-4 mr-2" /> Add OBS
               </Button>
             </DialogTrigger>
@@ -115,16 +127,16 @@ export function OBSConnectionCard({
             </DialogContent>
           </Dialog>
         ) : (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="grid gap-2">
             {connected ? (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto]">
                 {selectableSceneNames.length > 0 ? (
                   <>
                     <Select
                       value={selectedSceneName || undefined}
                       onValueChange={onSelectedSceneNameChange}
                     >
-                      <SelectTrigger className="sm:w-56" data-testid="select-switcher-obs-scene">
+                      <SelectTrigger className="w-full min-w-0" data-testid="select-switcher-obs-scene">
                         <SelectValue placeholder="OBS scene" />
                       </SelectTrigger>
                       <SelectContent>
@@ -135,32 +147,34 @@ export function OBSConnectionCard({
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button variant="outline" onClick={onSwitchScene} disabled={!selectedSceneName || switching} data-testid="button-switch-obs-scene">
+                    <Button variant="outline" className="w-full md:w-auto" onClick={onSwitchScene} disabled={!selectedSceneName || switching} data-testid="button-switch-obs-scene">
                       <Play className="h-4 w-4 mr-2" /> Go
+                    </Button>
+                    <Button variant="outline" className="w-full md:w-auto" onClick={onRefreshScenes} data-testid="button-refresh-obs-scenes">
+                      <Repeat className="h-4 w-4 mr-2" /> Refresh
                     </Button>
                   </>
                 ) : (
-                  <Button variant="outline" disabled className="justify-start text-slate-500">
+                  <Button variant="outline" disabled className="w-full justify-start text-slate-500">
                     No OBS scenes found
                   </Button>
                 )}
-                <Button variant="outline" onClick={onRefreshScenes} data-testid="button-refresh-obs-scenes">
-                  <Repeat className="h-4 w-4 mr-2" /> Refresh
-                </Button>
               </div>
             ) : null}
-            {connected ? (
-              <Button variant="outline" onClick={onDisconnect} disabled={disconnecting} data-testid="button-disconnect-obs">
-                <LogOut className="h-4 w-4 mr-2" /> Disconnect
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              {connected ? (
+                <Button variant="outline" className="w-full sm:w-auto" onClick={onDisconnect} disabled={disconnecting} data-testid="button-disconnect-obs">
+                  <LogOut className="h-4 w-4 mr-2" /> Disconnect
+                </Button>
+              ) : (
+                <Button variant="outline" className="w-full sm:w-auto" onClick={onConnect} disabled={connecting} data-testid="button-connect-obs">
+                  <Wifi className="h-4 w-4 mr-2" /> {connecting ? "Connecting..." : "Connect"}
+                </Button>
+              )}
+              <Button variant="ghost" className="w-full sm:w-auto text-red-500 hover:text-red-400" onClick={onDelete} disabled={deleting} data-testid="button-delete-obs">
+                <Trash2 className="h-4 w-4" />
               </Button>
-            ) : (
-              <Button variant="outline" onClick={onConnect} disabled={connecting} data-testid="button-connect-obs">
-                <Wifi className="h-4 w-4 mr-2" /> {connecting ? "Connecting..." : "Connect"}
-              </Button>
-            )}
-            <Button variant="ghost" className="text-red-500 hover:text-red-400" onClick={onDelete} disabled={deleting} data-testid="button-delete-obs">
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            </div>
           </div>
         )}
       </div>
