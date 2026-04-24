@@ -1,140 +1,256 @@
-# PTZ Command - Camera & Audio Control System
+# PTZ Command
 
 Current version: **1.7.0**
-A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, a Behringer X32 audio mixer via OSC, and a Blackmagic ATEM video switcher — all from a single interface.
-****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
-A professional PTZ camera and audio mixer controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP and a Behringer X32 audio mixer via OSC, all from a single interface.
+PTZ Command is a browser-based control surface for small live-production environments. It combines PTZ camera control, ATEM switching, X32/M32 audio, OBS scene changes, Philips Hue lighting, display control, scenes, macros, and runsheet playback in one shared web app.
+
+This branch is the current **multi-user** build. Multiple people can sign in from different computers and work against the same backend and database.
+
+> Status: still in active development and not yet positioned as a hardened production release.
 
 ## Screenshots
 
 ### Dashboard
-Camera selection, virtual joystick, presets, zoom/focus controls, and connection status — all in one view.
+Camera selection, virtual joystick, presets, tally, previews, and top-level status cards in one view.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
 ### Video Switcher
-Full ATEM switcher control with program/preview rows, transition styles, upstream/downstream keyers, and macro management.
+Full ATEM switcher control with program/preview rows, transitions, keyers, and macro controls.
 
 ![Video Switcher](docs/screenshots/video-switcher.png)
 
 ### Audio Mixer
-Behringer X32/M32 mixer control with faders, mute buttons, and tabbed sections for all channel types.
+Behringer X32/M32 mixer control with tabbed channel sections.
 
 ![Audio Mixer](docs/screenshots/audio-mixer.png)
 
 ### Scenes
-Programmable scene buttons that combine camera presets, ATEM inputs, and mixer actions into a single press.
+Programmable scene buttons that can combine camera, switcher, OBS, lighting, mixer, and display actions.
 
 ![Scenes](docs/screenshots/scenes.png)
 
 ### Mobile Companion
-Touch-optimized mobile web view with camera control, scene execution, and switcher access from any phone or tablet.
+Touch-first control page for phones and tablets.
 
 ![Mobile Companion](docs/screenshots/mobile-companion.png)
 
-## Features
+## What The App Does
 
-### Camera Control
-- Virtual joystick for pan/tilt control
-- 16 presets per camera with recall/store modes
-- Zoom and focus control
-- Adjustable pan/tilt speed
-- Real-time WebSocket communication
-- VISCA over IP protocol support
-- Edit and delete cameras via settings gear icon
+- Control up to 4 PTZ cameras over VISCA over IP with joystick, zoom, focus, presets, and tally awareness
+- Control a Behringer X32/M32 mixer over OSC
+- Control a Blackmagic ATEM switcher with program/preview, transitions, keys, macros, and fade to black
+- Trigger OBS Studio program scene changes
+- Control Philips Hue bridges, rooms, lights, and scenes
+- Control supported displays over Samsung local control, Hisense VIDAA local control, or SmartThings
+- Build reusable scene buttons, macros, and runsheet cues for show flow
+- Let multiple operators sign in from different stations against one shared backend
 
-### Audio Mixer Control
-- Behringer X32/M32 mixer support via OSC protocol
-- Full mixer section access: Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA
-- Real-time state synchronization with mixer hardware
-- Channel names pulled from mixer
-- Dedicated full-page Audio Mixer view with tabbed sections
-- Edit and delete mixer configuration via settings gear icon
+## Multi-User Features
 
-### Video Switcher Control
-- Blackmagic ATEM switcher support
-- Program/Preview input selection
-- Transition controls: Mix, Dip, Wipe, Stinger, DVE with adjustable rates
-- Upstream and Downstream Keyer controls (on-air, tie, auto)
-- Fade to Black
-- Macro management (run, stop, continue)
-- Dedicated full-page Video Switcher view with tabbed sections
+- Shared backend database for cameras, presets, layouts, scenes, macros, runsheet cues, displays, OBS links, Hue bridges, and logs
+- Username/password sign-in with browser sessions
+- First-run bootstrap flow that creates the initial admin account
+- Role-based access with `viewer`, `operator`, and `admin`
+- Protected live-control routes and WebSocket actions
+- Rate-limited login endpoint
 
-### Multi-Page Interface
-- **Dashboard**: ATEM/Mixer summary panels at the top, camera selection grid, virtual joystick, preset grid, lens controls
-- **Audio Mixer**: Full-page X32 mixer control with tabbed sections (Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA)
-- **Video Switcher**: Full-page ATEM switcher control with tabbed sections (Program/Preview, Transitions, Upstream Keys, Downstream Keys, Macros)
+### Roles
 
-### Logging & Troubleshooting
-- Built-in log viewer accessible from the header
-- Filterable by category: Camera, Mixer, Switcher, API, System
-- Log levels: Debug, Info, Warning, Error
-- Persistent audit logs stored in database
-- All mixer, camera, and switcher operations are logged for troubleshooting
+- `viewer`: can sign in, open the app, see status, pages, and monitoring views
+- `operator`: can run live actions such as camera moves, preset recall, scene execution, macro execution, switcher cuts, OBS program changes, lighting actions, and display commands
+- `admin`: can configure the system, manage users, pair displays, connect SmartThings, and control admin-only settings like rehearsal mode
 
-### Multi-User Access
-- Shared backend database for cameras, layouts, macros, scenes, and logs
-- Role-based accounts for `viewer`, `operator`, and `admin`
-- Browser sessions per station with protected live-control actions
-- First-run admin bootstrap flow for new installs
+### Admin Tools
 
-## Prerequisites
+Admins get a dedicated **Users** page where they can:
 
-- **Node.js 18+** (https://nodejs.org/)
-- PTZ cameras with VISCA over IP support (optional)
-- Behringer X32/M32 mixer (optional)
-- Blackmagic ATEM switcher (optional)
+- Create `viewer`, `operator`, and `admin` accounts
+- Edit display names
+- Change user roles
+- Reset passwords
+- Enable or disable accounts
+- See each user's last login time
 
-**No database setup required.** The app automatically uses SQLite for local installations. PostgreSQL is used automatically when a `DATABASE_URL` environment variable is present (e.g., on Replit or cloud deployments).
+PTZ Command also prevents the last active admin from being removed or disabled.
+
+## Pages
+
+- **Dashboard**: camera grid, joystick, presets, zoom/focus, tally, preview, OBS strip, and summary panels
+- **Scenes**: color-coded scene buttons with test and execute flows
+- **Macros**: step-based automation for PTZ, ATEM, lighting, and displays
+- **Runsheet**: cue stack built from saved scenes, with keyboard stepping
+- **Mixer**: full X32/M32 page
+- **Switcher**: full ATEM page
+- **Lighting**: Hue bridge pairing and light/room/scene control
+- **Displays**: Samsung, Hisense, and SmartThings display setup and control
+- **Diagnostics**: device health, Hue bridge status, and recent events
+- **Users**: admin-only account management
+- **Mobile**: touch-optimized camera/scenes/macros/switcher/lighting page
+
+## Scenes, Macros, And Runsheet
+
+### Scene Buttons
+
+Scene buttons can combine one or more of these actions:
+
+- PTZ preset recall
+- ATEM input changes
+- OBS Studio program scene change
+- Mixer actions
+- Hue scene or light actions
+- Display actions
+
+The Scenes page also includes an **operator lock** mode that keeps scene execution available while blocking scene edits and deletion from that station.
+
+### Macros
+
+Macros are step-based and currently support:
+
+- PTZ preset recall
+- PTZ pan/tilt
+- PTZ zoom
+- PTZ focus auto
+- ATEM preview/program selection
+- ATEM cut and auto
+- Delays
+- Hue scene, group, and light actions
+- Display commands
+
+### Runsheet
+
+Runsheet cues are built from saved scenes and support:
+
+- ordered cue stacks
+- notes per cue
+- drag-to-reorder
+- run current cue
+- `Space` to advance
+- `Shift+Space` to move back
+
+## Monitoring And Safety
+
+- Built-in log viewer from the header
+- Persistent system and audit logs
+- Diagnostics page with camera, mixer, switcher, display, and Hue bridge health
+- Rehearsal mode banner and safety behavior
+
+When rehearsal mode is enabled, the UI clearly indicates that **ATEM, OBS, and X32 live outputs are suppressed while VISCA camera movement remains available**.
+
+## Supported Hardware And Integrations
+
+### PTZ Cameras
+
+- VISCA over IP
+- Default control port: `52381` (configurable per camera)
+- Inline browser previews via RTSP, RTP, snapshot/MJPEG, or browser USB/UVC
+- RTSP preview uses stored camera credentials when authentication is required
+
+FoMaKo RTSP examples:
+
+- `rtsp://CAMERA_IP:554/live/av0`
+- `rtsp://CAMERA_IP:554/live/av1`
+
+### Audio Mixer
+
+- Behringer X32/M32 over OSC
+- Sections: channels, mix bus, aux in, FX returns, matrix, and DCA
+
+### Video Switcher
+
+- Blackmagic ATEM
+- Program/preview
+- Cut/auto
+- Transition styles and rates
+- Upstream/downstream key controls
+- Fade to black
+- ATEM macros
+
+### OBS Studio
+
+- OBS connection management from the dashboard
+- Manual program scene switching
+- Scene buttons can switch OBS program scenes
+
+### Lighting
+
+- Philips Hue bridges
+- Pairing, bridge status, reachable-device visibility, and scene activation
+
+### Displays
+
+- Samsung local display control
+- Hisense VIDAA local display control
+- SmartThings-connected displays
+
+Supported display actions depend on protocol, and can include:
+
+- power on/off/toggle
+- mute/unmute
+- volume changes
+- input changes
+- custom SmartThings commands
+
+## Requirements
+
+- **Node.js 18+**
+- PTZ cameras with VISCA over IP support if you want camera control
+- Behringer X32/M32 if you want mixer control
+- Blackmagic ATEM if you want switcher control
+- FFmpeg on the host machine if you want RTSP/RTP preview proxying
 
 ## Installation
-
-### 1. Download and Install Dependencies
-
-Download the project files and open a terminal in the project folder:
 
 ```bash
 npm install
 ```
 
-### 2. Start the Application
+## Running Locally
 
-#### On Mac / Linux:
+### Development
+
+On macOS or Linux:
+
 ```bash
 npm run dev
 ```
 
-#### On Windows (Command Prompt):
+On Windows, use:
+
 ```bash
 npx tsx server/index.ts
 ```
 
-#### On Windows (PowerShell):
-```powershell
-npx tsx server/index.ts
-```
+The app runs on `http://localhost:3478` by default.
 
-The application will be available at `http://localhost:3478`.
-
-The default port is **3478**. You can change it by setting the `PORT` environment variable:
+To change the port:
 
 ```bash
-# Mac / Linux
 PORT=4000 npm run dev
-
-# Windows Command Prompt
-set PORT=4000 && npx tsx server/index.ts
-
-# Windows PowerShell
-$env:PORT=4000; npx tsx server/index.ts
 ```
 
-Port 3478 was chosen to avoid clashes with common services (e.g. AirPlay on Mac uses port 5000).
+### First Run
 
-### Optional: PostgreSQL (Cloud/Advanced)
+On a brand-new install:
 
-If you prefer PostgreSQL instead of SQLite, set up a database and create a `.env` file:
+1. Start PTZ Command.
+2. Open the app in a browser.
+3. Create the first admin account in the bootstrap flow.
+4. Sign in and finish system setup from the admin pages.
+
+## Environment And Data Storage
+
+### Default Local Setup
+
+- SQLite is used automatically
+- Local database path: `data/ptzcommand.db`
+- No manual database setup is required for local use
+
+### PostgreSQL
+
+If `DATABASE_URL` is set, PTZ Command uses PostgreSQL instead of SQLite.
+
+Example:
 
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/ptz_command
@@ -147,219 +263,131 @@ Then push the schema:
 npm run db:push
 ```
 
-The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
+### Useful Environment Variables
 
-### Multi-User Setup Notes
+- `PORT`: web server port, default `3478`
+- `DATABASE_URL`: switch from SQLite to PostgreSQL
+- `SESSION_SECRET`: strongly recommended for shared or hosted installs
+- `SESSION_COOKIE_SECURE`: override session cookie security behavior if needed
 
-- On a brand-new install, open PTZ Command once and create the first admin account.
-- After that, admins can create additional viewer, operator, or admin users from the in-app **Users** page.
-- For shared deployments, set `SESSION_SECRET` explicitly before running the app.
+## Shared LAN Hosting
 
-### LAN Hosting
+For a shared control-room station, run the app on one host machine and let other computers connect to it in a browser.
 
-For a shared station on your local network, run the production build on one host machine and open it from other computers in a browser:
+Build and start production mode:
 
 ```bash
 npm run build
 PORT=3478 SESSION_SECRET=change-this npm run start
 ```
 
-The server listens on `0.0.0.0`, so other machines on the same network can connect to:
+The server listens on `0.0.0.0`, so other machines on the same network can open:
 
 ```text
 http://your-hostname.local:3478
 ```
 
-On macOS, this repo also includes a background service installer:
+All users on the networked clients share the host machine's backend and database.
+
+### macOS Background Service
+
+This repo includes a `launchd` installer for a persistent macOS host:
 
 ```bash
 ./deploy/install-launchd.sh
 ```
 
-That installs a `launchd` agent, keeps PTZ Command running after login, and writes logs to `deploy/logs`.
+That script:
 
-## Camera Setup
+- installs a user launch agent
+- generates a session secret if one does not exist yet
+- starts PTZ Command in the background after login
+- writes logs to `deploy/logs`
 
-1. Ensure your PTZ cameras are connected to the same network
-2. Note each camera's IP address (usually found in camera settings or via DHCP table)
-3. Default VISCA port is 52381 (some cameras like Fomako use non-standard ports)
-4. Click "Add Camera" in the interface to configure each camera
-5. Use the settings gear icon on any camera card to edit IP, port, or name
-6. Cameras auto-connect on startup
+To stop it later:
 
-### Inline Camera Preview Setup
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.ptzcommander.multiuser.plist
+```
 
-- **RTSP**: Set the preview source to `RTSP stream` and enter the RTSP URL
-- **RTP**: Set the preview source to `RTP stream` and enter an `rtp://...` URL
-- **Snapshot / MJPEG**: Use the camera's HTTP snapshot or MJPEG endpoint
-- **Browser USB/UVC**: Use `Browser USB/UVC input` for local capture devices in the browser
+## Setup Notes
 
-RTSP and RTP previews are opened by FFmpeg on the app host and then proxied into the web UI.
+### Cameras
 
-#### FoMaKo RTSP examples
+1. Put cameras on the same network as the PTZ Command host.
+2. Add each camera from the dashboard.
+3. Enter name, IP, VISCA port, and optional preview settings.
+4. Save RTSP credentials in PTZ Command if the stream requires authentication.
 
-- Main stream: `rtsp://CAMERA_IP:554/live/av0`
-- Sub stream: `rtsp://CAMERA_IP:554/live/av1`
+### X32 / M32
 
-If the camera requires RTSP authentication, save the camera username and password in PTZ Command. RTSP preview will use those saved credentials automatically.
+1. Put the mixer on the same network.
+2. Confirm OSC access on port `10023`.
+3. Add the mixer from the Mixer page.
 
-### Supported Camera Protocols
+### ATEM
 
-- **VISCA over IP** (Sony, PTZOptics, Marshall, Fomako, and most PTZ cameras)
-- Default port: 52381 (configurable per camera)
+1. Put the switcher on the same network.
+2. Add it from the Switcher page.
+3. Use the full-page switcher or dashboard summary controls.
 
-## Audio Mixer Setup
+### Hue
 
-### Behringer X32/M32
-1. Connect your X32 to the same network as the computer running PTZ Command
-2. On the X32, go to **Setup > Network** and note the IP address
-3. Ensure the X32 is set to use port 10023 (default OSC port)
-4. In PTZ Command, navigate to the **Audio Mixer** tab and click "Add Mixer"
+1. Add the bridge from the Lighting page.
+2. Pair it using the bridge link button.
+3. Use scenes, groups, or direct light controls.
 
-### Managing Mixer Settings
-- Click the settings gear icon next to the mixer name to edit IP, port, or name
-- Delete the mixer from the same settings dialog
+### Displays
 
-### Supported Mixer Sections
-- **Channels**: Channels 1-32 fader and mute control
-- **Mix Bus**: Mix bus fader and mute control
-- **Aux In**: Auxiliary input control
-- **FX Returns**: Effects return control
-- **Matrix**: Matrix output control
-- **DCA**: DCA group fader and mute control
-- Real-time state sync from mixer to UI
-
-## Video Switcher Setup
-
-### Blackmagic ATEM
-1. Connect your ATEM switcher to the same network
-2. Note the ATEM's IP address from its network settings
-3. In PTZ Command, navigate to the **Video Switcher** tab and click "Add Switcher"
-4. Use the program/preview buttons to switch inputs
-5. Use Cut or Auto buttons for transitions
-
-### Supported Switcher Features
-- **Program/Preview**: Input source selection with tally indicators
-- **Transitions**: Mix, Dip, Wipe, Stinger, DVE with rate control and preview toggle
-- **Upstream Keys**: On-air toggle for upstream keyers
-- **Downstream Keys**: On-air, tie, and auto controls for downstream keyers
-- **Macros**: Run, stop, and continue macros
-- **Fade to Black**: Full FTB control
-
-## Usage
-
-### Dashboard
-1. **ATEM & Mixer Panels**: Summary panels at the top show connection status and quick controls
-2. **Add Cameras**: Click "Add Camera" and enter the camera name, IP address, and port
-3. **Select Camera**: Click on a camera card to select it for joystick control (cyan border = selected)
-4. **Control Movement**: Use the virtual joystick to pan and tilt the selected camera
-5. **Set Presets**: Switch to "STORE" mode and click a preset slot to save the current position
-6. **Recall Presets**: In "RECALL" mode, click a preset to move the camera to that position
-7. **Edit Camera**: Hover over a camera card and click the gear icon to change settings
-
-### Audio Mixer (Full Page)
-1. Navigate to the **Audio Mixer** tab
-2. **Add Mixer**: Click "Add Mixer" and enter your X32's IP address
-3. **Connect**: The mixer will connect automatically; green WiFi icon shows "online"
-4. **Sections**: Use the tabs to switch between Channels, Mix Bus, Aux In, FX Returns, Matrix, and DCA
-5. **Faders**: Drag faders up/down to adjust levels
-6. **Mute**: Click the mute button below each fader to mute/unmute
-
-### Video Switcher (Full Page)
-1. Navigate to the **Video Switcher** tab
-2. **Add Switcher**: Click "Add Switcher" and enter your ATEM's IP address
-3. **Connect**: Click the Connect button to establish connection
-4. **ME Control**: Use program/preview rows to switch inputs; Cut and Auto buttons for transitions
-5. **Transitions**: Select transition style (Mix, Dip, Wipe, Stinger, DVE) and adjust rate
-6. **Keyers**: Control upstream and downstream keyers from their respective tabs
-7. **Macros**: Run, stop, or continue macros from the Macros tab
-
-### Viewing Logs
-1. Click the "Logs" button in the header bar
-2. Filter by category (Camera, Mixer, Switcher, API, System)
-3. Logs update automatically every 5 seconds while the viewer is open
-4. Error and warning logs are highlighted for quick identification
-
-## Network Requirements
-
-- All devices must be on the same network as the computer running PTZ Command
-- **PTZ Cameras**: Firewall must allow TCP connections on the camera's VISCA port
-- **X32 Mixer**: Firewall must allow UDP connections on port 10023 (OSC)
-- **ATEM Switcher**: Firewall must allow TCP connections to the ATEM
-- WebSocket communication uses the same port as the web server (default 3478)
+- Use the Displays page to discover or add Samsung local displays
+- Use the Displays page to discover or add Hisense VIDAA local displays
+- Use the SmartThings setup flow when cloud-connected TV control is needed
+- Some local displays require a one-time pairing flow
 
 ## Troubleshooting
 
-### Camera shows "Offline"
-- Verify the camera IP address is correct (click gear icon to check)
-- Check network connectivity (try pinging the camera)
-- Ensure the camera's VISCA port is not blocked by firewall
-- Some cameras need VISCA over IP enabled in their settings
-- Check the Logs viewer (Camera category) for connection error details
+### Camera Offline
 
-### Camera preview not loading
-- For FoMaKo cameras, try `rtsp://CAMERA_IP:554/live/av0` first, then `.../live/av1`
-- If the preview returns `401 Unauthorized`, verify the saved camera username/password
-- RTSP and RTP previews require FFmpeg on the computer running PTZ Command
-- RTP streams may require SDP or camera-side stream settings that FFmpeg can open directly
-- Use the Logs viewer (Camera category) to see the exact preview error from FFmpeg
+- Verify IP and VISCA port
+- Confirm the camera is on the same network
+- Confirm VISCA over IP is enabled on the device if required
 
-### Joystick not responding
-- Check the Logs viewer for WebSocket connection errors
-- Ensure no other application is controlling the camera simultaneously
-- Look for "pan_tilt received" messages in the logs to confirm commands are being sent
+### Camera Preview Fails
 
-### X32 Mixer shows "Offline"
-- Verify the mixer IP address is correct (click gear icon to check)
-- Ensure UDP port 10023 is not blocked by firewall
-- Check that no other application is using the X32's OSC port
-- The X32 must be on the same network subnet
-- Check the Logs viewer (Mixer category) for connection error details
+- Verify the preview URL
+- Confirm FFmpeg is installed on the host machine
+- For RTSP auth failures, verify the saved camera username and password
 
-### Mixer faders not syncing
-- The X32 sends state updates periodically; wait a few seconds for initial sync
-- If the mixer was offline and reconnected, fader positions will update automatically
-- Check logs for "X32 OSC send error" messages
+### Mixer Offline
 
-### ATEM Switcher shows "Offline"
-- Verify the ATEM IP address is correct
-- Ensure the ATEM is powered on and connected to the network
-- Check that no firewall or routing issue is blocking ATEM control traffic
-- Check the Logs viewer (Switcher category) for connection error details
+- Verify mixer IP
+- Confirm OSC port `10023`
+- Make sure another application is not already occupying the mixer control path
 
-### Program / Preview tally does not update
-- Confirm each camera has the correct **ATEM Input Number** in camera settings
-- Open the ATEM page and confirm the switcher status is `online`
-- The dashboard PRG/PVW badges and red/green tally states follow the current ATEM program and preview inputs
-- If the switcher still looks stale after reconnecting, tab away and back or reopen the ATEM page so the UI can refetch the current switcher state
+### ATEM Offline
 
-### Database issues
-- Local installations use SQLite automatically (stored in `data/ptzcommand.db`)
-- No setup required — the database is created on first run
-- If using PostgreSQL, verify `DATABASE_URL` environment variable is correct
+- Verify the ATEM IP
+- Confirm the switcher is powered on and reachable from the host
 
-### Windows "NODE_ENV is not recognized" error
-- Use `npx tsx server/index.ts` instead of `npm run dev`
-- See the Installation section above for Windows-specific commands
+### Another Computer Cannot Reach The App
 
-### Port conflicts
-- The default port is 3478. If it's in use, set a different port: `PORT=4000 npm run dev`
-- On Mac, port 5000 is used by AirPlay — this is why the default was changed to 3478
+- Confirm both machines are on the same subnet
+- Confirm the host machine firewall allows incoming connections
+- Confirm you are opening the host machine URL and port, not `localhost` on the remote machine
 
-## Data Storage
+### Login Or Session Problems On Shared Installs
 
-- **Local installs**: SQLite database at `data/ptzcommand.db` (auto-created, no setup needed)
-- **Cloud/Replit**: PostgreSQL via `DATABASE_URL` environment variable
-- All camera, mixer, and switcher configurations are persisted
-- Audit logs are stored in the database for troubleshooting
+- Set `SESSION_SECRET` explicitly
+- If you are fronting the app with a proxy or HTTPS terminator, review `SESSION_COOKIE_SECURE`
 
 ## Development
 
 ```bash
-npx tsx server/index.ts    # Start development server (cross-platform)
-npm run build              # Build for production
-npm run db:push            # Push schema changes to PostgreSQL
-npm run check              # TypeScript type checking
+npm run dev
+npm run build
+npm run start
+npm run check
+npm run db:push
 ```
 
 ## License
