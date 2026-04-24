@@ -3,7 +3,6 @@ import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "crypto";
 import type { IncomingMessage } from "http";
 import type { NextFunction, Request, Response } from "express";
 import session from "express-session";
-import lusca from "lusca";
 import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import type { User, UserRole } from "@shared/schema";
@@ -31,6 +30,12 @@ declare global {
 }
 
 const sessionSecret = process.env.SESSION_SECRET || "ptzcommand-dev-session-secret";
+const sessionCookieSecure =
+  process.env.SESSION_COOKIE_SECURE === "true"
+    ? true
+    : process.env.SESSION_COOKIE_SECURE === "false"
+      ? false
+      : "auto";
 
 const sessionStore = !useSqlite && pool
   ? new PgStore({
@@ -50,16 +55,9 @@ export const sessionMiddleware = session({
   cookie: {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: sessionCookieSecure,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
-});
-
-export const csrfMiddleware = lusca.csrf({
-  key: "_csrf",
-  impl: "session",
-  header: "x-csrf-token",
-  methods: ["POST", "PUT", "PATCH", "DELETE"],
 });
 
 const roleRank: Record<UserRole, number> = {

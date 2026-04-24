@@ -504,11 +504,13 @@ export default function Dashboard() {
           />
         </section>
 
-        {/* ATEM & Mixer Summary */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AtemPanel />
+        {/* Summary Stack */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="flex flex-col gap-6">
+            <AtemPanel />
+            <HuePanel />
+          </div>
           <MixerPanel />
-          <HuePanel />
         </section>
 
         {/* Camera Preview */}

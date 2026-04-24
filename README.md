@@ -155,6 +155,29 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 - After that, admins can create additional viewer, operator, or admin users from the in-app **Users** page.
 - For shared deployments, set `SESSION_SECRET` explicitly before running the app.
 
+### LAN Hosting
+
+For a shared station on your local network, run the production build on one host machine and open it from other computers in a browser:
+
+```bash
+npm run build
+PORT=3478 SESSION_SECRET=change-this npm run start
+```
+
+The server listens on `0.0.0.0`, so other machines on the same network can connect to:
+
+```text
+http://your-hostname.local:3478
+```
+
+On macOS, this repo also includes a background service installer:
+
+```bash
+./deploy/install-launchd.sh
+```
+
+That installs a `launchd` agent, keeps PTZ Command running after login, and writes logs to `deploy/logs`.
+
 ## Camera Setup
 
 1. Ensure your PTZ cameras are connected to the same network
