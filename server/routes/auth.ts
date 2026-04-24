@@ -2,6 +2,7 @@ import { fromError } from "zod-validation-error";
 import { bootstrapUserSchema, createUserSchema, loginSchema, patchUserSchema } from "@shared/schema";
 import { destroySession, establishSession, hashPassword, normalizeUsername, sanitizeUser, verifyPassword } from "../auth";
 import type { RouteContext } from "./types";
+import rateLimit from "express-rate-limit";
 
 function ensureLastActiveAdmin(users: Awaited<ReturnType<RouteContext["storage"]["getAllUsers"]>>, targetUserId: number, nextRole: string, nextIsActive: boolean) {
   const remainingActiveAdmins = users.filter((user) => user.id !== targetUserId && user.role === "admin" && user.isActive);
@@ -12,6 +13,14 @@ function ensureLastActiveAdmin(users: Awaited<ReturnType<RouteContext["storage"]
 
 export function registerAuthRoutes(ctx: RouteContext) {
   const { app, storage } = ctx;
+
+  const loginRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many login attempts. Please try again later." },
+  });
 
   app.get("/api/auth/bootstrap-status", async (_req, res) => {
     const userCount = await storage.getUserCount();
@@ -51,7 +60,7 @@ export function registerAuthRoutes(ctx: RouteContext) {
     return res.status(201).json({ user: sanitizeUser(updatedUser) });
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", loginRateLimiter, async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ message: fromError(parsed.error).toString() });
