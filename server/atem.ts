@@ -1,6 +1,8 @@
 import dgram from "node:dgram";
 import os from "node:os";
 import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { createRequire } from "node:module";
 import { errorDetails, logger } from "./logger";
 
 export interface AtemConfig {
@@ -103,6 +105,7 @@ let atemSocketPatchApplied = false;
 let atemPreferredLocalAddress: string | null = null;
 const ATEM_CONNECT_TIMEOUT_MS = 10000;
 const ATEM_MODULE_RETRY_COUNT = 5;
+const require = createRequire(import.meta.url);
 
 function ipv4ToInt(ip: string) {
   return ip.split(".").reduce((acc, part) => ((acc << 8) + Number(part)) >>> 0, 0);
@@ -203,7 +206,7 @@ async function wait(ms: number) {
 
 function clearAtemModuleCache() {
   for (const cacheKey of Object.keys(require.cache)) {
-    if (cacheKey.includes(`${require("path").sep}atem-connection${require("path").sep}`)) {
+    if (cacheKey.includes(`${path.sep}atem-connection${path.sep}`)) {
       delete require.cache[cacheKey];
     }
   }
@@ -467,11 +470,12 @@ export class AtemClient {
     const inputs: AtemInputInfo[] = [];
     if (state?.inputs) {
       for (const [id, input] of Object.entries(state.inputs)) {
-        if (input) {
+        const atemInput = input as { shortName?: string; longName?: string } | undefined;
+        if (atemInput) {
           inputs.push({
             inputId: parseInt(id),
-            shortName: input.shortName || `In ${id}`,
-            longName: input.longName || `Input ${id}`,
+            shortName: atemInput.shortName || `In ${id}`,
+            longName: atemInput.longName || `Input ${id}`,
           });
         }
       }
@@ -479,7 +483,7 @@ export class AtemClient {
 
     const downstreamKeyers: AtemDSKState[] = [];
     if (state?.video?.downstreamKeyers) {
-      state.video.downstreamKeyers.forEach((dsk, i) => {
+      state.video.downstreamKeyers.forEach((dsk: any, i: number) => {
         if (dsk) {
           downstreamKeyers.push({
             index: i,
@@ -496,7 +500,7 @@ export class AtemClient {
 
     const upstreamKeyers: AtemUSKState[] = [];
     if (mixEffect?.upstreamKeyers) {
-      mixEffect.upstreamKeyers.forEach((usk, i) => {
+      mixEffect.upstreamKeyers.forEach((usk: any, i: number) => {
         if (usk) {
           upstreamKeyers.push({
             index: i,
@@ -535,7 +539,7 @@ export class AtemClient {
 
     const macros: AtemMacroState[] = [];
     if (state?.macro?.macroProperties) {
-      state.macro.macroProperties.forEach((macro, i) => {
+      state.macro.macroProperties.forEach((macro: any, i: number) => {
         if (macro && macro.isUsed) {
           macros.push({
             index: i,
@@ -556,7 +560,7 @@ export class AtemClient {
 
     const auxOutputs: number[] = [];
     if (state?.video?.auxilliaries) {
-      state.video.auxilliaries.forEach((aux) => {
+      state.video.auxilliaries.forEach((aux: number | undefined) => {
         auxOutputs.push(aux ?? 0);
       });
     }

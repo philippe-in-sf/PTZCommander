@@ -2,7 +2,6 @@ import net from "net";
 import { logger } from "./logger";
 
 const CONNECTION_TIMEOUT_MS = 5000;
-
 const VISCA_HEADER = 0x81;
 const VISCA_TERMINATOR = 0xFF;
 

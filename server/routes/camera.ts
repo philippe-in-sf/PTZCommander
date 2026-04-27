@@ -3,6 +3,8 @@ import { insertCameraSchema, insertPresetSchema, patchCameraSchema, patchPresetS
 import { errorDetails, logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { spawn } from "child_process";
+import type { ChildProcessWithoutNullStreams } from "child_process";
+import type { Response } from "express";
 import rateLimit from "express-rate-limit";
 import net from "net";
 import os from "os";
@@ -20,6 +22,24 @@ const ffmpegPreviewRateLimiter = rateLimit({
   message: { message: "Too many network preview attempts; wait a minute and try again" },
 });
 type FfmpegPreviewProtocol = "rtsp" | "rtp";
+const FFMPEG_PREVIEW_FORCE_KILL_MS = 2000;
+const FFMPEG_PREVIEW_IDLE_TIMEOUT_MS = 1500;
+
+interface FfmpegPreviewHub {
+  key: string;
+  protocol: FfmpegPreviewProtocol;
+  cameraId: number;
+  cameraName: string;
+  ffmpeg: ChildProcessWithoutNullStreams;
+  clients: Set<Response>;
+  started: boolean;
+  closed: boolean;
+  stderr: string;
+  startupTimer: NodeJS.Timeout | null;
+  idleTimer: NodeJS.Timeout | null;
+}
+
+const activeFfmpegPreviewSessions = new Map<string, FfmpegPreviewHub>();
 
 type DiscoveryConfidence = "confirmed" | "port-open";
 
@@ -110,6 +130,65 @@ function ffmpegPreviewErrorMessage(stderr: string, protocol: FfmpegPreviewProtoc
   const message = redactFfmpegPreviewDiagnostics(stderr).trim().split("\n").pop() || "";
   if (/ffmpeg: not found/i.test(message)) return "FFmpeg is not installed on the app host";
   return message || `${protocol.toUpperCase()} preview ended before video was available`;
+}
+
+function previewSessionKey(
+  protocol: FfmpegPreviewProtocol,
+  cameraId: number,
+  _request: { ip?: string; headers: { [key: string]: string | string[] | undefined } },
+) {
+  return `${protocol}:${cameraId}`;
+}
+
+function stopPreviewHub(hub: FfmpegPreviewHub) {
+  if (hub.closed) return;
+  hub.closed = true;
+  if (hub.startupTimer) {
+    clearTimeout(hub.startupTimer);
+    hub.startupTimer = null;
+  }
+  if (hub.idleTimer) {
+    clearTimeout(hub.idleTimer);
+    hub.idleTimer = null;
+  }
+  if (!hub.ffmpeg.killed) {
+    hub.ffmpeg.kill("SIGTERM");
+    setTimeout(() => {
+      if (!hub.ffmpeg.killed) {
+        hub.ffmpeg.kill("SIGKILL");
+      }
+    }, FFMPEG_PREVIEW_FORCE_KILL_MS).unref();
+  }
+}
+
+function attachPreviewHeaders(res: Response) {
+  if (res.headersSent || res.destroyed) return;
+  res.setHeader("Content-Type", "multipart/x-mixed-replace; boundary=frame");
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Connection", "close");
+}
+
+function detachPreviewClient(hub: FfmpegPreviewHub, res: Response) {
+  hub.clients.delete(res);
+  if (hub.clients.size > 0 || hub.closed) return;
+  if (hub.idleTimer) clearTimeout(hub.idleTimer);
+  hub.idleTimer = setTimeout(() => stopPreviewHub(hub), FFMPEG_PREVIEW_IDLE_TIMEOUT_MS);
+  hub.idleTimer.unref();
+}
+
+function broadcastPreviewChunk(hub: FfmpegPreviewHub, chunk: Buffer) {
+  for (const client of Array.from(hub.clients)) {
+    if (client.destroyed) {
+      detachPreviewClient(hub, client);
+      continue;
+    }
+    attachPreviewHeaders(client);
+    try {
+      client.write(chunk);
+    } catch {
+      detachPreviewClient(hub, client);
+    }
+  }
 }
 
 function ipv4ToInt(ip: string) {
@@ -445,7 +524,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
       try {
         const response = await fetch(camera.streamUrl, {
           signal: controller.signal,
-          headers: cameraAuthHeaders(camera),
+          headers: cameraAuthHeaders(camera) as Record<string, string>,
         });
         clearTimeout(timeout);
 
@@ -481,11 +560,13 @@ export function registerCameraRoutes(ctx: RouteContext) {
       if (!camera) return res.status(404).json({ message: "Camera not found" });
       if (!camera.streamUrl) return res.status(404).json({ message: "No preview URL configured" });
 
-      req.on("close", () => controller.abort());
+      const abortPreviewStream = () => controller.abort();
+      req.on("aborted", abortPreviewStream);
+      res.on("close", abortPreviewStream);
 
       const response = await fetch(camera.streamUrl, {
         signal: controller.signal,
-        headers: cameraAuthHeaders(camera),
+        headers: cameraAuthHeaders(camera) as Record<string, string>,
       });
       clearTimeout(timeout);
 
@@ -516,7 +597,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
     app.get(routePath, ffmpegPreviewRateLimiter, async (req, res) => {
       const label = protocol.toUpperCase();
       try {
-        const id = parseInt(req.params.id);
+        const id = parseInt(String(req.params.id));
         const camera = await storage.getCamera(id);
         if (!camera) return res.status(404).json({ message: "Camera not found" });
         if (!camera.streamUrl) return res.status(404).json({ message: `No ${label} URL configured` });
@@ -528,119 +609,166 @@ export function registerCameraRoutes(ctx: RouteContext) {
 
         const inputUrl = applyCameraCredentialsToPreviewUrl(normalizedUrl, camera);
         const ffmpegPath = getFfmpegPath();
-        const ffmpegArgs = [
-          "-hide_banner",
-          "-loglevel",
-          "warning",
-          ...(protocol === "rtsp" ? ["-rtsp_transport", "tcp"] : []),
-          "-i",
-          inputUrl,
-          "-an",
-          "-sn",
-          "-dn",
-          "-r",
-          "12",
-          "-q:v",
-          "6",
-          "-f",
-          "mpjpeg",
-          "-boundary_tag",
-          "frame",
-          "pipe:1",
-        ];
+        const sessionKey = previewSessionKey(protocol, camera.id, req);
+        let hub = activeFfmpegPreviewSessions.get(sessionKey);
 
-        logger.info("camera", `Opening ${label} preview for ${camera.name}`, {
-          action: `camera:${protocol}_preview_start`,
-          details: { cameraId: camera.id, name: camera.name, url: redactPreviewUrl(inputUrl), ffmpegPath },
-        });
+        if (!hub) {
+          const ffmpegArgs = [
+            "-hide_banner",
+            "-loglevel",
+            "warning",
+            ...(protocol === "rtsp" ? ["-rtsp_transport", "tcp"] : []),
+            "-i",
+            inputUrl,
+            "-an",
+            "-sn",
+            "-dn",
+            "-r",
+            "12",
+            "-q:v",
+            "6",
+            "-f",
+            "mpjpeg",
+            "-boundary_tag",
+            "frame",
+            "pipe:1",
+          ];
 
-        const ffmpeg = spawn(ffmpegPath, ffmpegArgs, {
-          stdio: ["ignore", "pipe", "pipe"],
-          shell: false,
-          env: process.env,
-        });
-        let stderr = "";
-        let streamStarted = false;
-        let closedByClient = false;
-        let settled = false;
-
-        const finishWithError = (status: number, message: string) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(startupTimer);
-          if (!res.headersSent && !res.destroyed) {
-            res.status(status).json({ message });
-          } else if (!res.destroyed) {
-            res.end();
-          }
-        };
-
-        const startupTimer = setTimeout(() => {
-          if (streamStarted) return;
-          logger.warn("camera", `${label} preview timed out for ${camera.name}`, {
-            action: `camera:${protocol}_preview_timeout`,
+          logger.info("camera", `Opening ${label} preview for ${camera.name}`, {
+            action: `camera:${protocol}_preview_start`,
             details: {
               cameraId: camera.id,
-              timeoutMs: FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS,
-              stderr: redactFfmpegPreviewDiagnostics(stderr).trim().slice(-1200),
+              name: camera.name,
+              url: redactPreviewUrl(inputUrl),
+              ffmpegPath,
             },
           });
-          ffmpeg.kill("SIGTERM");
-          finishWithError(504, `${label} preview timed out while waiting for video`);
-        }, FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS);
 
-        req.on("close", () => {
-          closedByClient = true;
-          clearTimeout(startupTimer);
-          if (!ffmpeg.killed) ffmpeg.kill("SIGTERM");
-        });
+          const ffmpeg = spawn(ffmpegPath, ffmpegArgs, {
+            stdio: ["ignore", "pipe", "pipe"],
+            shell: false,
+            env: process.env,
+          }) as unknown as ChildProcessWithoutNullStreams;
 
-        ffmpeg.stderr.on("data", (chunk) => {
-          stderr = `${stderr}${chunk.toString()}`.slice(-4000);
-        });
+          hub = {
+            key: sessionKey,
+            protocol,
+            cameraId: camera.id,
+            cameraName: camera.name,
+            ffmpeg,
+            clients: new Set(),
+            started: false,
+            closed: false,
+            stderr: "",
+            startupTimer: null,
+            idleTimer: null,
+          };
+          activeFfmpegPreviewSessions.set(sessionKey, hub);
+          const previewHub = hub;
 
-        ffmpeg.stdout.on("data", (chunk) => {
-          if (!streamStarted) {
-            streamStarted = true;
-            clearTimeout(startupTimer);
-            res.setHeader("Content-Type", "multipart/x-mixed-replace; boundary=frame");
-            res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-            res.setHeader("Connection", "close");
-          }
-          if (!res.destroyed) res.write(chunk);
-        });
+          previewHub.startupTimer = setTimeout(() => {
+            if (previewHub.started || previewHub.closed) return;
+            logger.warn("camera", `${label} preview timed out for ${camera.name}`, {
+              action: `camera:${protocol}_preview_timeout`,
+              details: {
+                cameraId: camera.id,
+                timeoutMs: FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS,
+                stderr: redactFfmpegPreviewDiagnostics(previewHub.stderr).trim().slice(-1200),
+              },
+            });
+            for (const client of Array.from(previewHub.clients)) {
+              if (!client.headersSent && !client.destroyed) {
+                client.status(504).json({ message: `${label} preview timed out while waiting for video` });
+              } else if (!client.destroyed) {
+                client.end();
+              }
+            }
+            stopPreviewHub(previewHub);
+          }, FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS);
 
-        ffmpeg.once("error", (error: NodeJS.ErrnoException) => {
-          logger.error("camera", `${label} preview process failed to start for ${camera.name}`, {
-            action: `camera:${protocol}_preview_spawn_error`,
-            details: { cameraId: camera.id, ffmpegPath, ...errorDetails(error) },
+          ffmpeg.stderr.on("data", (chunk) => {
+            previewHub.stderr = `${previewHub.stderr}${chunk.toString()}`.slice(-4000);
           });
-          const message = error.code === "ENOENT"
-            ? "FFmpeg is not installed on the app host."
-            : error.message || `Failed to start ${label} preview`;
-          finishWithError(error.code === "ENOENT" ? 501 : 502, message);
-        });
 
-        ffmpeg.once("close", (code, signal) => {
-          clearTimeout(startupTimer);
-          if (!closedByClient) {
-            logger[code === 0 || streamStarted ? "info" : "warn"]("camera", `${label} preview closed for ${camera.name}`, {
+          ffmpeg.stdout.on("data", (chunk: Buffer) => {
+            if (previewHub.closed) return;
+            if (!previewHub.started) {
+              previewHub.started = true;
+              if (previewHub.startupTimer) {
+                clearTimeout(previewHub.startupTimer);
+                previewHub.startupTimer = null;
+              }
+              for (const client of previewHub.clients) {
+                attachPreviewHeaders(client);
+              }
+            }
+            broadcastPreviewChunk(previewHub, chunk);
+          });
+
+          ffmpeg.once("error", (error: NodeJS.ErrnoException) => {
+            logger.error("camera", `${label} preview process failed to start for ${camera.name}`, {
+              action: `camera:${protocol}_preview_spawn_error`,
+              details: { cameraId: camera.id, ffmpegPath, ...errorDetails(error) },
+            });
+            const message = error.code === "ENOENT"
+              ? "FFmpeg is not installed on the app host."
+              : error.message || `Failed to start ${label} preview`;
+            for (const client of Array.from(previewHub.clients)) {
+              if (!client.headersSent && !client.destroyed) {
+                client.status(error.code === "ENOENT" ? 501 : 502).json({ message });
+              } else if (!client.destroyed) {
+                client.end();
+              }
+            }
+            stopPreviewHub(previewHub);
+          });
+
+          ffmpeg.once("close", (code, signal) => {
+            if (previewHub.startupTimer) {
+              clearTimeout(previewHub.startupTimer);
+              previewHub.startupTimer = null;
+            }
+            activeFfmpegPreviewSessions.delete(sessionKey);
+            logger[code === 0 || previewHub.started ? "info" : "warn"]("camera", `${label} preview closed for ${camera.name}`, {
               action: `camera:${protocol}_preview_closed`,
               details: {
                 cameraId: camera.id,
                 code,
                 signal,
-                started: streamStarted,
-                stderr: redactFfmpegPreviewDiagnostics(stderr).trim().slice(-1200),
+                started: previewHub.started,
+                stderr: redactFfmpegPreviewDiagnostics(previewHub.stderr).trim().slice(-1200),
               },
             });
-          }
-          if (!res.headersSent && !res.destroyed) {
-            res.status(502).json({ message: ffmpegPreviewErrorMessage(stderr, protocol) });
-          } else if (!res.destroyed) {
-            res.end();
-          }
-        });
+            for (const client of Array.from(previewHub.clients)) {
+              if (!client.headersSent && !client.destroyed) {
+                client.status(502).json({ message: ffmpegPreviewErrorMessage(previewHub.stderr, protocol) });
+              } else if (!client.destroyed) {
+                client.end();
+              }
+            }
+            previewHub.closed = true;
+            previewHub.clients.clear();
+          });
+        } else if (hub.idleTimer) {
+          clearTimeout(hub.idleTimer);
+          hub.idleTimer = null;
+        }
+
+        const activeHub = hub;
+        activeHub.clients.add(res);
+        if (activeHub.started) {
+          attachPreviewHeaders(res);
+        }
+
+        const detachClient = () => {
+          detachPreviewClient(activeHub, res);
+        };
+
+        req.on("aborted", detachClient);
+        res.on("close", detachClient);
+        res.on("finish", detachClient);
+        req.socket.on("close", detachClient);
+        req.socket.on("error", detachClient);
       } catch (error: any) {
         logger.error("camera", `${label} preview route failed`, {
           action: `camera:${protocol}_preview_error`,
@@ -676,7 +804,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
             ...cameraAuthHeaders(camera),
             "Content-Type": "application/sdp",
             "Accept": "application/sdp",
-          },
+          } as Record<string, string>,
           body: parsed.data.sdp,
         });
         clearTimeout(timeout);

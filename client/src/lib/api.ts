@@ -575,6 +575,19 @@ export const sceneButtonApi = {
     return res.json();
   },
 
+  capture: async (payload: SceneCaptureRequest): Promise<SceneCaptureResponse> => {
+    const res = await fetch(`${API_BASE}/scene-buttons/capture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.message || "Failed to capture current state as a scene");
+    }
+    return data;
+  },
+
   create: async (button: InsertSceneButton): Promise<SceneButton> => {
     const res = await fetch(`${API_BASE}/scene-buttons`, {
       method: "POST",
@@ -884,6 +897,7 @@ export const healthApi = {
     if (!res.ok) throw new Error("Failed to get device health");
     return res.json();
   },
+
 };
 
 export const layoutApi = {

@@ -173,6 +173,23 @@ async function connectMqtt(options: HisenseClientOptions) {
   });
 }
 
+async function connectMqttWithFallback(options: HisenseClientOptions) {
+  const preferredUseSsl = options.useSsl !== false;
+  const modes = preferredUseSsl ? [true, false] : [false, true];
+  let lastError: unknown;
+
+  for (const useSsl of modes) {
+    try {
+      const client = await connectMqtt({ ...options, useSsl });
+      return { client, useSsl };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Failed to connect to Hisense TV");
+}
+
 export class HisenseVidaaClient {
   private readonly options: {
     ip: string;
@@ -197,7 +214,8 @@ export class HisenseVidaaClient {
   }
 
   private async withClient<T>(fn: (client: MqttClient) => Promise<T>) {
-    const client = await connectMqtt(this.options);
+    const { client, useSsl } = await connectMqttWithFallback(this.options);
+    this.options.useSsl = useSsl;
     try {
       return await fn(client);
     } finally {
@@ -245,8 +263,11 @@ export class HisenseVidaaClient {
   }
 
   async getInfo() {
-    const volume = await this.getVolume().catch(() => undefined);
-    return { port: this.options.port, useSsl: this.options.useSsl, volume };
+    return this.withClient(async () => ({
+      port: this.options.port,
+      useSsl: this.options.useSsl,
+      volume: undefined as number | undefined,
+    }));
   }
 
   async pair(authCode?: string) {

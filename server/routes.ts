@@ -155,7 +155,6 @@ export async function registerRoutes(
   });
 
   let previousTallyMap: Map<number, string> = new Map();
-
   async function updateTallyLights(programInput: number, previewInput: number) {
     try {
       const cameras = await storage.getAllCameras();

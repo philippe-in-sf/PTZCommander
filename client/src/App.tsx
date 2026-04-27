@@ -93,13 +93,44 @@ function App() {
   const [showStartupSplash, setShowStartupSplash] = useState(true);
 
   useEffect(() => {
+    if (!user) {
+      setShowStartupSplash(false);
+      return;
+    }
+
+    setShowStartupSplash(true);
     const timeout = window.setTimeout(() => {
       setShowStartupSplash(false);
     }, 1400);
 
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [user]);
 
+  if (isLoading) {
+    return <StartupSplash overlay label="Checking station access" detail="Validating your PTZ Command session" />;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return (
+    <WsSync>
+      <RehearsalChrome />
+      {showStartupSplash && (
+        <div className="transition-opacity duration-500">
+          <StartupSplash
+            overlay
+            label="Bringing the control surface online"
+            detail="Cameras, switcher, mixer, and lighting are syncing"
+          />
+        </div>
+      )}
+    </WsSync>
+  );
+}
+
+function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
