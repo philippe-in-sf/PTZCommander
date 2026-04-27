@@ -30,6 +30,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useLocation } from "wouter";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
+import { CameraPreview } from "@/components/ptz/camera-preview";
 import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -61,7 +62,6 @@ const GlassPanel = ({ children, className = "" }: { children: React.ReactNode, c
 
 export default function StudioGlass(props: DashboardSkinProps) {
   const [zoomValue, setZoomValue] = useState([50]);
-  const [focusValue, setFocusValue] = useState([50]);
   const [location] = useLocation();
   const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({});
   const [isStoreMode, setIsStoreMode] = useState(false);
@@ -195,52 +195,11 @@ export default function StudioGlass(props: DashboardSkinProps) {
 
         <section>
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Camera Select</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {props.cameras.map((cam) => (
-              <button
-                key={cam.id}
-                onClick={() => props.onSelectCamera(cam.id)}
-                className={`group relative text-left rounded-3xl p-1.5 transition-all duration-300 ${
-                  props.selectedCameraId === cam.id 
-                    ? "bg-indigo-500 shadow-xl shadow-indigo-500/20 scale-[1.02]" 
-                    : "bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-700/80 hover:shadow-lg"
-                }`}
-              >
-                <div className={`relative h-32 rounded-2xl overflow-hidden mb-3 ${props.selectedCameraId === cam.id ? "ring-2 ring-white/20" : ""}`}>
-                  <div className="absolute inset-0 bg-slate-200 dark:bg-slate-700" style={{ 
-                    backgroundImage: cam.streamUrl ? `url(${cam.streamUrl})` : `url(https://images.unsplash.com/photo-1598555353066-681b4fc64fbe?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3)`, 
-                    backgroundSize: 'cover', 
-                    backgroundPosition: 'center', 
-                    opacity: cam.status === 'offline' ? 0.3 : 1 
-                  }}></div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0"></div>
-                  
-                  <div className="absolute top-3 left-3 flex gap-2">
-                    {cam.tallyState === "program" && (
-                      <Badge className="bg-rose-500 hover:bg-rose-600 text-white border-0 shadow-md px-2 py-0.5">PGM</Badge>
-                    )}
-                    {cam.tallyState === "preview" && (
-                      <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 shadow-md px-2 py-0.5">PVW</Badge>
-                    )}
-                  </div>
-                  {cam.status === "offline" && (
-                    <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm">
-                      <Badge variant="secondary" className="bg-slate-900/80 text-white border-0">OFFLINE</Badge>
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 pb-3">
-                  <h3 className={`font-semibold text-base mb-1 ${props.selectedCameraId === cam.id ? "text-white" : "text-slate-800 dark:text-slate-200"}`}>
-                    {cam.name}
-                  </h3>
-                  <p className={`text-xs flex items-center gap-1.5 ${props.selectedCameraId === cam.id ? "text-indigo-100" : "text-slate-500 dark:text-slate-400"}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${cam.status === 'online' ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-600'}`}></span>
-                    {cam.status === 'online' ? 'Connected' : 'Disconnected'}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
+          <CameraPreview
+            cameras={props.cameras}
+            selectedId={props.selectedCameraId}
+            onSelect={props.onSelectCamera}
+          />
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -283,12 +242,9 @@ export default function StudioGlass(props: DashboardSkinProps) {
                     <span className="flex items-center gap-1.5"><Focus className="w-4 h-4" /> Focus</span>
                     <Button variant="ghost" size="sm" onClick={props.onFocusAuto} className="h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/50">Auto Focus</Button>
                   </div>
-                  <Slider 
-                    value={focusValue} 
-                    onValueChange={setFocusValue} 
-                    max={100} step={1}
-                    className="[&_[role=slider]]:bg-indigo-600 [&_[role=slider]]:border-indigo-600 [&_[role=slider]]:shadow-lg"
-                  />
+                  <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                    Manual focus is not available in this skin. Use Auto Focus here, or switch to Classic for near/far focus nudging.
+                  </div>
                 </div>
               </div>
             </GlassPanel>

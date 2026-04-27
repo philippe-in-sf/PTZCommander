@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraSelector } from "@/components/ptz/camera-selector";
@@ -15,6 +15,9 @@ import { AppHeader } from "@/components/app-header";
 import { BrandWatermark, StartupSplash } from "@/components/branding/brand";
 import { OBSConnectionCard } from "@/components/obs/obs-connection-card";
 import { useSkin } from "@/lib/skin-context";
+import BroadcastConsole from "@/components/skins/broadcast-console";
+import StudioGlass from "@/components/skins/studio-glass";
+import CommandCenter from "@/components/skins/command-center";
 import { Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, obsApi, presetApi, undoApi, type DiscoveredCamera } from "@/lib/api";
@@ -27,10 +30,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Camera, Preset } from "@shared/schema";
-
-const BroadcastConsole = lazy(() => import("@/components/skins/broadcast-console"));
-const StudioGlass = lazy(() => import("@/components/skins/studio-glass"));
-const CommandCenter = lazy(() => import("@/components/skins/command-center"));
 
 const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
 type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser";
@@ -428,13 +427,7 @@ export default function Dashboard() {
 
   if (skin !== "classic") {
     const SkinComponent = skin === "broadcast" ? BroadcastConsole : skin === "glass" ? StudioGlass : CommandCenter;
-    return (
-      <Suspense fallback={
-        <StartupSplash detail="Loading your selected operator skin" />
-      }>
-        <SkinComponent {...skinProps} />
-      </Suspense>
-    );
+    return <SkinComponent {...skinProps} />;
   }
 
   return (
@@ -505,10 +498,12 @@ export default function Dashboard() {
         </section>
 
         {/* ATEM & Mixer Summary */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AtemPanel />
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <div className="flex flex-col gap-6">
+            <AtemPanel />
+            <HuePanel />
+          </div>
           <MixerPanel />
-          <HuePanel />
         </section>
 
         {/* Camera Preview */}
@@ -518,8 +513,6 @@ export default function Dashboard() {
               cameras={cameras}
               selectedId={selectedId}
               onSelect={handleSelect}
-              suppressSelectedLivePreview
-              persistActivatedPreview={false}
               suspendAllLivePreview={suspendPreviewStreaming}
             />
           </section>
@@ -794,7 +787,7 @@ export default function Dashboard() {
                 </div>
                 
                 <div className="relative z-10 w-full grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_220px] gap-5 items-center mt-6">
-                  <CameraMonitor key={selectedCam.id} camera={selectedCam} active={!suspendPreviewStreaming} />
+                  <CameraMonitor camera={selectedCam} active={!suspendPreviewStreaming} />
                   <div className="flex justify-center">
                     <Joystick
                       className="border-cyan-500/30"
@@ -824,22 +817,6 @@ export default function Dashboard() {
                    onFocusAuto={() => selectedId && ws.focusAuto(selectedId)}
                    onPanTiltSpeedChange={setPanTiltSpeed}
                  />
-                 
-                 <div className="mt-6 grid grid-cols-2 gap-2">
-                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-700 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-night-mode">
-                      NIGHT MODE
-                    </button>
-                    <button className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-700 dark:text-slate-400 text-xs font-bold transition-colors" data-testid="button-osd-menu">
-                      OSD MENU
-                    </button>
-                    <button 
-                      onClick={() => ws?.focusAuto(selectedId!)}
-                      className="h-12 border border-slate-300 dark:border-slate-700 rounded bg-slate-400/40 dark:bg-slate-800/50 hover:bg-slate-300 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white text-slate-700 dark:text-slate-400 text-xs font-bold transition-colors col-span-2"
-                      data-testid="button-auto-focus"
-                    >
-                      AUTO FOCUS
-                    </button>
-                 </div>
               </div>
             </div>
 

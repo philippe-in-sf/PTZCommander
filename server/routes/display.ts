@@ -147,7 +147,16 @@ export async function executeDisplayAction(ctx: RouteContext, action: z.infer<ty
     const key = keyForSamsungAction(action);
     if (!key) throw new Error(`Samsung local control does not support ${action.command}`);
     const client = new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002, token: display.samsungToken });
-    await client.sendKey(key);
+    const result = await client.sendKey(key);
+    if (result.token && result.token !== display.samsungToken) {
+      await ctx.storage.updateDisplayDevice(display.id, {
+        samsungToken: result.token,
+        samsungPort: result.port,
+        status: "online",
+      });
+    } else if (result.port !== (display.samsungPort || 8002)) {
+      await ctx.storage.updateDisplayDevice(display.id, { samsungPort: result.port });
+    }
   } else if (display.protocol === "hisense_vidaa") {
     const client = hisenseClient(display);
     if (action.command === "set_volume") {
@@ -186,7 +195,7 @@ export async function executeDisplayAction(ctx: RouteContext, action: z.infer<ty
   }
 }
 
-async function refreshDisplayStatus(ctx: RouteContext, id: number, options?: { markOfflineOnFailure?: boolean }) {
+export async function refreshDisplayStatus(ctx: RouteContext, id: number, options?: { markOfflineOnFailure?: boolean }) {
   const display = await ctx.storage.getDisplayDevice(id);
   if (!display) throw new Error("Display not found");
   const markOfflineOnFailure = options?.markOfflineOnFailure !== false;
@@ -430,8 +439,8 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       if (display.protocol === "samsung_local") {
         if (!display.ip) return res.status(400).json({ message: "Display is missing IP address" });
         const client = new SamsungLocalDisplayClient({ ip: display.ip, port: display.samsungPort || 8002 });
-        const token = await client.pair();
-        updated = await storage.updateDisplayDevice(id, { samsungToken: token, status: "online" });
+        const { token, port } = await client.pair();
+        updated = await storage.updateDisplayDevice(id, { samsungToken: token, samsungPort: port, status: "online" });
       } else if (display.protocol === "hisense_vidaa") {
         const parsed = hisensePairSchema.safeParse(req.body || {});
         if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
@@ -443,7 +452,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       broadcast({ type: "invalidate", keys: ["displays", "health-devices"] });
       res.json(redactDisplay(updated || display));
     } catch (error: any) {
-      res.status(500).json({ message: error.message || "Failed to pair Samsung TV" });
+      res.status(500).json({ message: error.message || "Failed to pair local display" });
     }
   });
 

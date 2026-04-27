@@ -3,10 +3,11 @@ import { Link, useLocation } from "wouter";
 import { 
   Camera, Settings, Video, Mic, Lightbulb, Activity, MonitorPlay, 
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Maximize, 
-  Focus, Power, Volume2, Plus, GripHorizontal, LayoutGrid, CircleDot
+  Power, Volume2, Plus, GripHorizontal, LayoutGrid, CircleDot
 } from "lucide-react";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
+import { CameraPreview } from "@/components/ptz/camera-preview";
 import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -169,43 +170,11 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
         </div>
 
         <div className="col-span-6 flex flex-col gap-3">
-          <div className="grid grid-cols-4 gap-2 shrink-0">
-            {props.cameras.slice(0, 4).map((cam) => (
-              <div 
-                key={cam.id} 
-                onClick={() => props.onSelectCamera(cam.id)}
-                className={`h-24 relative rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${props.selectedCameraId === cam.id ? 'border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-[#363645] hover:border-[#4a4a5a] opacity-80 hover:opacity-100'}`}
-              >
-                <div className="absolute inset-0 bg-[#1a1a24] flex flex-col p-2">
-                  <div className="flex justify-between items-start z-10">
-                    <span className="bg-black/70 px-1.5 py-0.5 text-[10px] truncate max-w-[80%] text-zinc-200 rounded">{cam.name}</span>
-                    <span className={`w-3 h-3 rounded-full shrink-0 ${cam.tallyState === 'program' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]' : cam.tallyState === 'preview' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,1)]' : 'bg-[#404055]'}`}></span>
-                  </div>
-                  
-                  {props.selectedCameraId === cam.id && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
-                      <div className="w-16 h-16 border border-cyan-400 rounded-full flex items-center justify-center">
-                        <div className="w-1 h-2 bg-cyan-400 absolute top-0"></div>
-                        <div className="w-1 h-2 bg-cyan-400 absolute bottom-0"></div>
-                        <div className="w-2 h-1 bg-cyan-400 absolute left-0"></div>
-                        <div className="w-2 h-1 bg-cyan-400 absolute right-0"></div>
-                        <div className="w-1 h-1 bg-cyan-400"></div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="mt-auto z-10 flex justify-between">
-                    <span className="text-[9px] text-zinc-400">CAM {cam.id}</span>
-                    <span className={`text-[9px] font-semibold ${cam.status === 'online' ? 'text-green-400' : 'text-red-400'}`}>{cam.status}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            {Array.from({ length: Math.max(0, 4 - props.cameras.length) }).map((_, i) => (
-               <div key={`empty-${i}`} className="h-24 relative rounded-lg border-2 border-[#252535] bg-[#0e0e14] opacity-40"></div>
-            ))}
-          </div>
+          <CameraPreview
+            cameras={props.cameras}
+            selectedId={props.selectedCameraId}
+            onSelect={props.onSelectCamera}
+          />
 
           <div className="bg-[#14141c] border border-[#2a2a3a] rounded-lg flex-1 flex p-4 relative overflow-hidden">
             
@@ -257,12 +226,10 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
                 <span className="text-[9px] text-zinc-400 font-semibold">FOCUS</span>
                 <button 
                   onClick={props.onFocusAuto}
-                  className="w-12 h-8 bg-[#1e1e2a] border border-[#363645] rounded hover:bg-[#2a2a3a] text-[9px] text-cyan-400 font-bold transition-colors">AUTO</button>
-                <button className="w-12 h-10 bg-[#1e1e2a] border border-[#363645] rounded hover:bg-[#2a2a3a] hover:border-[#4a4a5a] flex items-center justify-center transition-colors"><Plus size={14} className="text-zinc-300" /></button>
-                <div className="h-32 w-6 bg-[#0e0e14] rounded-full border border-[#2a2a3a] relative p-1">
-                  <div className="w-full h-8 bg-[#404055] rounded-full absolute top-[50%] -translate-y-1/2 cursor-ns-resize hover:bg-[#505068] transition-colors"></div>
-                </div>
-                <button className="w-12 h-10 bg-[#1e1e2a] border border-[#363645] rounded hover:bg-[#2a2a3a] hover:border-[#4a4a5a] flex items-center justify-center transition-colors"><div className="w-3 h-0.5 bg-zinc-300"></div></button>
+                  className="w-12 h-10 bg-[#1e1e2a] border border-[#363645] rounded hover:bg-[#2a2a3a] text-[9px] text-cyan-400 font-bold transition-colors"
+                >
+                  AUTO
+                </button>
               </div>
             </div>
 

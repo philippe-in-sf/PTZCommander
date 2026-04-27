@@ -96,12 +96,13 @@ export async function discoverSamsungDisplays(timeoutMs = 3500): Promise<Samsung
     const headers = parseHeaders(text);
     const location = headers.get("location");
     const basic = await probeSamsungApi(remote.address);
+    if (!basic) return;
     const fromXml = location ? await getDeviceInfo(location, remote.address) : {};
     const result: SamsungDiscoveryResult = {
       ip: remote.address,
-      port: basic?.port || 8002,
-      name: fromXml.name || basic?.name || `Samsung TV ${remote.address}`,
-      modelName: fromXml.modelName || basic?.modelName,
+      port: basic.port,
+      name: fromXml.name || basic.name || `Samsung TV ${remote.address}`,
+      modelName: fromXml.modelName || basic.modelName,
       location,
     };
     found.set(remote.address, result);
@@ -129,8 +130,7 @@ export async function discoverSamsungDisplays(timeoutMs = 3500): Promise<Samsung
 export class SamsungLocalDisplayClient {
   constructor(private readonly options: { ip: string; port?: number; token?: string | null }) {}
 
-  private endpoint(token?: string | null) {
-    const port = this.options.port || 8002;
+  private endpoint(port: number, token?: string | null) {
     const protocol = port === 8002 ? "wss" : "ws";
     const url = new URL(`${protocol}://${this.options.ip}:${port}/api/v2/channels/samsung.remote.control`);
     url.searchParams.set("name", APP_NAME);
@@ -138,9 +138,14 @@ export class SamsungLocalDisplayClient {
     return url.toString();
   }
 
-  private connect(token?: string | null, timeoutMs = 30000) {
-    return new Promise<{ ws: WebSocket; token?: string }>((resolve, reject) => {
-      const ws = new WebSocket(this.endpoint(token), { rejectUnauthorized: false });
+  private candidatePorts() {
+    const preferred = this.options.port || 8002;
+    return Array.from(new Set([preferred, preferred === 8002 ? 8001 : 8002]));
+  }
+
+  private connectOnPort(port: number, token?: string | null, timeoutMs = 30000) {
+    return new Promise<{ ws: WebSocket; token?: string; port: number }>((resolve, reject) => {
+      const ws = new WebSocket(this.endpoint(port, token), { rejectUnauthorized: false });
       const timer = setTimeout(() => {
         ws.terminate();
         reject(new Error("Timed out waiting for Samsung TV pairing"));
@@ -151,7 +156,7 @@ export class SamsungLocalDisplayClient {
           const message = JSON.parse(data.toString());
           if (message.event === "ms.channel.connect") {
             clearTimeout(timer);
-            resolve({ ws, token: message?.data?.token || token || undefined });
+            resolve({ ws, token: message?.data?.token || token || undefined, port });
           }
         } catch {
           // Ignore non-JSON frames.
@@ -164,15 +169,27 @@ export class SamsungLocalDisplayClient {
     });
   }
 
+  private async connect(token?: string | null, timeoutMs = 30000) {
+    let lastError: unknown;
+    for (const port of this.candidatePorts()) {
+      try {
+        return await this.connectOnPort(port, token, timeoutMs);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("Samsung TV did not accept a local WebSocket connection");
+  }
+
   async pair() {
-    const { ws, token } = await this.connect(null, 45000);
+    const { ws, token, port } = await this.connect(null, 45000);
     ws.terminate();
     if (!token) throw new Error("TV did not return a pairing token. Accept the prompt on the TV and try again.");
-    return token;
+    return { token, port };
   }
 
   async sendKey(key: string) {
-    const { ws } = await this.connect(this.options.token, 10000);
+    const { ws, token, port } = await this.connect(this.options.token, 10000);
     ws.send(JSON.stringify({
       method: "ms.remote.control",
       params: {
@@ -184,6 +201,7 @@ export class SamsungLocalDisplayClient {
     }));
     await new Promise((resolve) => setTimeout(resolve, 150));
     ws.terminate();
+    return { token, port };
   }
 
   async getInfo() {

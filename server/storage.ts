@@ -1,8 +1,16 @@
-import { cameras, presets, mixers, switchers, sceneButtons, layouts, macros, obsConnections, runsheetCues, auditLogs, hueBridges, displayDevices, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type ObsConnection, type InsertObsConnection, type RunsheetCue, type InsertRunsheetCue, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
-import { desc, eq, and } from "drizzle-orm";
+import { users, cameras, presets, mixers, switchers, sceneButtons, layouts, macros, obsConnections, runsheetCues, auditLogs, hueBridges, displayDevices, type User, type UserRole, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type ObsConnection, type InsertObsConnection, type RunsheetCue, type InsertRunsheetCue, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
+import { sql, desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
 
 export interface IStorage {
+  // User operations
+  getUserCount(): Promise<number>;
+  getAllUsers(): Promise<User[]>;
+  getUserById(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: { username: string; displayName: string; passwordHash: string; role: UserRole; isActive?: boolean }): Promise<User>;
+  updateUser(id: number, updates: Partial<Pick<User, "displayName" | "passwordHash" | "role" | "isActive" | "lastLoginAt">>): Promise<User | undefined>;
+
   // Camera operations
   getAllCameras(): Promise<Camera[]>;
   getCamera(id: number): Promise<Camera | undefined>;
@@ -200,6 +208,7 @@ function sqliteRowToSceneButton(row: any): SceneButton {
     color: row.color,
     groupName: row.group_name || "General",
     atemInputId: row.atem_input_id,
+    atemState: row.atem_state,
     atemTransitionType: row.atem_transition_type,
     obsSceneName: row.obs_scene_name,
     cameraId: row.camera_id,
@@ -269,7 +278,108 @@ function sqliteRowToAuditLog(row: any): AuditLog {
   };
 }
 
+function sqliteRowToUser(row: any): User {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    passwordHash: row.password_hash,
+    role: row.role,
+    isActive: Boolean(row.is_active),
+    lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
+  };
+}
+
 export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUserCount(): Promise<number> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare("SELECT COUNT(*) AS count FROM users").get() as { count: number };
+      return Number(row?.count || 0);
+    }
+    const result = await db.select({ count: sql<number>`count(*)` }).from(users);
+    return Number(result[0]?.count || 0);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    if (useSqlite && sqlite) {
+      const rows = sqlite.prepare("SELECT * FROM users ORDER BY username").all();
+      return rows.map(sqliteRowToUser);
+    }
+    return await db.select().from(users);
+  }
+
+  async getUserById(id: number): Promise<User | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare("SELECT * FROM users WHERE id = ?").get(id);
+      return row ? sqliteRowToUser(row) : undefined;
+    }
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    if (useSqlite && sqlite) {
+      const row = sqlite.prepare("SELECT * FROM users WHERE lower(username) = lower(?)").get(username);
+      return row ? sqliteRowToUser(row) : undefined;
+    }
+    const [user] = await db.select().from(users).where(sql`lower(${users.username}) = lower(${username})`);
+    return user || undefined;
+  }
+
+  async createUser(user: { username: string; displayName: string; passwordHash: string; role: UserRole; isActive?: boolean }): Promise<User> {
+    if (useSqlite && sqlite) {
+      const now = new Date().toISOString();
+      const result = sqlite.prepare(`
+        INSERT INTO users (username, display_name, password_hash, role, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        user.username,
+        user.displayName,
+        user.passwordHash,
+        user.role,
+        user.isActive === false ? 0 : 1,
+        now,
+        now,
+      );
+      return this.getUserById(Number(result.lastInsertRowid)) as Promise<User>;
+    }
+    const [created] = await db.insert(users).values({
+      username: user.username,
+      displayName: user.displayName,
+      passwordHash: user.passwordHash,
+      role: user.role,
+      isActive: user.isActive ?? true,
+    }).returning();
+    return created;
+  }
+
+  async updateUser(id: number, updates: Partial<Pick<User, "displayName" | "passwordHash" | "role" | "isActive" | "lastLoginAt">>): Promise<User | undefined> {
+    if (useSqlite && sqlite) {
+      const fields: string[] = [];
+      const vals: any[] = [];
+      if (updates.displayName !== undefined) { fields.push("display_name = ?"); vals.push(updates.displayName); }
+      if (updates.passwordHash !== undefined) { fields.push("password_hash = ?"); vals.push(updates.passwordHash); }
+      if (updates.role !== undefined) { fields.push("role = ?"); vals.push(updates.role); }
+      if (updates.isActive !== undefined) { fields.push("is_active = ?"); vals.push(updates.isActive ? 1 : 0); }
+      if (updates.lastLoginAt !== undefined) { fields.push("last_login_at = ?"); vals.push(updates.lastLoginAt ? new Date(updates.lastLoginAt).toISOString() : null); }
+      if (!fields.length) return this.getUserById(id);
+      fields.push("updated_at = ?");
+      vals.push(new Date().toISOString());
+      vals.push(id);
+      sqlite.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...vals);
+      return this.getUserById(id);
+    }
+
+    const [updated] = await db.update(users).set({
+      ...updates,
+      updatedAt: new Date(),
+    }).where(eq(users.id, id)).returning();
+    return updated || undefined;
+  }
+
   // Camera operations
   async getAllCameras(): Promise<Camera[]> {
     if (useSqlite && sqlite) {
@@ -673,14 +783,15 @@ export class DatabaseStorage implements IStorage {
   async createSceneButton(insert: InsertSceneButton): Promise<SceneButton> {
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
-        INSERT INTO scene_buttons (button_number, name, color, group_name, atem_input_id, atem_transition_type, obs_scene_name, camera_id, preset_number, mixer_actions, hue_actions, display_actions)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scene_buttons (button_number, name, color, group_name, atem_input_id, atem_state, atem_transition_type, obs_scene_name, camera_id, preset_number, mixer_actions, hue_actions, display_actions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         insert.buttonNumber,
         insert.name,
         insert.color || '#06b6d4',
         insert.groupName || 'General',
         insert.atemInputId ?? null,
+        insert.atemState ?? null,
         insert.atemTransitionType || 'cut',
         insert.obsSceneName ?? null,
         insert.cameraId ?? null,
@@ -705,6 +816,7 @@ export class DatabaseStorage implements IStorage {
       if (updates.color !== undefined) { setClauses.push('color = ?'); values.push(updates.color); }
       if (updates.groupName !== undefined) { setClauses.push('group_name = ?'); values.push(updates.groupName || 'General'); }
       if (updates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(updates.atemInputId); }
+      if (updates.atemState !== undefined) { setClauses.push('atem_state = ?'); values.push(updates.atemState); }
       if (updates.atemTransitionType !== undefined) { setClauses.push('atem_transition_type = ?'); values.push(updates.atemTransitionType); }
       if (updates.obsSceneName !== undefined) { setClauses.push('obs_scene_name = ?'); values.push(updates.obsSceneName); }
       if (updates.cameraId !== undefined) { setClauses.push('camera_id = ?'); values.push(updates.cameraId); }
@@ -1033,7 +1145,7 @@ export class DatabaseStorage implements IStorage {
       tx(ids);
       return this.getAllRunsheetCues();
     }
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx: any) => {
       for (let index = 0; index < ids.length; index++) {
         await tx.update(runsheetCues).set({ sortOrder: index, updatedAt: new Date() }).where(eq(runsheetCues.id, ids[index]));
       }

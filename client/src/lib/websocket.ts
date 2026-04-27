@@ -78,10 +78,10 @@ export class PTZWebSocket {
           if (pending) {
             clearTimeout(pending.timeout);
             this.pendingPresetStores.delete(message.requestId);
-            if (message.ok && message.preset) {
-              pending.resolve(message.preset);
+            if (message.ok && message.preset && typeof message.preset === "object") {
+              pending.resolve(message.preset as Preset);
             } else {
-              pending.reject(new Error(message.message || "Failed to save preset"));
+              pending.reject(new Error(typeof message.message === "string" ? message.message : "Failed to save preset"));
             }
           }
         }

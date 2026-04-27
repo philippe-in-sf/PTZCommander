@@ -3,6 +3,26 @@ import { pgTable, text, varchar, serial, integer, boolean, timestamp, index } fr
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const USER_ROLES = ["viewer", "operator", "admin"] as const;
+export const userRoleSchema = z.enum(USER_ROLES);
+export type UserRole = z.infer<typeof userRoleSchema>;
+
+const usernameSchema = z.string().trim().min(3).max(32).regex(/^[a-z0-9._-]+$/i, "Use letters, numbers, dots, dashes, or underscores");
+const displayNameSchema = z.string().trim().min(1).max(80);
+const passwordSchema = z.string().min(8).max(128);
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: varchar("username", { length: 32 }).notNull().unique(),
+  displayName: text("display_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").$type<UserRole>().notNull().default("viewer"),
+  isActive: boolean("is_active").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const cameras = pgTable("cameras", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -63,6 +83,7 @@ export const sceneButtons = pgTable("scene_buttons", {
   color: text("color").notNull().default("#06b6d4"),
   groupName: text("group_name").default("General"),
   atemInputId: integer("atem_input_id"),
+  atemState: text("atem_state"),
   atemTransitionType: text("atem_transition_type").default("cut"),
   obsSceneName: text("obs_scene_name"),
   cameraId: integer("camera_id").references(() => cameras.id, { onDelete: "set null" }),
@@ -255,6 +276,33 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
 });
 
+export const loginSchema = z.object({
+  username: usernameSchema,
+  password: passwordSchema,
+});
+
+export const bootstrapUserSchema = z.object({
+  username: usernameSchema,
+  displayName: displayNameSchema,
+  password: passwordSchema,
+});
+
+export const createUserSchema = z.object({
+  username: usernameSchema,
+  displayName: displayNameSchema,
+  password: passwordSchema,
+  role: userRoleSchema.default("viewer"),
+});
+
+export const patchUserSchema = z.object({
+  displayName: displayNameSchema.optional(),
+  password: passwordSchema.optional(),
+  role: userRoleSchema.optional(),
+  isActive: z.boolean().optional(),
+}).refine((value) => Object.keys(value).length > 0, {
+  message: "At least one field must be provided",
+});
+
 export const patchCameraSchema = insertCameraSchema.partial();
 export const patchPresetSchema = createInsertSchema(presets).omit({ id: true, createdAt: true, updatedAt: true, cameraId: true, presetNumber: true }).partial();
 export const patchSceneButtonSchema = insertSceneButtonSchema.partial();
@@ -267,6 +315,7 @@ export const patchDisplayDeviceSchema = createInsertSchema(displayDevices).omit(
 export const patchMixerSchema = insertMixerSchema.partial();
 export const patchSwitcherSchema = insertSwitcherSchema.partial();
 
+export type User = typeof users.$inferSelect;
 export type Camera = typeof cameras.$inferSelect;
 export type InsertCamera = z.infer<typeof insertCameraSchema>;
 export type CameraPreviewType = NonNullable<InsertCamera["previewType"]>;
@@ -299,3 +348,7 @@ export type DisplayDevice = typeof displayDevices.$inferSelect;
 export type InsertDisplayDevice = z.infer<typeof insertDisplayDeviceSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+export type BootstrapUserInput = z.infer<typeof bootstrapUserSchema>;
+export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type PatchUserInput = z.infer<typeof patchUserSchema>;

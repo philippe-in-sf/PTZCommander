@@ -34,6 +34,31 @@ function previewLabel(type: PreviewType) {
   }
 }
 
+function usePagePreviewActive() {
+  const [isPageActive, setIsPageActive] = useState(() => {
+    if (typeof document === "undefined") return true;
+    return document.visibilityState === "visible";
+  });
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const update = () => setIsPageActive(document.visibilityState === "visible");
+    update();
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
+    window.addEventListener("blur", update);
+
+    return () => {
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
+      window.removeEventListener("blur", update);
+    };
+  }, []);
+
+  return isPageActive;
+}
+
 function SnapshotPreview({ camera, refreshInterval, className }: {
   camera: CameraType;
   refreshInterval: number;
@@ -97,6 +122,7 @@ function StreamingImagePreview({ camera, className, endpoint, errorLabel, loadin
   const [srcKey, setSrcKey] = useState(Date.now());
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setError(false);
@@ -105,15 +131,46 @@ function StreamingImagePreview({ camera, className, endpoint, errorLabel, loadin
     return () => clearTimeout(timeout);
   }, [camera.id, srcKey]);
 
+  useEffect(() => {
+    if (!error) return;
+
+    retryTimerRef.current = setTimeout(() => {
+      setError(false);
+      setLoading(true);
+      setSrcKey(Date.now());
+    }, 900);
+
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+  }, [error]);
+
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+    };
+  }, []);
+
   if (error) {
     return (
-      <PreviewState error label={errorLabel}>
+      <PreviewState loading label={`${errorLabel} - reconnecting`}>
         <Button
           size="sm"
           variant="outline"
           className="mt-2 h-7 text-[10px]"
           onClick={(event) => {
             event.stopPropagation();
+            if (retryTimerRef.current) {
+              clearTimeout(retryTimerRef.current);
+              retryTimerRef.current = null;
+            }
+            setError(false);
+            setLoading(true);
             setSrcKey(Date.now());
           }}
         >
@@ -315,18 +372,45 @@ function BrowserVideoPreview({ camera, className }: { camera: CameraType; classN
   );
 }
 
-function PreviewMedia({ camera, refreshInterval, className, active = true }: {
+function PreviewMedia({ camera, refreshInterval, className, active = true, streamStartupDelayMs = 0 }: {
   camera: CameraType;
   refreshInterval: number;
   className?: string;
   active?: boolean;
+  streamStartupDelayMs?: number;
 }) {
   const type = getPreviewType(camera);
+  const pagePreviewActive = usePagePreviewActive();
+  const livePreviewAllowed = active && pagePreviewActive;
+  const isLiveStreamType = type === "mjpeg" || type === "rtsp" || type === "rtp" || type === "webrtc" || type === "browser";
+  const [streamReady, setStreamReady] = useState(() => !isLiveStreamType || livePreviewAllowed);
+
+  useEffect(() => {
+    if (!isLiveStreamType) {
+      setStreamReady(true);
+      return;
+    }
+
+    if (!livePreviewAllowed) {
+      setStreamReady(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => setStreamReady(true), Math.max(0, streamStartupDelayMs));
+    return () => clearTimeout(timeout);
+  }, [isLiveStreamType, livePreviewAllowed, streamStartupDelayMs]);
+
   if (type === "none" || (!camera.streamUrl && type !== "browser")) {
     return <PreviewState label="No preview configured" />;
   }
-  if (!active && type !== "snapshot") {
+  if (!pagePreviewActive) {
+    return <PreviewState label="Preview paused in background tab" />;
+  }
+  if (!livePreviewAllowed && type !== "snapshot") {
     return <PreviewState label={`Select for ${previewLabel(type)} preview`} />;
+  }
+  if (!streamReady && type !== "snapshot") {
+    return <PreviewState loading label={`Preparing ${previewLabel(type)} preview`} />;
   }
   if (type === "mjpeg") return <MjpegPreview camera={camera} className={className} />;
   if (type === "rtsp") return <RtspPreview camera={camera} className={className} />;
@@ -357,13 +441,14 @@ function PreviewState({ loading = false, error = false, label, children }: {
   );
 }
 
-function CameraFeed({ camera, isSelected, onSelect, refreshInterval, suppressLivePreview, persistActivatedPreview = true }: {
+function CameraFeed({ camera, isSelected, onSelect, refreshInterval, suppressLivePreview, persistActivatedPreview = true, streamStartupDelayMs = 0 }: {
   camera: CameraType;
   isSelected: boolean;
   onSelect: () => void;
   refreshInterval: number;
   suppressLivePreview?: boolean;
   persistActivatedPreview?: boolean;
+  streamStartupDelayMs?: number;
 }) {
   const [fullscreen, setFullscreen] = useState(false);
   const [hasActivatedPreview, setHasActivatedPreview] = useState(false);
@@ -402,6 +487,7 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval, suppressLiv
           camera={camera}
           refreshInterval={camera.previewRefreshMs || refreshInterval}
           active={shouldStreamPreview}
+          streamStartupDelayMs={streamStartupDelayMs}
         />
 
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-gradient-to-b from-black/70 to-transparent">
@@ -455,11 +541,12 @@ function CameraFeed({ camera, isSelected, onSelect, refreshInterval, suppressLiv
   );
 }
 
-export function CameraMonitor({ camera, refreshInterval = 2000, className, active = true }: {
+export function CameraMonitor({ camera, refreshInterval = 2000, className, active = true, streamStartupDelayMs = 0 }: {
   camera: CameraType;
   refreshInterval?: number;
   className?: string;
   active?: boolean;
+  streamStartupDelayMs?: number;
 }) {
   const previewType = getPreviewType(camera);
 
@@ -468,7 +555,12 @@ export function CameraMonitor({ camera, refreshInterval = 2000, className, activ
       className={cn("relative aspect-video overflow-hidden rounded-lg border border-slate-300 dark:border-slate-800 bg-black", className)}
       data-testid={`camera-monitor-${camera.id}`}
     >
-      <PreviewMedia camera={camera} refreshInterval={camera.previewRefreshMs || refreshInterval} active={active} />
+      <PreviewMedia
+        camera={camera}
+        refreshInterval={camera.previewRefreshMs || refreshInterval}
+        active={active}
+        streamStartupDelayMs={streamStartupDelayMs}
+      />
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-2 py-1 bg-gradient-to-b from-black/70 to-transparent">
         <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-white/80">{camera.name}</span>
         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white/70">{previewLabel(previewType)}</span>
@@ -504,6 +596,7 @@ export function CameraPreview({
             refreshInterval={refreshInterval}
             suppressLivePreview={suspendAllLivePreview || (suppressSelectedLivePreview && selectedId === camera.id)}
             persistActivatedPreview={persistActivatedPreview}
+            streamStartupDelayMs={(selectedId === camera.id ? 0 : 250) + (Math.max(0, cameras.findIndex((item) => item.id === camera.id)) * 180)}
           />
         ))}
       </div>

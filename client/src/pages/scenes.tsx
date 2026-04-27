@@ -1,30 +1,107 @@
-import { useMemo, useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { sceneButtonApi, cameraApi, displayApi, obsApi } from "@/lib/api";
+import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Plus, Trash2, Settings, Zap, Play, Lightbulb, Lock, Unlock, ListChecks, FlaskConical, Folder, Monitor, Radio } from "lucide-react";
-import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { AppLayout } from "@/components/app-layout";
-import type { SceneButton, Camera, DisplayDevice } from "@shared/schema";
+import { toast } from "sonner";
+import {
+  cameraApi,
+  displayApi,
+  mixerApi,
+  obsApi,
+  sceneButtonApi,
+  switcherApi,
+  type ObsScene,
+  type SceneCaptureMode,
+  type SceneCaptureSection,
+} from "@/lib/api";
+import type { AtemState } from "@/hooks/use-atem-control";
+import type { Camera, DisplayDevice, Preset, SceneButton } from "@shared/schema";
+import {
+  Camera as CameraIcon,
+  Folder,
+  Lightbulb,
+  Lock,
+  ListChecks,
+  Monitor,
+  Play,
+  Plus,
+  Radio,
+  Save,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  Unlock,
+  Video,
+  Zap,
+} from "lucide-react";
+
+type SceneTab = "overview" | "switcher" | "graphics" | "cameras" | "audio" | "lighting" | "displays";
+type SceneTestSection = "atem" | "obs" | "mixer" | "hue" | "ptz" | "display";
+type MixerSection = "ch" | "bus" | "auxin" | "fxrtn" | "mtx" | "dca" | "main";
+type HueActionType = "scene" | "group" | "light";
 
 interface MixerAction {
-  section: string;
+  section: MixerSection;
   channel: number;
   fader?: number;
   muted?: boolean;
+  name?: string;
+}
+
+interface SceneAtemDskState {
+  index: number;
+  onAir?: boolean;
+  tie?: boolean;
+  rate?: number;
+}
+
+interface SceneAtemUskState {
+  index: number;
+  onAir?: boolean;
+}
+
+interface SceneAtemAuxState {
+  index: number;
+  sourceId: number;
+}
+
+interface SceneAtemState {
+  programInput?: number | null;
+  previewInput?: number | null;
+  transitionStyle?: number;
+  transitionPreview?: boolean;
+  mixRate?: number;
+  dipRate?: number;
+  wipeRate?: number;
+  fadeToBlackRate?: number;
+  downstreamKeyers?: SceneAtemDskState[];
+  upstreamKeyers?: SceneAtemUskState[];
+  auxOutputs?: SceneAtemAuxState[];
 }
 
 interface HueSceneAction {
-  type: "scene";
+  type: HueActionType;
   bridgeId: number;
-  sceneId: string;
+  sceneId?: string;
   groupId?: string;
+  lightId?: string;
+  on?: boolean;
+  brightness?: number;
+  colorTemp?: number;
+  hue?: number;
+  sat?: number;
 }
 
 interface DisplayAction {
@@ -34,22 +111,54 @@ interface DisplayAction {
   capability?: string;
   smartthingsCommand?: string;
   arguments?: unknown[];
+  displayName?: string;
 }
 
-type SceneTestSection = "atem" | "obs" | "mixer" | "hue" | "ptz" | "display";
+interface HueBridgeSummary {
+  id: number;
+  name: string;
+  status: string;
+}
 
-const COLORS = [
-  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
-  "#ef4444", "#f97316", "#eab308", "#22c55e",
-];
+interface HueGroup {
+  id: string;
+  name: string;
+  type: string;
+  lights: string[];
+  on: boolean;
+  brightness: number;
+}
 
-type SceneFormData = {
+interface HueScene {
+  id: string;
+  name: string;
+  group?: string;
+}
+
+interface HueLight {
+  id: string;
+  name: string;
+  on: boolean;
+  brightness: number;
+  colorTemp?: number;
+  reachable: boolean;
+  type: string;
+}
+
+interface MixerStatusResponse {
+  connected: boolean;
+  sections?: Partial<Record<MixerSection, MixerAction[]>>;
+  channels?: MixerAction[];
+}
+
+type SceneDraft = {
   buttonNumber: number;
   name: string;
   groupName: string;
   color: string;
   atemInputId: number | null;
   atemTransitionType: string;
+  atemState: SceneAtemState | null;
   obsSceneName: string;
   cameraId: number | null;
   presetNumber: number | null;
@@ -58,156 +167,671 @@ type SceneFormData = {
   displayActions: DisplayAction[];
 };
 
-function getSceneGroupName(button: Pick<SceneButton, "groupName">) {
-  return button.groupName?.trim() || "General";
+type CaptureSectionsState = Record<SceneCaptureSection, boolean>;
+
+type SceneCaptureDraft = {
+  mode: SceneCaptureMode;
+  targetSceneId: number | null;
+  name: string;
+  buttonNumber: number;
+  groupName: string;
+  color: string;
+  sections: CaptureSectionsState;
+};
+
+const COLORS = [
+  "#06b6d4",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+];
+
+const MIXER_SECTION_OPTIONS: Array<{ value: MixerSection; label: string }> = [
+  { value: "ch", label: "Channel" },
+  { value: "bus", label: "Mix Bus" },
+  { value: "auxin", label: "Aux In" },
+  { value: "fxrtn", label: "FX Return" },
+  { value: "mtx", label: "Matrix" },
+  { value: "dca", label: "DCA" },
+  { value: "main", label: "Main LR" },
+];
+
+const TRANSITION_STYLE_OPTIONS = [
+  { value: 0, label: "Mix" },
+  { value: 1, label: "Dip" },
+  { value: 2, label: "Wipe" },
+  { value: 3, label: "DVE" },
+  { value: 4, label: "Sting" },
+];
+
+const CAPTURE_SECTION_OPTIONS: Array<{
+  value: SceneCaptureSection;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "atem",
+    title: "Switcher + camera routing",
+    description: "Program, preview, transitions, keyers, auxes, and whichever mapped cameras are live on the switcher.",
+  },
+  {
+    value: "obs",
+    title: "Graphics / OBS",
+    description: "Current OBS program scene, using a live read when available.",
+  },
+  {
+    value: "mixer",
+    title: "Audio",
+    description: "All readable X32 channel, bus, matrix, DCA, and main states.",
+  },
+  {
+    value: "hue",
+    title: "Lighting",
+    description: "Readable Hue light states across connected bridges.",
+  },
+  {
+    value: "display",
+    title: "Displays",
+    description: "Power, volume, mute, and input state from each configured display.",
+  },
+];
+
+const DEFAULT_CAPTURE_SECTIONS: CaptureSectionsState = {
+  atem: true,
+  obs: true,
+  mixer: true,
+  hue: true,
+  display: true,
+};
+
+function parseJsonArray<T>(value: string | null | undefined): T[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
-function getFormPreview(formData: SceneFormData, cameras: Camera[], displays: DisplayDevice[]) {
-  const preview: string[] = [];
-  if (formData.hueActions.length > 0) {
-    const readyActions = formData.hueActions.filter((action) => action.bridgeId && action.sceneId).length;
-    preview.push(`Hue: ${readyActions}/${formData.hueActions.length} scene action(s) ready`);
+function parseJsonObject<T>(value: string | null | undefined): T | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as T : null;
+  } catch {
+    return null;
   }
-  if (formData.displayActions.length > 0) {
-    const readyActions = formData.displayActions.filter((action) => action.displayId && action.command).length;
-    const displayNames = formData.displayActions
-      .map((action) => displays.find((display) => display.id === action.displayId)?.name)
+}
+
+function getSceneGroupName(scene: Pick<SceneButton, "groupName">) {
+  return scene.groupName?.trim() || "General";
+}
+
+function createEmptyDraft(buttonNumber: number): SceneDraft {
+  return {
+    buttonNumber,
+    name: "",
+    groupName: "General",
+    color: COLORS[(buttonNumber - 1) % COLORS.length],
+    atemInputId: null,
+    atemTransitionType: "cut",
+    atemState: null,
+    obsSceneName: "",
+    cameraId: null,
+    presetNumber: null,
+    mixerActions: [],
+    hueActions: [],
+    displayActions: [],
+  };
+}
+
+function getNextButtonNumber(sceneButtons: SceneButton[]) {
+  return sceneButtons.length > 0
+    ? Math.max(...sceneButtons.map((scene) => scene.buttonNumber)) + 1
+    : 1;
+}
+
+function createSceneCaptureDraft(sceneButtons: SceneButton[], selectedSceneId: number | null): SceneCaptureDraft {
+  const nextButtonNumber = getNextButtonNumber(sceneButtons);
+  const mergeTargetSceneId = selectedSceneId ?? sceneButtons[0]?.id ?? null;
+
+  return {
+    mode: "create",
+    targetSceneId: mergeTargetSceneId,
+    name: `Scene ${nextButtonNumber}`,
+    buttonNumber: nextButtonNumber,
+    groupName: "General",
+    color: COLORS[(nextButtonNumber - 1) % COLORS.length],
+    sections: { ...DEFAULT_CAPTURE_SECTIONS },
+  };
+}
+
+function sceneToDraft(scene: SceneButton): SceneDraft {
+  return {
+    buttonNumber: scene.buttonNumber,
+    name: scene.name,
+    groupName: getSceneGroupName(scene),
+    color: scene.color,
+    atemInputId: scene.atemInputId,
+    atemTransitionType: scene.atemTransitionType || "cut",
+    atemState: parseJsonObject<SceneAtemState>(scene.atemState),
+    obsSceneName: scene.obsSceneName || "",
+    cameraId: scene.cameraId,
+    presetNumber: scene.presetNumber,
+    mixerActions: parseJsonArray<MixerAction>(scene.mixerActions),
+    hueActions: parseJsonArray<HueSceneAction>(scene.hueActions),
+    displayActions: parseJsonArray<DisplayAction>(scene.displayActions),
+  };
+}
+
+function serializeDraft(draft: SceneDraft) {
+  const validDisplayActions = draft.displayActions.filter((action) => action.displayId > 0 && action.command);
+  return {
+    buttonNumber: draft.buttonNumber,
+    name: draft.name.trim() || `Scene ${draft.buttonNumber}`,
+    groupName: draft.groupName.trim() || "General",
+    color: draft.color,
+    atemInputId: draft.atemState?.programInput ?? draft.atemInputId,
+    atemState: draft.atemState ? JSON.stringify(draft.atemState) : null,
+    atemTransitionType: draft.atemTransitionType,
+    obsSceneName: draft.obsSceneName.trim() || null,
+    cameraId: draft.cameraId,
+    presetNumber: draft.presetNumber,
+    mixerActions: draft.mixerActions.length > 0 ? JSON.stringify(draft.mixerActions) : null,
+    hueActions: draft.hueActions.length > 0 ? JSON.stringify(draft.hueActions) : null,
+    displayActions: validDisplayActions.length > 0 ? JSON.stringify(validDisplayActions) : null,
+  };
+}
+
+function summarizeAtemState(atemState: SceneAtemState | null, fallbackInputId: number | null, transitionType: string) {
+  if (atemState) {
+    const parts: string[] = [];
+    if (atemState.programInput) parts.push(`program ${atemState.programInput}`);
+    if (atemState.previewInput) parts.push(`preview ${atemState.previewInput}`);
+    if (atemState.auxOutputs?.length) parts.push(`${atemState.auxOutputs.length} aux`);
+    if (atemState.downstreamKeyers?.length) parts.push(`${atemState.downstreamKeyers.length} DSK`);
+    if (atemState.upstreamKeyers?.length) parts.push(`${atemState.upstreamKeyers.length} USK`);
+    return parts.length > 0 ? `ATEM: ${parts.join(" · ")}` : "ATEM: switcher state captured";
+  }
+  if (fallbackInputId !== null) {
+    return `ATEM: ${transitionType === "auto" ? "auto" : "cut"} to input ${fallbackInputId}`;
+  }
+  return null;
+}
+
+function getScenePreview(draft: SceneDraft, cameras: Camera[], presets: Preset[], displays: DisplayDevice[]) {
+  const preview: string[] = [];
+
+  const atemPreview = summarizeAtemState(draft.atemState, draft.atemInputId, draft.atemTransitionType);
+  if (atemPreview) preview.push(atemPreview);
+
+  if (draft.obsSceneName.trim()) {
+    preview.push(`OBS: program scene ${draft.obsSceneName.trim()}`);
+  }
+
+  if (draft.cameraId !== null && draft.presetNumber !== null) {
+    const cameraName = cameras.find((camera) => camera.id === draft.cameraId)?.name || `Camera ${draft.cameraId}`;
+    const presetName = presets.find((preset) => preset.presetNumber === draft.presetNumber)?.name;
+    preview.push(`PTZ: ${cameraName} recalls ${presetName || `Preset ${draft.presetNumber + 1}`}`);
+  }
+
+  if (draft.mixerActions.length > 0) {
+    preview.push(`Audio: ${draft.mixerActions.length} mixer action(s)`);
+  }
+
+  if (draft.hueActions.length > 0) {
+    preview.push(`Lighting: ${draft.hueActions.length} cue(s)`);
+  }
+
+  if (draft.displayActions.length > 0) {
+    const names = draft.displayActions
+      .map((action) => displays.find((display) => display.id === action.displayId)?.name || action.displayName)
       .filter(Boolean)
       .slice(0, 2)
       .join(", ");
-    preview.push(`Displays: ${readyActions}/${formData.displayActions.length} action(s) ready${displayNames ? ` for ${displayNames}` : ""}`);
+    preview.push(`Displays: ${draft.displayActions.length} command(s)${names ? ` for ${names}` : ""}`);
   }
-  if (formData.atemInputId !== null) {
-    preview.push(`ATEM: ${formData.atemTransitionType === "auto" ? "auto transition" : "cut"} to input ${formData.atemInputId}`);
-  }
-  if (formData.obsSceneName.trim()) {
-    preview.push(`OBS: switch program scene to ${formData.obsSceneName.trim()}`);
-  }
-  if (formData.cameraId !== null && formData.presetNumber !== null) {
-    const cameraName = cameras.find((camera) => camera.id === formData.cameraId)?.name || `Camera ${formData.cameraId}`;
-    preview.push(`PTZ: ${cameraName} recalls preset ${formData.presetNumber + 1}`);
-  }
-  if (formData.mixerActions.length > 0) {
-    preview.push(`Mixer: ${formData.mixerActions.length} channel action(s)`);
-  }
-  return preview.length > 0 ? preview : ["No hardware actions configured yet"];
+
+  return preview.length > 0 ? preview : ["No device actions configured yet"];
 }
 
-function hasSceneSection(formData: SceneFormData, section: SceneTestSection) {
-  if (section === "hue") return formData.hueActions.some((action) => action.bridgeId && action.sceneId);
-  if (section === "display") return formData.displayActions.some((action) => action.displayId && action.command);
-  if (section === "atem") return formData.atemInputId !== null;
-  if (section === "obs") return Boolean(formData.obsSceneName.trim());
-  if (section === "ptz") return formData.cameraId !== null && formData.presetNumber !== null;
-  return formData.mixerActions.length > 0;
+function buildAtemStateFromStatus(status: AtemState): SceneAtemState {
+  return {
+    programInput: status.programInput || undefined,
+    previewInput: status.previewInput || undefined,
+    transitionStyle: status.transition?.nextStyle ?? status.transition?.style,
+    transitionPreview: status.transition?.previewEnabled,
+    mixRate: status.transition?.mixRate,
+    dipRate: status.transition?.dipRate,
+    wipeRate: status.transition?.wipeRate,
+    fadeToBlackRate: status.fadeToBlack?.rate,
+    downstreamKeyers: (status.downstreamKeyers || []).map((keyer: any) => ({
+      index: keyer.index,
+      onAir: keyer.onAir,
+      tie: keyer.tie,
+      rate: keyer.rate,
+    })),
+    upstreamKeyers: (status.upstreamKeyers || []).map((keyer: any) => ({
+      index: keyer.index,
+      onAir: keyer.onAir,
+    })),
+    auxOutputs: (status.auxOutputs || []).map((sourceId, index) => ({ index, sourceId })),
+  };
 }
 
-function HueActionRow({ action, bridges, onUpdate, onRemove }: {
-  action: HueSceneAction;
-  bridges: { id: number; name: string; status?: string }[];
-  onUpdate: (u: Partial<HueSceneAction>) => void;
+function buildMixerActionsFromStatus(status: MixerStatusResponse): MixerAction[] {
+  if (status.sections) {
+    const sectionOrder: MixerSection[] = ["ch", "bus", "auxin", "fxrtn", "mtx", "dca", "main"];
+    return sectionOrder.flatMap((section) =>
+      (status.sections?.[section] || []).map((action) => ({
+        section,
+        channel: action.channel,
+        fader: action.fader,
+        muted: action.muted,
+        name: action.name,
+      })),
+    );
+  }
+
+  return (status.channels || []).map((action) => ({
+    section: "ch",
+    channel: action.channel,
+    fader: action.fader,
+    muted: action.muted,
+    name: action.name,
+  }));
+}
+
+function buildDisplayActionsFromState(displays: DisplayDevice[]): DisplayAction[] {
+  const actions: DisplayAction[] = [];
+
+  for (const display of displays) {
+    if (display.powerState === "on") {
+      actions.push({ displayId: display.id, command: "power_on", displayName: display.name });
+    } else if (display.powerState === "off") {
+      actions.push({ displayId: display.id, command: "power_off", displayName: display.name });
+    }
+
+    if (typeof display.volume === "number") {
+      actions.push({ displayId: display.id, command: "set_volume", value: display.volume, displayName: display.name });
+    }
+
+    actions.push({ displayId: display.id, command: display.muted ? "mute" : "unmute", displayName: display.name });
+
+    if (display.inputSource) {
+      actions.push({ displayId: display.id, command: "set_input", value: display.inputSource, displayName: display.name });
+    }
+  }
+
+  return actions;
+}
+
+function sceneHasSection(draft: SceneDraft, section: SceneTestSection) {
+  if (section === "atem") return Boolean(draft.atemState) || draft.atemInputId !== null;
+  if (section === "obs") return Boolean(draft.obsSceneName.trim());
+  if (section === "ptz") return draft.cameraId !== null && draft.presetNumber !== null;
+  if (section === "mixer") return draft.mixerActions.length > 0;
+  if (section === "hue") return draft.hueActions.length > 0;
+  return draft.displayActions.length > 0;
+}
+
+function StatusBadge({ label, online }: { label: string; online: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium",
+        online
+          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+          : "bg-slate-500/15 text-slate-600 dark:text-slate-300",
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
+function SectionCard({
+  title,
+  description,
+  icon,
+  actions,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon: React.ReactNode;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950/70">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+            <span className="text-cyan-500">{icon}</span>
+            {title}
+          </div>
+          {description ? <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p> : null}
+        </div>
+        {actions}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MixerActionEditor({
+  action,
+  onUpdate,
+  onRemove,
+}: {
+  action: MixerAction;
+  onUpdate: (updates: Partial<MixerAction>) => void;
   onRemove: () => void;
 }) {
-  const { data: scenes = [] } = useQuery<{ id: string; name: string; group?: string }[]>({
-    queryKey: [`/api/hue/bridges/${action.bridgeId}/scenes`],
-    enabled: !!action.bridgeId,
-  });
-  const { data: groups = [] } = useQuery<{ id: string; name: string }[]>({
-    queryKey: [`/api/hue/bridges/${action.bridgeId}/groups`],
-    enabled: !!action.bridgeId,
-  });
-  const selectedBridge = bridges.find((bridge) => bridge.id === action.bridgeId);
-  const groupNames = new Map(groups.map((group) => [group.id, group.name]));
-  const sortedScenes = [...scenes].sort((a, b) => {
-    const groupA = groupNames.get(a.group || "") || "Ungrouped";
-    const groupB = groupNames.get(b.group || "") || "Ungrouped";
-    return `${groupA} ${a.name}`.localeCompare(`${groupB} ${b.name}`);
-  });
-
   return (
-    <div className="bg-slate-300 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-yellow-600 dark:text-yellow-400 font-mono flex items-center gap-1">
-          <Lightbulb className="w-3 h-3" />Activate Scene
-        </span>
-        <button onClick={onRemove} className="text-red-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>
+    <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+            {action.name || "Mixer Action"}
+          </div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">
+            {action.section.toUpperCase()} {action.channel}
+          </div>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+          <Trash2 className="h-4 w-4 text-red-500" />
+        </Button>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+
+      <div className="grid gap-3 md:grid-cols-[1fr_100px_1fr_auto] md:items-end">
         <div>
-          <Label className="text-xs">Bridge</Label>
-          <Select value={action.bridgeId?.toString() || ""} onValueChange={(v) => onUpdate({ bridgeId: parseInt(v), sceneId: "", groupId: undefined })}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
-            <SelectContent>{bridges.map(b => <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>)}</SelectContent>
-          </Select>
-          {selectedBridge && (
-            <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Status: {selectedBridge.status || "unknown"}</p>
-          )}
-        </div>
-        <div>
-          <Label className="text-xs">Scene</Label>
-          <Select value={action.sceneId || ""} onValueChange={(v) => {
-            const scene = scenes.find((candidate) => candidate.id === v);
-            onUpdate({ sceneId: v, groupId: scene?.group || action.groupId });
-          }} disabled={!action.bridgeId}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+          <Label className="text-xs">Section</Label>
+          <Select value={action.section} onValueChange={(value) => onUpdate({ section: value as MixerSection })}>
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {sortedScenes.map(s => {
-                const groupName = groupNames.get(s.group || "") || "Ungrouped";
-                return <SelectItem key={s.id} value={s.id}>{groupName} / {s.name}</SelectItem>;
-              })}
+              {MIXER_SECTION_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
+
         <div>
-          <Label className="text-xs">Room (optional)</Label>
-          <Select value={action.groupId || "_all"} onValueChange={(v) => onUpdate({ groupId: v === "_all" ? undefined : v })}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_all">All lights</SelectItem>
-              {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Label className="text-xs">Channel</Label>
+          <Input
+            className="mt-1"
+            type="number"
+            min={1}
+            value={action.channel}
+            onChange={(event) => onUpdate({ channel: Math.max(1, Number.parseInt(event.target.value, 10) || 1) })}
+          />
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <span>Fader</span>
+            <span>{Math.round((action.fader ?? 0.75) * 100)}%</span>
+          </div>
+          <Slider
+            value={[action.fader ?? 0.75]}
+            min={0}
+            max={1}
+            step={0.01}
+            onValueChange={([value]) => onUpdate({ fader: value })}
+          />
+        </div>
+
+        <div className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
+          <Label className="text-xs">Mute</Label>
+          <Switch checked={Boolean(action.muted)} onCheckedChange={(checked) => onUpdate({ muted: checked })} />
         </div>
       </div>
     </div>
   );
 }
 
-function DisplayActionRow({ action, displays, onUpdate, onRemove }: {
+function HueActionRow({
+  action,
+  bridges,
+  onUpdate,
+  onRemove,
+}: {
+  action: HueSceneAction;
+  bridges: HueBridgeSummary[];
+  onUpdate: (updates: Partial<HueSceneAction>) => void;
+  onRemove: () => void;
+}) {
+  const bridgeId = action.bridgeId || 0;
+
+  const { data: groups = [] } = useQuery<HueGroup[]>({
+    queryKey: [`/api/hue/bridges/${bridgeId}/groups`],
+    enabled: bridgeId > 0,
+  });
+
+  const { data: scenes = [] } = useQuery<HueScene[]>({
+    queryKey: [`/api/hue/bridges/${bridgeId}/scenes`],
+    enabled: bridgeId > 0 && action.type === "scene",
+  });
+
+  const { data: lights = [] } = useQuery<HueLight[]>({
+    queryKey: [`/api/hue/bridges/${bridgeId}/lights`],
+    enabled: bridgeId > 0 && action.type === "light",
+  });
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+          Lighting Cue
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+          <Trash2 className="h-4 w-4 text-red-500" />
+        </Button>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <Label className="text-xs">Bridge</Label>
+          <Select
+            value={bridgeId > 0 ? String(bridgeId) : "0"}
+            onValueChange={(value) => onUpdate({ bridgeId: Number.parseInt(value, 10), sceneId: undefined, groupId: undefined, lightId: undefined })}
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Select bridge" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Select bridge</SelectItem>
+              {bridges.map((bridge) => (
+                <SelectItem key={bridge.id} value={String(bridge.id)}>
+                  {bridge.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-xs">Action Type</Label>
+          <Select
+            value={action.type}
+            onValueChange={(value) =>
+              onUpdate({
+                type: value as HueActionType,
+                sceneId: undefined,
+                groupId: undefined,
+                lightId: undefined,
+                on: value === "scene" ? undefined : true,
+                brightness: value === "scene" ? undefined : 200,
+              })
+            }
+          >
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="scene">Recall scene</SelectItem>
+              <SelectItem value="group">Set room state</SelectItem>
+              <SelectItem value="light">Set light state</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {action.type === "scene" ? (
+          <div>
+            <Label className="text-xs">Scene</Label>
+            <Select value={action.sceneId || "none"} onValueChange={(value) => onUpdate({ sceneId: value === "none" ? undefined : value })}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select scene" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Select scene</SelectItem>
+                {scenes.map((scene) => (
+                  <SelectItem key={scene.id} value={scene.id}>
+                    {scene.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : action.type === "group" ? (
+          <div>
+            <Label className="text-xs">Room</Label>
+            <Select value={action.groupId || "none"} onValueChange={(value) => onUpdate({ groupId: value === "none" ? undefined : value })}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select room" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Select room</SelectItem>
+                {groups.map((group) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <div>
+            <Label className="text-xs">Light</Label>
+            <Select value={action.lightId || "none"} onValueChange={(value) => onUpdate({ lightId: value === "none" ? undefined : value })}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select light" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Select light</SelectItem>
+                {lights.map((light) => (
+                  <SelectItem key={light.id} value={light.id}>
+                    {light.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {action.type !== "scene" ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-[auto_1fr_110px] md:items-center">
+          <div className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
+            <Label className="text-xs">On</Label>
+            <Switch checked={Boolean(action.on)} onCheckedChange={(checked) => onUpdate({ on: checked })} />
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <span>Brightness</span>
+              <span>{Math.round(((action.brightness ?? 200) / 254) * 100)}%</span>
+            </div>
+            <Slider
+              value={[action.brightness ?? 200]}
+              min={1}
+              max={254}
+              step={1}
+              onValueChange={([value]) => onUpdate({ brightness: value })}
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs">Color Temp</Label>
+            <Input
+              className="mt-1"
+              type="number"
+              min={153}
+              max={500}
+              value={action.colorTemp ?? ""}
+              placeholder="Optional"
+              onChange={(event) =>
+                onUpdate({
+                  colorTemp: event.target.value ? Number.parseInt(event.target.value, 10) : undefined,
+                })
+              }
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function DisplayActionRow({
+  action,
+  displays,
+  onUpdate,
+  onRemove,
+}: {
   action: DisplayAction;
   displays: DisplayDevice[];
-  onUpdate: (u: Partial<DisplayAction>) => void;
+  onUpdate: (updates: Partial<DisplayAction>) => void;
   onRemove: () => void;
 }) {
   const needsValue = action.command === "set_volume" || action.command === "set_input" || action.command === "custom";
-  const selectedDisplay = displays.find((display) => display.id === action.displayId);
 
   return (
-    <div className="bg-slate-300 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-cyan-600 dark:text-cyan-400 font-mono flex items-center gap-1">
-          <Monitor className="w-3 h-3" />Display Command
-        </span>
-        <button onClick={onRemove} className="text-red-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>
+    <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+          Display Command
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+          <Trash2 className="h-4 w-4 text-red-500" />
+        </Button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+
+      <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label className="text-xs">Display</Label>
-          <Select value={action.displayId?.toString() || "0"} onValueChange={(v) => onUpdate({ displayId: parseInt(v) })}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+          <Select value={String(action.displayId || 0)} onValueChange={(value) => onUpdate({ displayId: Number.parseInt(value, 10) })}>
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="0">Select display</SelectItem>
-              {displays.map((display) => <SelectItem key={display.id} value={display.id.toString()}>{display.name}</SelectItem>)}
+              {displays.map((display) => (
+                <SelectItem key={display.id} value={String(display.id)}>
+                  {display.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          {selectedDisplay && (
-            <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">Status: {selectedDisplay.status}</p>
-          )}
         </div>
+
         <div>
           <Label className="text-xs">Command</Label>
-          <Select value={action.command} onValueChange={(v) => onUpdate({ command: v as DisplayAction["command"], value: undefined })}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <Select value={action.command} onValueChange={(value) => onUpdate({ command: value as DisplayAction["command"], value: undefined })}>
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="power_on">Power On</SelectItem>
               <SelectItem value="power_off">Power Off</SelectItem>
@@ -223,58 +847,103 @@ function DisplayActionRow({ action, displays, onUpdate, onRemove }: {
           </Select>
         </div>
       </div>
-      {needsValue && (
-        <div className="grid grid-cols-1 gap-2">
+
+      {needsValue ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
           <div>
-            <Label className="text-xs">{action.command === "set_volume" ? "Volume" : action.command === "set_input" ? "Input Source" : "Value"}</Label>
+            <Label className="text-xs">
+              {action.command === "set_volume" ? "Volume" : action.command === "set_input" ? "Input" : "Value"}
+            </Label>
             <Input
+              className="mt-1"
               type={action.command === "set_volume" ? "number" : "text"}
               min={0}
               max={100}
               value={action.value?.toString() || ""}
-              onChange={(e) => onUpdate({ value: action.command === "set_volume" ? parseInt(e.target.value) || 0 : e.target.value })}
-              placeholder={action.command === "set_input" ? "HDMI1" : undefined}
-              className="h-8 text-xs"
+              onChange={(event) =>
+                onUpdate({
+                  value: action.command === "set_volume" ? Number.parseInt(event.target.value, 10) || 0 : event.target.value,
+                })
+              }
             />
           </div>
-          {action.command === "custom" && (
-            <div className="grid grid-cols-2 gap-2">
+
+          {action.command === "custom" ? (
+            <div className="grid gap-3 md:grid-cols-2">
               <div>
                 <Label className="text-xs">Capability</Label>
-                <Input value={action.capability || ""} onChange={(e) => onUpdate({ capability: e.target.value })} placeholder="switch" className="h-8 text-xs" />
+                <Input className="mt-1" value={action.capability || ""} onChange={(event) => onUpdate({ capability: event.target.value })} />
               </div>
               <div>
                 <Label className="text-xs">Command</Label>
-                <Input value={action.smartthingsCommand || ""} onChange={(e) => onUpdate({ smartthingsCommand: e.target.value })} placeholder="on" className="h-8 text-xs" />
+                <Input className="mt-1" value={action.smartthingsCommand || ""} onChange={(event) => onUpdate({ smartthingsCommand: event.target.value })} />
               </div>
             </div>
-          )}
+          ) : null}
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SceneRow({
+  scene,
+  selected,
+  active,
+  preview,
+  onSelect,
+  onRecall,
+}: {
+  scene: SceneButton;
+  selected: boolean;
+  active: boolean;
+  preview: string[];
+  onSelect: () => void;
+  onRecall: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border p-3 transition-all",
+        selected
+          ? "border-cyan-500/50 bg-cyan-500/10 shadow-[0_0_0_1px_rgba(6,182,212,0.15)]"
+          : "border-slate-200/70 bg-white/70 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950/60 dark:hover:border-slate-700",
       )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: scene.color }} />
+            <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">{scene.name}</span>
+          </div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Slot {scene.buttonNumber} · {getSceneGroupName(scene)}
+          </div>
+          <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            {preview[0]}
+          </div>
+        </button>
+        <Button type="button" size="sm" variant={active ? "default" : "outline"} onClick={onRecall}>
+          <Play className="mr-1 h-3.5 w-3.5" />
+          Go
+        </Button>
+      </div>
     </div>
   );
 }
 
 export default function ScenesPage() {
   const queryClient = useQueryClient();
+  const [selectedSceneId, setSelectedSceneId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<SceneDraft | null>(null);
   const [activeSceneId, setActiveSceneId] = useState<number | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editingButton, setEditingButton] = useState<SceneButton | null>(null);
+  const [captureDialogOpen, setCaptureDialogOpen] = useState(false);
+  const [captureDraft, setCaptureDraft] = useState<SceneCaptureDraft | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<SceneTab>("overview");
   const [operatorLocked, setOperatorLocked] = useState(() => localStorage.getItem("ptzcommand:operator-lock") === "locked");
-  const [formData, setFormData] = useState<SceneFormData>({
-    buttonNumber: 1,
-    name: "",
-    groupName: "General",
-    color: "#06b6d4",
-    atemInputId: null as number | null,
-    atemTransitionType: "cut",
-    obsSceneName: "",
-    cameraId: null as number | null,
-    presetNumber: null as number | null,
-    mixerActions: [] as MixerAction[],
-    hueActions: [] as HueSceneAction[],
-    displayActions: [] as DisplayAction[],
-  });
+  const deferredSearch = useDeferredValue(search);
 
   const { data: sceneButtons = [] } = useQuery({
     queryKey: ["sceneButtons"],
@@ -286,13 +955,19 @@ export default function ScenesPage() {
     queryFn: cameraApi.getAll,
   });
 
-  const { data: hueBridges = [] } = useQuery<{ id: number; name: string; status: string }[]>({
-    queryKey: ["/api/hue/bridges"],
-  });
-
   const { data: displays = [] } = useQuery({
     queryKey: ["displays"],
     queryFn: displayApi.getAll,
+  });
+
+  const { data: mixers = [] } = useQuery({
+    queryKey: ["mixers"],
+    queryFn: mixerApi.getAll,
+  });
+
+  const { data: switchers = [] } = useQuery({
+    queryKey: ["switchers"],
+    queryFn: switcherApi.getAll,
   });
 
   const { data: obsConnections = [] } = useQuery({
@@ -300,75 +975,192 @@ export default function ScenesPage() {
     queryFn: obsApi.getAll,
   });
 
+  const { data: hueBridges = [] } = useQuery<HueBridgeSummary[]>({
+    queryKey: ["/api/hue/bridges"],
+  });
+
+  const switcher = switchers[0] ?? null;
+  const mixer = mixers[0] ?? null;
   const obsConnection = obsConnections[0] ?? null;
 
-  const { data: obsScenesResult } = useQuery({
+  const { data: switcherStatus } = useQuery<AtemState>({
+    queryKey: ["switcher-status", switcher?.id],
+    queryFn: () => switcherApi.getStatus(switcher!.id),
+    enabled: Boolean(switcher),
+  });
+
+  const { data: obsScenesResult } = useQuery<{ scenes: ObsScene[]; state: { currentProgramScene?: string | null } }>({
     queryKey: ["obs-scenes", obsConnection?.id],
     queryFn: () => obsApi.getScenes(obsConnection!.id),
-    enabled: editOpen && !!obsConnection,
+    enabled: Boolean(obsConnection),
     retry: false,
   });
 
-  const obsSceneOptions = obsScenesResult?.scenes ?? [];
+  const { data: selectedCameraPresets = [] } = useQuery<Preset[]>({
+    queryKey: ["scene-camera-presets", draft?.cameraId],
+    queryFn: () => draft?.cameraId ? cameraApi.getPresets(draft.cameraId) : Promise.resolve([]),
+    enabled: Boolean(draft?.cameraId),
+  });
+
   const obsSceneNames = useMemo(() => {
-    const names = obsSceneOptions.map((scene) => scene.sceneName);
-    if (formData.obsSceneName && !names.includes(formData.obsSceneName)) {
-      return [formData.obsSceneName, ...names];
-    }
-    return names;
-  }, [formData.obsSceneName, obsSceneOptions]);
+    const liveScenes = obsScenesResult?.scenes?.map((scene) => scene.sceneName) || [];
+    if (!draft?.obsSceneName) return liveScenes;
+    return liveScenes.includes(draft.obsSceneName) ? liveScenes : [draft.obsSceneName, ...liveScenes];
+  }, [draft?.obsSceneName, obsScenesResult?.scenes]);
 
-  const sceneGroups = useMemo(() => {
+  const scenePreviewById = useMemo(() => {
+    const previewEntries: Array<[number, string[]]> = sceneButtons.map((scene) => [
+      scene.id,
+      getScenePreview(sceneToDraft(scene), cameras, [], displays),
+    ]);
+    return new Map<number, string[]>(previewEntries);
+  }, [cameras, displays, sceneButtons]);
+
+  const filteredSceneGroups = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+    const filtered = query
+      ? sceneButtons.filter((scene) =>
+          [scene.name, getSceneGroupName(scene), scene.buttonNumber.toString()].some((value) => value.toLowerCase().includes(query)),
+        )
+      : sceneButtons;
+
     const groups = new Map<string, SceneButton[]>();
-    for (const button of sceneButtons) {
-      const groupName = getSceneGroupName(button);
-      groups.set(groupName, [...(groups.get(groupName) || []), button]);
+    for (const scene of filtered) {
+      const groupName = getSceneGroupName(scene);
+      groups.set(groupName, [...(groups.get(groupName) || []), scene]);
     }
+
     return Array.from(groups.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, buttons]) => ({ name, buttons }));
-  }, [sceneButtons]);
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([name, scenes]) => ({ name, scenes }));
+  }, [deferredSearch, sceneButtons]);
 
-  const groupNameOptions = useMemo(() => {
-    return Array.from(new Set(["General", ...sceneButtons.map(getSceneGroupName), formData.groupName || "General"]))
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b));
-  }, [formData.groupName, sceneButtons]);
+  const groupNameOptions = useMemo(
+    () =>
+      Array.from(new Set(["General", ...sceneButtons.map(getSceneGroupName), draft?.groupName || "General"]))
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right)),
+    [draft?.groupName, sceneButtons],
+  );
 
-  const previewItems = useMemo(() => getFormPreview(formData, cameras, displays), [formData, cameras, displays]);
+  const livePreview = useMemo(
+    () => draft ? getScenePreview(draft, cameras, selectedCameraPresets, displays) : ["Select or create a scene"],
+    [cameras, displays, draft, selectedCameraPresets],
+  );
 
   useEffect(() => {
     localStorage.setItem("ptzcommand:operator-lock", operatorLocked ? "locked" : "unlocked");
   }, [operatorLocked]);
 
+  useEffect(() => {
+    if (draft) return;
+    if (sceneButtons.length > 0) {
+      const firstScene = sceneButtons[0];
+      setSelectedSceneId(firstScene.id);
+      setDraft(sceneToDraft(firstScene));
+      return;
+    }
+    setDraft(createEmptyDraft(getNextButtonNumber(sceneButtons)));
+  }, [draft, sceneButtons]);
+
+  function updateDraft(updates: Partial<SceneDraft>) {
+    setDraft((current) => current ? { ...current, ...updates } : current);
+    setIsDirty(true);
+  }
+
+  function confirmSceneSwitch() {
+    return !isDirty || window.confirm("Discard unsaved scene changes?");
+  }
+
+  function selectScene(scene: SceneButton) {
+    if (!confirmSceneSwitch()) return;
+    startTransition(() => {
+      setSelectedSceneId(scene.id);
+      setDraft(sceneToDraft(scene));
+      setIsDirty(false);
+      setActiveTab("overview");
+    });
+  }
+
+  function startNewScene() {
+    if (operatorLocked) {
+      toast.info("Operator lock is on");
+      return;
+    }
+    if (!confirmSceneSwitch()) return;
+    const nextButtonNumber = getNextButtonNumber(sceneButtons);
+    startTransition(() => {
+      setSelectedSceneId(null);
+      setDraft(createEmptyDraft(nextButtonNumber));
+      setIsDirty(false);
+      setActiveTab("overview");
+    });
+  }
+
+  function updateCaptureDraft(updates: Partial<SceneCaptureDraft>) {
+    setCaptureDraft((current) => current ? { ...current, ...updates } : current);
+  }
+
+  function updateCaptureSections(section: SceneCaptureSection, checked: boolean) {
+    setCaptureDraft((current) =>
+      current
+        ? {
+            ...current,
+            sections: {
+              ...current.sections,
+              [section]: checked,
+            },
+          }
+        : current,
+    );
+  }
+
+  function openCaptureDialog() {
+    if (operatorLocked) {
+      toast.info("Operator lock is on");
+      return;
+    }
+
+    setCaptureDraft(createSceneCaptureDraft(sceneButtons, selectedSceneId));
+    setCaptureDialogOpen(true);
+  }
+
   const createMutation = useMutation({
     mutationFn: sceneButtonApi.create,
-    onSuccess: () => {
+    onSuccess: (scene) => {
       queryClient.invalidateQueries({ queryKey: ["sceneButtons"] });
-      setEditOpen(false);
-      toast.success("Scene button created");
+      setSelectedSceneId(scene.id);
+      setDraft(sceneToDraft(scene));
+      setIsDirty(false);
+      toast.success(`Scene "${scene.name}" created`);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: Partial<SceneButton> }) =>
-      sceneButtonApi.update(id, updates),
-    onSuccess: () => {
+    mutationFn: ({ id, updates }: { id: number; updates: Partial<SceneButton> }) => sceneButtonApi.update(id, updates),
+    onSuccess: (scene) => {
       queryClient.invalidateQueries({ queryKey: ["sceneButtons"] });
-      setEditOpen(false);
-      toast.success("Scene button updated");
+      setSelectedSceneId(scene.id);
+      setDraft(sceneToDraft(scene));
+      setIsDirty(false);
+      toast.success(`Scene "${scene.name}" saved`);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: sceneButtonApi.delete,
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ["sceneButtons"] });
-      toast.success("Scene button deleted");
+      const remaining = sceneButtons.filter((scene) => scene.id !== id);
+      const nextScene = remaining[0];
+      setSelectedSceneId(nextScene?.id ?? null);
+      setDraft(nextScene ? sceneToDraft(nextScene) : createEmptyDraft(getNextButtonNumber(remaining)));
+      setIsDirty(false);
+      toast.success("Scene deleted");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const executeMutation = useMutation({
@@ -376,674 +1168,1144 @@ export default function ScenesPage() {
       setActiveSceneId(id);
       return sceneButtonApi.execute(id);
     },
-    onSuccess: (data) => {
-      toast.success("Scene executed", {
+    onSuccess: (data, id) => {
+      setActiveSceneId(id);
+      toast.success("Scene recalled", {
         description: data.results.join("\n"),
         duration: 5000,
       });
     },
-    onError: (e: Error) => toast.error("Scene failed", { description: e.message, duration: 5000 }),
+    onError: (error: Error) => toast.error("Scene recall failed", { description: error.message }),
   });
 
   const testMutation = useMutation({
     mutationFn: (section: SceneTestSection) => {
-      if (!editingButton) throw new Error("Save the scene before testing hardware");
-      return sceneButtonApi.test(editingButton.id, section);
+      if (!selectedSceneId) throw new Error("Save the scene before testing hardware");
+      return sceneButtonApi.test(selectedSceneId, section);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["undo-status"] });
-      toast.success("Scene test complete", {
+    onSuccess: (data, section) => {
+      toast.success(`${section.toUpperCase()} test complete`, {
         description: data.results.join("\n"),
         duration: 5000,
       });
     },
-    onError: (e: Error) => toast.error("Scene test failed", { description: e.message, duration: 5000 }),
+    onError: (error: Error) => toast.error("Scene test failed", { description: error.message }),
   });
 
-  const openCreate = () => {
+  const captureMutation = useMutation({
+    mutationFn: sceneButtonApi.capture,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["sceneButtons"] });
+      setSelectedSceneId(data.scene.id);
+      setDraft(sceneToDraft(data.scene));
+      setIsDirty(false);
+      setActiveTab("overview");
+      setCaptureDialogOpen(false);
+      toast.success(data.mode === "merge" ? `Merged live state into "${data.scene.name}"` : `Created "${data.scene.name}" from live state`, {
+        description: [...data.results, ...data.warnings].join("\n"),
+        duration: 7000,
+      });
+    },
+    onError: (error: Error) => toast.error("Capture failed", { description: error.message }),
+  });
+
+  async function saveScene() {
+    if (!draft) return;
     if (operatorLocked) {
       toast.info("Operator lock is on");
       return;
     }
-    const nextNum = sceneButtons.length > 0
-      ? Math.max(...sceneButtons.map(b => b.buttonNumber)) + 1
-      : 1;
-    setEditingButton(null);
-    setFormData({
-      buttonNumber: nextNum,
-      name: "",
-      groupName: "General",
-      color: COLORS[(nextNum - 1) % COLORS.length],
-      atemInputId: null,
-      atemTransitionType: "cut",
-      obsSceneName: "",
-      cameraId: null,
-      presetNumber: null,
-      mixerActions: [],
-      hueActions: [],
-      displayActions: [],
-    });
-    setEditOpen(true);
-  };
 
-  const openEdit = (btn: SceneButton) => {
-    if (operatorLocked) {
-      toast.info("Operator lock is on");
-      return;
-    }
-    setEditingButton(btn);
-    let mixerActions: MixerAction[] = [];
-    try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
-    let hueActions: HueSceneAction[] = [];
-    try { if (btn.hueActions) hueActions = JSON.parse(btn.hueActions); } catch {}
-    let displayActions: DisplayAction[] = [];
-    try { if (btn.displayActions) displayActions = JSON.parse(btn.displayActions); } catch {}
-    setFormData({
-      buttonNumber: btn.buttonNumber,
-      name: btn.name,
-      groupName: getSceneGroupName(btn),
-      color: btn.color,
-      atemInputId: btn.atemInputId,
-      atemTransitionType: btn.atemTransitionType || "cut",
-      obsSceneName: btn.obsSceneName || "",
-      cameraId: btn.cameraId,
-      presetNumber: btn.presetNumber,
-      mixerActions,
-      hueActions,
-      displayActions,
-    });
-    setEditOpen(true);
-  };
-
-  const handleSave = () => {
-    if (operatorLocked) {
-      toast.info("Operator lock is on");
-      return;
-    }
-    const validDisplayActions = formData.displayActions.filter((action) => action.displayId > 0 && action.command);
-    const payload = {
-      buttonNumber: formData.buttonNumber,
-      name: formData.name || `Scene ${formData.buttonNumber}`,
-      groupName: formData.groupName.trim() || "General",
-      color: formData.color,
-      atemInputId: formData.atemInputId,
-      atemTransitionType: formData.atemTransitionType,
-      obsSceneName: formData.obsSceneName.trim() || null,
-      cameraId: formData.cameraId,
-      presetNumber: formData.presetNumber,
-      mixerActions: formData.mixerActions.length > 0
-        ? JSON.stringify(formData.mixerActions)
-        : null,
-      hueActions: formData.hueActions.length > 0
-        ? JSON.stringify(formData.hueActions)
-        : null,
-      displayActions: validDisplayActions.length > 0
-        ? JSON.stringify(validDisplayActions)
-        : null,
-    };
-
-    if (editingButton) {
-      updateMutation.mutate({ id: editingButton.id, updates: payload });
+    const payload = serializeDraft(draft);
+    if (selectedSceneId) {
+      updateMutation.mutate({ id: selectedSceneId, updates: payload });
     } else {
       createMutation.mutate(payload);
     }
-  };
+  }
 
-  const addMixerAction = () => {
-    setFormData(prev => ({
-      ...prev,
-      mixerActions: [...prev.mixerActions, { section: "ch", channel: 1, fader: 0.75, muted: false }],
-    }));
-  };
+  function captureCurrentStateAsScene() {
+    if (!captureDraft) return;
 
-  const updateMixerAction = (index: number, updates: Partial<MixerAction>) => {
-    setFormData(prev => ({
-      ...prev,
-      mixerActions: prev.mixerActions.map((a, i) => i === index ? { ...a, ...updates } : a),
-    }));
-  };
+    const sections = CAPTURE_SECTION_OPTIONS
+      .filter((section) => captureDraft.sections[section.value])
+      .map((section) => section.value);
 
-  const removeMixerAction = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      mixerActions: prev.mixerActions.filter((_, i) => i !== index),
-    }));
-  };
+    if (sections.length === 0) {
+      toast.error("Pick at least one section to capture");
+      return;
+    }
 
-  const addHueAction = () => {
-    setFormData(prev => ({
-      ...prev,
-      hueActions: [...prev.hueActions, { type: "scene", bridgeId: 0, sceneId: "" }],
-    }));
-  };
+    if (captureDraft.mode === "merge" && !captureDraft.targetSceneId) {
+      toast.error("Choose a scene to merge into");
+      return;
+    }
 
-  const updateHueAction = (index: number, updates: Partial<HueSceneAction>) => {
-    setFormData(prev => ({
-      ...prev,
-      hueActions: prev.hueActions.map((a, i) => i === index ? { ...a, ...updates } : a),
-    }));
-  };
+    captureMutation.mutate({
+      mode: captureDraft.mode,
+      targetSceneId: captureDraft.mode === "merge" ? captureDraft.targetSceneId || undefined : undefined,
+      sections,
+      scene: captureDraft.mode === "create"
+        ? {
+            name: captureDraft.name.trim() || undefined,
+            buttonNumber: captureDraft.buttonNumber,
+            groupName: captureDraft.groupName.trim() || undefined,
+            color: captureDraft.color,
+          }
+        : undefined,
+    });
+  }
 
-  const removeHueAction = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      hueActions: prev.hueActions.filter((_, i) => i !== index),
-    }));
-  };
+  async function captureSwitcherState() {
+    if (!switcher || !switcherStatus?.connected) {
+      toast.error("Connect the ATEM switcher first");
+      return;
+    }
+    updateDraft({
+      atemState: buildAtemStateFromStatus(switcherStatus),
+      atemInputId: switcherStatus.programInput || null,
+    });
+    toast.success("Captured live switcher state");
+  }
 
-  const addDisplayAction = () => {
-    setFormData(prev => ({
-      ...prev,
-      displayActions: [...prev.displayActions, { displayId: displays[0]?.id || 0, command: "power_on" }],
-    }));
-  };
+  async function captureObsState() {
+    const sceneName = obsScenesResult?.state?.currentProgramScene || obsConnection?.currentProgramScene;
+    if (!sceneName) {
+      toast.error("No live OBS program scene available");
+      return;
+    }
+    updateDraft({ obsSceneName: sceneName });
+    toast.success(`Captured OBS scene "${sceneName}"`);
+  }
 
-  const updateDisplayAction = (index: number, updates: Partial<DisplayAction>) => {
-    setFormData(prev => ({
-      ...prev,
-      displayActions: prev.displayActions.map((action, i) => i === index ? { ...action, ...updates } : action),
-    }));
-  };
+  async function captureMixerState() {
+    if (!mixer) {
+      toast.error("Add a mixer first");
+      return;
+    }
+    try {
+      const status = await mixerApi.getStatus(mixer.id);
+      const actions = buildMixerActionsFromStatus(status as MixerStatusResponse);
+      updateDraft({ mixerActions: actions });
+      toast.success(`Captured ${actions.length} mixer channel actions`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to capture mixer state");
+    }
+  }
 
-  const removeDisplayAction = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      displayActions: prev.displayActions.filter((_, i) => i !== index),
-    }));
-  };
+  async function captureLightingState() {
+    if (hueBridges.length === 0) {
+      toast.error("Add a Hue bridge first");
+      return;
+    }
+
+    try {
+      const bridgeSnapshots = await Promise.all(
+        hueBridges.map(async (bridge) => {
+          const response = await fetch(`/api/hue/bridges/${bridge.id}/groups`);
+          if (!response.ok) throw new Error(`Failed to read groups from ${bridge.name}`);
+          const groups = await response.json() as HueGroup[];
+          return groups.map((group) => ({
+            type: "group" as const,
+            bridgeId: bridge.id,
+            groupId: group.id,
+            on: group.on,
+            brightness: group.brightness,
+          }));
+        }),
+      );
+
+      const actions = bridgeSnapshots.flat();
+      updateDraft({ hueActions: actions });
+      toast.success(`Captured ${actions.length} live lighting groups`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to capture lighting state");
+    }
+  }
+
+  async function captureDisplayState() {
+    if (displays.length === 0) {
+      toast.error("Add a display first");
+      return;
+    }
+    const actions = buildDisplayActionsFromState(displays);
+    updateDraft({ displayActions: actions });
+    toast.success(`Captured ${actions.length} display commands from current state`);
+  }
+
+  if (!draft) {
+    return (
+      <AppLayout activePage="/scenes">
+        <main className="flex flex-1 items-center justify-center">
+          <div className="text-sm text-slate-500">Loading scenes...</div>
+        </main>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout
       activePage="/scenes"
       headerRight={
-        <Button
-          variant={operatorLocked ? "default" : "outline"}
-          size="sm"
-          onClick={() => setOperatorLocked((locked) => !locked)}
-          data-testid="button-operator-lock"
-        >
-          {operatorLocked ? <Lock className="w-3 h-3 mr-1" /> : <Unlock className="w-3 h-3 mr-1" />}
+        <Button variant={operatorLocked ? "default" : "outline"} size="sm" onClick={() => setOperatorLocked((locked) => !locked)}>
+          {operatorLocked ? <Lock className="mr-1.5 h-3.5 w-3.5" /> : <Unlock className="mr-1.5 h-3.5 w-3.5" />}
           {operatorLocked ? "Locked" : "Operator Lock"}
         </Button>
       }
     >
-      <main className="flex-1 p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Zap className="w-5 h-5 text-cyan-500" /> Scene Buttons
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Programmable buttons that trigger combined OBS, ATEM, mixer, lighting, display, and PTZ actions in one press.
-            </p>
-          </div>
-          <Button onClick={openCreate} disabled={operatorLocked} data-testid="button-add-scene">
-            <Plus className="w-4 h-4 mr-2" /> Add Scene Button
-          </Button>
-        </div>
-
-        {operatorLocked && (
-          <div className="border border-amber-500/40 bg-amber-500/10 rounded-lg px-4 py-3 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-            <Lock className="w-4 h-4" />
-            Operator lock is on. Scene execution remains available; editing and deletion are disabled.
-          </div>
-        )}
-
-        {sceneButtons.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-16 text-center">
-            <Zap className="w-12 h-12 text-slate-400 dark:text-slate-700 mx-auto mb-4" />
-            <p className="text-slate-500 mb-2">No scene buttons configured yet</p>
-            <p className="text-sm text-slate-500 dark:text-slate-600 mb-6">Create a scene button to trigger combined actions across OBS, your ATEM switcher, audio mixer, and PTZ cameras.</p>
-            <Button onClick={openCreate} disabled={operatorLocked} data-testid="button-add-first-scene">
-              <Plus className="w-4 h-4 mr-2" /> Create Your First Scene
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {sceneGroups.map((group) => (
-              <section key={group.name} className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                  <Folder className="w-4 h-4 text-cyan-500" />
-                  {group.name}
-                  <span className="text-xs text-slate-400 dark:text-slate-500">({group.buttons.length})</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {group.buttons.map((btn) => {
-                    let mixerActions: MixerAction[] = [];
-                    try { if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions); } catch {}
-                    let hueActionCount = 0;
-                    try { if (btn.hueActions) hueActionCount = JSON.parse(btn.hueActions).length; } catch {}
-                    let displayActionCount = 0;
-                    try { if (btn.displayActions) displayActionCount = JSON.parse(btn.displayActions).length; } catch {}
-                    const isActive = activeSceneId === btn.id;
-
-                    return (
-                      <div key={btn.id} className="relative group">
-                        <button
-                          onClick={() => executeMutation.mutate(btn.id)}
-                          disabled={executeMutation.isPending}
-                          className={cn(
-                            "w-full rounded-xl font-bold text-sm transition-all",
-                            "hover:scale-105 hover:shadow-lg active:scale-95",
-                            "border-2 flex flex-col items-center justify-center gap-1 p-4"
-                          )}
-                          style={{
-                            backgroundColor: isActive ? btn.color : `${btn.color}15`,
-                            borderColor: btn.color,
-                            color: isActive ? '#000' : btn.color,
-                            boxShadow: isActive ? `0 0 30px ${btn.color}60` : `0 0 20px ${btn.color}20`,
-                          }}
-                          data-testid={`button-scene-execute-${btn.id}`}
-                        >
-                          <Play className="w-5 h-5 mb-1" style={{ color: isActive ? '#000' : btn.color }} />
-                          <span className="text-base">{btn.name}</span>
-                          <div className="flex flex-wrap gap-1 mt-2 justify-center">
-                            {btn.atemInputId !== null && (
-                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
-                                ATEM:{btn.atemInputId}
-                              </span>
-                            )}
-                            {btn.obsSceneName && (
-                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-indigo-200/80 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300")}>
-                                OBS
-                              </span>
-                            )}
-                            {btn.cameraId !== null && btn.presetNumber !== null && (
-                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
-                                CAM:{btn.cameraId} P{(btn.presetNumber ?? 0) + 1}
-                              </span>
-                            )}
-                            {mixerActions.length > 0 && (
-                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
-                                MIX:{mixerActions.length}ch
-                              </span>
-                            )}
-                            {hueActionCount > 0 && (
-                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-yellow-200/80 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400")}>
-                                HUE:{hueActionCount}
-                              </span>
-                            )}
-                            {displayActionCount > 0 && (
-                              <span className={cn("text-[10px] px-1.5 py-0.5 rounded", isActive ? "bg-black/20 text-black/70" : "bg-cyan-200/80 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-400")}>
-                                TV:{displayActionCount}
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                        {!operatorLocked && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openEdit(btn); }}
-                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-300/80 dark:bg-slate-900/80 rounded p-1.5"
-                            data-testid={`button-scene-edit-${btn.id}`}
-                          >
-                            <Settings className="w-3.5 h-3.5 text-slate-400" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
-      </main>
-
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <Dialog open={captureDialogOpen} onOpenChange={setCaptureDialogOpen}>
+        <DialogContent className="max-w-3xl border-slate-200 bg-white/95 dark:border-slate-800 dark:bg-slate-950/95">
           <DialogHeader>
-            <DialogTitle>{editingButton ? "Edit Scene Button" : "Create Scene Button"}</DialogTitle>
+            <DialogTitle>Capture Current State As Scene</DialogTitle>
+            <DialogDescription>
+              Take one server-side snapshot of the live room state, then save it as a new scene or merge the selected sections into an existing one.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Name</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
-                  placeholder={`Scene ${formData.buttonNumber}`}
-                  data-testid="input-scene-name"
-                />
-              </div>
-              <div>
-                <Label>Button #</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={formData.buttonNumber}
-                  onChange={(e) => setFormData(p => ({ ...p, buttonNumber: parseInt(e.target.value) || 1 }))}
-                  data-testid="input-scene-number"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Group</Label>
-              <Input
-                value={formData.groupName}
-                onChange={(e) => setFormData(p => ({ ...p, groupName: e.target.value }))}
-                placeholder={groupNameOptions[0] || "General"}
-                list="scene-group-options"
-                data-testid="input-scene-group"
-              />
-              <datalist id="scene-group-options">
-                {groupNameOptions.map((name) => <option key={name} value={name} />)}
-              </datalist>
-            </div>
-
-            <div>
-              <Label>Color</Label>
-              <div className="flex gap-2 mt-1">
-                {COLORS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setFormData(p => ({ ...p, color: c }))}
-                    className={cn(
-                      "w-7 h-7 rounded-full border-2 transition-all",
-                      formData.color === c ? "border-slate-900 dark:border-white scale-110" : "border-transparent"
-                    )}
-                    style={{ backgroundColor: c }}
-                    data-testid={`button-color-${c}`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="border border-cyan-500/30 bg-cyan-500/10 rounded-lg p-3">
-              <h4 className="text-xs font-mono uppercase text-cyan-700 dark:text-cyan-300 mb-2 flex items-center gap-1.5">
-                <ListChecks className="w-3 h-3" />Dry Run Preview
-              </h4>
-              <ul className="space-y-1">
-                {previewItems.map((item, index) => (
-                  <li key={`${item}-${index}`} className="text-xs text-slate-600 dark:text-slate-300">{item}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <Lightbulb className="w-3 h-3 text-yellow-500" />Hue Lighting Actions
-                </h4>
-                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addHueAction} data-testid="button-add-hue-action">
-                  <Plus className="w-3 h-3 mr-1" /> Add Scene
-                </Button>
-              </div>
-              {formData.hueActions.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-600">No Hue actions configured.</p>
-              ) : (
-                <div className="space-y-2">
-                  {formData.hueActions.map((action, idx) => (
-                    <HueActionRow
-                      key={idx}
-                      action={action}
-                      bridges={hueBridges}
-                      onUpdate={(u) => updateHueAction(idx, u)}
-                      onRemove={() => removeHueAction(idx)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                  <Monitor className="w-3 h-3 text-cyan-500" />Display Actions
-                </h4>
-                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addDisplayAction} data-testid="button-add-display-action">
-                  <Plus className="w-3 h-3 mr-1" /> Add Command
-                </Button>
-              </div>
-              {formData.displayActions.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-600">No display actions configured.</p>
-              ) : (
-                <div className="space-y-2">
-                  {formData.displayActions.map((action, idx) => (
-                    <DisplayActionRow
-                      key={idx}
-                      action={action}
-                      displays={displays}
-                      onUpdate={(updates) => updateDisplayAction(idx, updates)}
-                      onRemove={() => removeDisplayAction(idx)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {editingButton && (
-              <div className="border border-emerald-500/30 bg-emerald-500/10 rounded-lg p-3">
-                <h4 className="text-xs font-mono uppercase text-emerald-700 dark:text-emerald-300 mb-2 flex items-center gap-1.5">
-                  <FlaskConical className="w-3 h-3" />Test Mode
-                </h4>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {(["hue", "display", "atem", "obs", "ptz", "mixer"] as SceneTestSection[]).map((section) => (
-                    <Button
-                      key={section}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-8"
-                      disabled={!hasSceneSection(formData, section) || testMutation.isPending}
-                      onClick={() => testMutation.mutate(section)}
-                      data-testid={`button-test-scene-${section}`}
+          {captureDraft ? (
+            <div className="space-y-6">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Save Mode</Label>
+                    <RadioGroup
+                      className="mt-3 gap-3"
+                      value={captureDraft.mode}
+                      onValueChange={(value) =>
+                        updateCaptureDraft({
+                          mode: value as SceneCaptureMode,
+                          targetSceneId: value === "merge" ? selectedSceneId : captureDraft.targetSceneId,
+                        })
+                      }
                     >
-                      {section.toUpperCase()}
-                    </Button>
+                      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+                        <RadioGroupItem value="create" id="scene-capture-create" className="mt-1" />
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">Create a new scene</div>
+                          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Save the live snapshot into a fresh slot, then continue editing it here if needed.
+                          </div>
+                        </div>
+                      </label>
+
+                      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+                        <RadioGroupItem value="merge" id="scene-capture-merge" className="mt-1" />
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">Merge into an existing scene</div>
+                          <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Replace only the checked sections and leave the rest of that scene intact.
+                          </div>
+                        </div>
+                      </label>
+                    </RadioGroup>
+                  </div>
+
+                  {captureDraft.mode === "create" ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label>Name</Label>
+                        <Input
+                          className="mt-1"
+                          value={captureDraft.name}
+                          onChange={(event) => updateCaptureDraft({ name: event.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Slot</Label>
+                        <Input
+                          className="mt-1"
+                          type="number"
+                          min={1}
+                          value={captureDraft.buttonNumber}
+                          onChange={(event) =>
+                            updateCaptureDraft({ buttonNumber: Math.max(1, Number.parseInt(event.target.value, 10) || 1) })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Group</Label>
+                        <Input
+                          className="mt-1"
+                          list="capture-scene-group-options"
+                          value={captureDraft.groupName}
+                          onChange={(event) => updateCaptureDraft({ groupName: event.target.value })}
+                        />
+                        <datalist id="capture-scene-group-options">
+                          {groupNameOptions.map((groupName) => (
+                            <option key={groupName} value={groupName} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div>
+                        <Label>Color</Label>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {COLORS.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => updateCaptureDraft({ color })}
+                              className={cn(
+                                "h-7 w-7 rounded-full border-2 transition-transform",
+                                captureDraft.color === color ? "scale-110 border-slate-900 dark:border-white" : "border-transparent",
+                              )}
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label>Merge Target</Label>
+                      <Select
+                        value={captureDraft.targetSceneId ? String(captureDraft.targetSceneId) : "none"}
+                        onValueChange={(value) => updateCaptureDraft({ targetSceneId: value === "none" ? null : Number.parseInt(value, 10) })}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select scene" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Select scene</SelectItem>
+                          {sceneButtons.map((scene) => (
+                            <SelectItem key={scene.id} value={String(scene.id)}>
+                              {scene.buttonNumber}. {scene.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Snapshot Sections</Label>
+                    <div className="mt-3 space-y-3">
+                      {CAPTURE_SECTION_OPTIONS.map((section) => (
+                        <label
+                          key={section.value}
+                          className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-900/60"
+                        >
+                          <Checkbox
+                            checked={captureDraft.sections[section.value]}
+                            onCheckedChange={(checked) => updateCaptureSections(section.value, Boolean(checked))}
+                            className="mt-1"
+                          />
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900 dark:text-white">{section.title}</div>
+                            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{section.description}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-sm text-slate-600 dark:text-slate-300">
+                    Current PTZ pose is not directly readable from the VISCA camera links yet. Capturing the switcher still preserves whichever mapped cameras are live on program or preview, and any saved PTZ preset link already on a merged scene is left alone.
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCaptureDialogOpen(false)} disabled={captureMutation.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={captureCurrentStateAsScene} disabled={!captureDraft || captureMutation.isPending || operatorLocked}>
+              <CameraIcon className="mr-2 h-4 w-4" />
+              {captureMutation.isPending ? "Capturing..." : captureDraft?.mode === "merge" ? "Merge Snapshot" : "Capture Scene"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-6 p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xl font-semibold text-slate-900 dark:text-white">
+              <Zap className="h-5 w-5 text-cyan-500" />
+              Scene Editor
+            </div>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Build recallable broadcast scenes that bundle switcher, graphics, cameras, audio, lighting, and display state.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge label={`${sceneButtons.length} saved`} online={sceneButtons.length > 0} />
+            <StatusBadge label={isDirty ? "Unsaved changes" : "Saved"} online={!isDirty} />
+            <Button variant="outline" onClick={openCaptureDialog} disabled={operatorLocked}>
+              <CameraIcon className="mr-2 h-4 w-4" />
+              Capture Current State
+            </Button>
+            <Button onClick={startNewScene} disabled={operatorLocked}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Scene
+            </Button>
+          </div>
+        </div>
+
+        {operatorLocked ? (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+            Operator lock is on. Recalling scenes still works, but editing, saving, and deleting are disabled.
+          </div>
+        ) : null}
+
+        <div className="grid flex-1 gap-6 xl:grid-cols-[330px_minmax(0,1fr)]">
+          <aside className="rounded-3xl border border-slate-200/70 bg-white/85 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/75">
+            <div className="mb-4">
+              <Label className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Scene Library</Label>
+              <div className="relative mt-2">
+                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input className="pl-9" placeholder="Search scenes or groups" value={search} onChange={(event) => setSearch(event.target.value)} />
+              </div>
+            </div>
+
+            <ScrollArea className="h-[calc(100vh-260px)] pr-3">
+              {filteredSceneGroups.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  No scenes match this search.
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {filteredSceneGroups.map((group) => (
+                    <section key={group.name} className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                        <Folder className="h-3.5 w-3.5 text-cyan-500" />
+                        {group.name}
+                      </div>
+                      <div className="space-y-2">
+                        {group.scenes.map((scene) => (
+                          <SceneRow
+                            key={scene.id}
+                            scene={scene}
+                            selected={selectedSceneId === scene.id}
+                            active={activeSceneId === scene.id}
+                            preview={scenePreviewById.get(scene.id) || ["No actions configured"]}
+                            onSelect={() => selectScene(scene)}
+                            onRecall={() => executeMutation.mutate(scene.id)}
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Tests run only the selected hardware section and add an undo step when rollback data is available.</p>
-              </div>
-            )}
+              )}
+            </ScrollArea>
+          </aside>
 
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2">ATEM Switcher Action</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Input Number</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={formData.atemInputId ?? ""}
-                    onChange={(e) => setFormData(p => ({ ...p, atemInputId: e.target.value ? parseInt(e.target.value) : null }))}
-                    placeholder="None"
-                    data-testid="input-scene-atem-input"
-                  />
-                </div>
-                <div>
-                  <Label>Transition</Label>
-                  <Select
-                    value={formData.atemTransitionType}
-                    onValueChange={(v) => setFormData(p => ({ ...p, atemTransitionType: v }))}
-                  >
-                    <SelectTrigger data-testid="select-scene-transition">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cut">Cut</SelectItem>
-                      <SelectItem value="auto">Auto</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
+          <section className="space-y-6">
+            <div className="rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/75">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-4 lg:min-w-[360px] lg:max-w-[460px]">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Name</Label>
+                      <Input value={draft.name} onChange={(event) => updateDraft({ name: event.target.value })} placeholder={`Scene ${draft.buttonNumber}`} />
+                    </div>
+                    <div>
+                      <Label>Slot</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={draft.buttonNumber}
+                        onChange={(event) => updateDraft({ buttonNumber: Math.max(1, Number.parseInt(event.target.value, 10) || 1) })}
+                      />
+                    </div>
+                  </div>
 
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1.5">
-                <Radio className="w-3 h-3 text-indigo-500" />OBS Studio Action
-              </h4>
-              <div className="space-y-2">
-                <div>
-                  <Label>Program Scene</Label>
-                  <Select
-                    value={formData.obsSceneName || "_none"}
-                    onValueChange={(value) => setFormData(p => ({ ...p, obsSceneName: value === "_none" ? "" : value }))}
-                    disabled={!obsConnection && !formData.obsSceneName}
-                  >
-                    <SelectTrigger data-testid="select-scene-obs-scene">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">None</SelectItem>
-                      {obsSceneNames.map((sceneName) => (
-                        <SelectItem key={sceneName} value={sceneName}>{sceneName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {obsConnection
-                    ? `OBS: ${obsConnection.name} (${obsConnection.status})${obsScenesResult?.state?.currentProgramScene ? ` · live: ${obsScenesResult.state.currentProgramScene}` : ""}`
-                    : "Add OBS on the Switcher page to populate scene names."}
-                </p>
-              </div>
-            </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Group</Label>
+                      <Input value={draft.groupName} list="scene-group-options" onChange={(event) => updateDraft({ groupName: event.target.value })} />
+                      <datalist id="scene-group-options">
+                        {groupNameOptions.map((groupName) => (
+                          <option key={groupName} value={groupName} />
+                        ))}
+                      </datalist>
+                    </div>
 
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-2">PTZ Camera Action</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Camera</Label>
-                  <Select
-                    value={formData.cameraId?.toString() ?? "none"}
-                    onValueChange={(v) => setFormData(p => ({ ...p, cameraId: v === "none" ? null : parseInt(v) }))}
-                  >
-                    <SelectTrigger data-testid="select-scene-camera">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {cameras.map(cam => (
-                        <SelectItem key={cam.id} value={cam.id.toString()}>{cam.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Preset #</Label>
-                  <Select
-                    value={formData.presetNumber?.toString() ?? "none"}
-                    onValueChange={(v) => setFormData(p => ({ ...p, presetNumber: v === "none" ? null : parseInt(v) }))}
-                  >
-                    <SelectTrigger data-testid="select-scene-preset">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {Array.from({ length: 16 }, (_, i) => (
-                        <SelectItem key={i} value={i.toString()}>Preset {i + 1}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-300 dark:border-slate-800 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400">Mixer Channel Actions</h4>
-                <Button variant="outline" size="sm" className="text-xs h-6" onClick={addMixerAction} data-testid="button-add-mixer-action">
-                  <Plus className="w-3 h-3 mr-1" /> Add Channel
-                </Button>
-              </div>
-
-              {formData.mixerActions.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-600">No mixer actions configured.</p>
-              ) : (
-                <div className="space-y-3">
-                  {formData.mixerActions.map((action, idx) => (
-                    <div key={idx} className="bg-slate-300 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Channel Action {idx + 1}</span>
-                        <button onClick={() => removeMixerAction(idx)} className="text-red-500 hover:text-red-400">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                    <div>
+                      <Label>Color</Label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {COLORS.map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => updateDraft({ color })}
+                            className={cn(
+                              "h-7 w-7 rounded-full border-2 transition-transform",
+                              draft.color === color ? "scale-110 border-slate-900 dark:border-white" : "border-transparent",
+                            )}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 lg:items-end">
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSceneId ? (
+                      <Button variant="outline" onClick={() => executeMutation.mutate(selectedSceneId)} disabled={executeMutation.isPending}>
+                        <Play className="mr-2 h-4 w-4" />
+                        Recall Scene
+                      </Button>
+                    ) : null}
+                    <Button onClick={saveScene} disabled={operatorLocked || createMutation.isPending || updateMutation.isPending}>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Scene
+                    </Button>
+                    {selectedSceneId ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          if (operatorLocked) {
+                            toast.info("Operator lock is on");
+                            return;
+                          }
+                          if (window.confirm("Delete this scene?")) {
+                            deleteMutation.mutate(selectedSceneId);
+                          }
+                        }}
+                        disabled={operatorLocked || deleteMutation.isPending}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4 text-red-500" />
+                        Delete
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {selectedSceneId ? (
+                    <div className="flex flex-wrap gap-2">
+                      {(["atem", "obs", "mixer", "hue", "ptz", "display"] as SceneTestSection[]).map((section) => (
+                        <Button
+                          key={section}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => testMutation.mutate(section)}
+                          disabled={!sceneHasSection(draft, section) || testMutation.isPending}
+                        >
+                          Test {section.toUpperCase()}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Save this draft once to enable per-section hardware testing.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <Separator className="my-5" />
+
+              <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                    <ListChecks className="h-4 w-4 text-cyan-500" />
+                    Dry Run Preview
+                  </div>
+                  <div className="space-y-2">
+                    {livePreview.map((item, index) => (
+                      <div key={`${item}-${index}`} className="rounded-xl bg-slate-100/80 px-3 py-2 text-sm text-slate-600 dark:bg-slate-900/80 dark:text-slate-300">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button type="button" onClick={captureSwitcherState} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 text-left transition hover:border-cyan-400 dark:border-slate-800 dark:bg-slate-900/70">
+                    <Video className="mb-3 h-4 w-4 text-cyan-500" />
+                    <div className="font-semibold text-slate-900 dark:text-white">Capture switcher</div>
+                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {switcherStatus?.connected ? `Program ${switcherStatus.programInput} · Preview ${switcherStatus.previewInput}` : "No live ATEM state"}
+                    </div>
+                  </button>
+
+                  <button type="button" onClick={captureObsState} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 text-left transition hover:border-cyan-400 dark:border-slate-800 dark:bg-slate-900/70">
+                    <Radio className="mb-3 h-4 w-4 text-indigo-500" />
+                    <div className="font-semibold text-slate-900 dark:text-white">Capture graphics</div>
+                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {obsScenesResult?.state?.currentProgramScene || obsConnection?.currentProgramScene || "No live OBS scene"}
+                    </div>
+                  </button>
+
+                  <button type="button" onClick={captureMixerState} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 text-left transition hover:border-cyan-400 dark:border-slate-800 dark:bg-slate-900/70">
+                    <SlidersHorizontal className="mb-3 h-4 w-4 text-emerald-500" />
+                    <div className="font-semibold text-slate-900 dark:text-white">Capture audio</div>
+                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {mixer ? `${mixer.name} · ${mixer.status}` : "No mixer configured"}
+                    </div>
+                  </button>
+
+                  <button type="button" onClick={captureLightingState} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 text-left transition hover:border-cyan-400 dark:border-slate-800 dark:bg-slate-900/70">
+                    <Lightbulb className="mb-3 h-4 w-4 text-yellow-500" />
+                    <div className="font-semibold text-slate-900 dark:text-white">Capture lighting</div>
+                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      {hueBridges.length > 0 ? `${hueBridges.length} bridge(s)` : "No Hue bridge configured"}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SceneTab)} className="space-y-4">
+              <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl bg-transparent p-0">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="switcher">Switcher</TabsTrigger>
+                <TabsTrigger value="graphics">Graphics</TabsTrigger>
+                <TabsTrigger value="cameras">Cameras</TabsTrigger>
+                <TabsTrigger value="audio">Audio</TabsTrigger>
+                <TabsTrigger value="lighting">Lighting</TabsTrigger>
+                <TabsTrigger value="displays">Displays</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview">
+                <SectionCard
+                  title="Scene Coverage"
+                  description="Each saved scene can recall any combination of broadcast state. Use the detailed tabs to fine-tune what this scene owns."
+                  icon={<Zap className="h-4 w-4" />}
+                >
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="rounded-2xl bg-slate-100/80 p-4 dark:bg-slate-900/80">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Switcher</div>
+                      <div className="mt-2 text-sm text-slate-900 dark:text-white">{summarizeAtemState(draft.atemState, draft.atemInputId, draft.atemTransitionType) || "No switcher state yet"}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-100/80 p-4 dark:bg-slate-900/80">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Graphics</div>
+                      <div className="mt-2 text-sm text-slate-900 dark:text-white">{draft.obsSceneName || "No OBS scene yet"}</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-100/80 p-4 dark:bg-slate-900/80">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Cameras</div>
+                      <div className="mt-2 text-sm text-slate-900 dark:text-white">
+                        {draft.cameraId !== null && draft.presetNumber !== null ? `Camera ${draft.cameraId} · Preset ${draft.presetNumber + 1}` : "No PTZ preset yet"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-100/80 p-4 dark:bg-slate-900/80">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Audio</div>
+                      <div className="mt-2 text-sm text-slate-900 dark:text-white">{draft.mixerActions.length} mixer action(s)</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-100/80 p-4 dark:bg-slate-900/80">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Lighting</div>
+                      <div className="mt-2 text-sm text-slate-900 dark:text-white">{draft.hueActions.length} lighting cue(s)</div>
+                    </div>
+                    <div className="rounded-2xl bg-slate-100/80 p-4 dark:bg-slate-900/80">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Displays</div>
+                      <div className="mt-2 text-sm text-slate-900 dark:text-white">{draft.displayActions.length} display command(s)</div>
+                    </div>
+                  </div>
+                </SectionCard>
+              </TabsContent>
+
+              <TabsContent value="switcher">
+                <SectionCard
+                  title="Switcher State"
+                  description="Store and recall the live ATEM mix effect state instead of a single destination input."
+                  icon={<Video className="h-4 w-4" />}
+                  actions={
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={captureSwitcherState}>
+                        Capture Live
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => updateDraft({ atemState: null, atemInputId: null })}>
+                        Clear
+                      </Button>
+                    </div>
+                  }
+                >
+                  {!switcherStatus?.connected ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Connect the switcher to capture or edit live ATEM state.</p>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                         <div>
-                          <Label className="text-xs">Section</Label>
+                          <Label>Program Input</Label>
                           <Select
-                            value={action.section}
-                            onValueChange={(v) => updateMixerAction(idx, { section: v })}
+                            value={draft.atemState?.programInput ? String(draft.atemState.programInput) : "none"}
+                            onValueChange={(value) =>
+                              updateDraft({
+                                atemState: {
+                                  ...(draft.atemState || {}),
+                                  programInput: value === "none" ? null : Number.parseInt(value, 10),
+                                },
+                                atemInputId: value === "none" ? null : Number.parseInt(value, 10),
+                              })
+                            }
                           >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Select input" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ch">Channel</SelectItem>
-                              <SelectItem value="bus">Mix Bus</SelectItem>
-                              <SelectItem value="auxin">Aux In</SelectItem>
-                              <SelectItem value="fxrtn">FX Return</SelectItem>
-                              <SelectItem value="mtx">Matrix</SelectItem>
-                              <SelectItem value="dca">DCA</SelectItem>
+                              <SelectItem value="none">No program change</SelectItem>
+                              {(switcherStatus.inputs || []).map((input) => (
+                                <SelectItem key={input.inputId} value={String(input.inputId)}>
+                                  {input.shortName}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
+
                         <div>
-                          <Label className="text-xs">Ch #</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={32}
-                            value={action.channel}
-                            onChange={(e) => updateMixerAction(idx, { channel: parseInt(e.target.value) || 1 })}
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          <button
-                            onClick={() => updateMixerAction(idx, { muted: !action.muted })}
-                            className={cn(
-                              "h-8 px-3 rounded text-xs font-bold border w-full",
-                              action.muted
-                                ? "bg-red-950/50 border-red-700 text-red-400"
-                                : "bg-green-950/50 border-green-700 text-green-400"
-                            )}
+                          <Label>Preview Input</Label>
+                          <Select
+                            value={draft.atemState?.previewInput ? String(draft.atemState.previewInput) : "none"}
+                            onValueChange={(value) =>
+                              updateDraft({
+                                atemState: {
+                                  ...(draft.atemState || {}),
+                                  previewInput: value === "none" ? null : Number.parseInt(value, 10),
+                                },
+                              })
+                            }
                           >
-                            {action.muted ? "MUTED" : "ON"}
-                          </button>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Select preview" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Leave preview alone</SelectItem>
+                              {(switcherStatus.inputs || []).map((input) => (
+                                <SelectItem key={input.inputId} value={String(input.inputId)}>
+                                  {input.shortName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label>Transition Style</Label>
+                          <Select
+                            value={String(draft.atemState?.transitionStyle ?? switcherStatus.transition?.nextStyle ?? 0)}
+                            onValueChange={(value) =>
+                              updateDraft({
+                                atemState: { ...(draft.atemState || {}), transitionStyle: Number.parseInt(value, 10) },
+                              })
+                            }
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TRANSITION_STYLE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={String(option.value)}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 px-4 py-3 dark:border-slate-800">
+                          <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Transition Preview</div>
+                          <div className="mt-3 flex items-center justify-between">
+                            <span className="text-sm text-slate-900 dark:text-white">Store preview toggle</span>
+                            <Switch
+                              checked={draft.atemState?.transitionPreview ?? switcherStatus.transition?.previewEnabled ?? false}
+                              onCheckedChange={(checked) => updateDraft({ atemState: { ...(draft.atemState || {}), transitionPreview: checked } })}
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <Label className="text-xs">Fader Level: {Math.round((action.fader ?? 0.75) * 100)}%</Label>
-                        <Slider
-                          value={[action.fader ?? 0.75]}
-                          min={0}
-                          max={1}
-                          step={0.01}
-                          onValueChange={([v]) => updateMixerAction(idx, { fader: v })}
-                          className="mt-1"
-                        />
+
+                      <div className="grid gap-4 xl:grid-cols-2">
+                        <div className="space-y-3">
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">Downstream Keys</div>
+                          {(draft.atemState?.downstreamKeyers || []).length === 0 ? (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">No DSK state captured yet.</p>
+                          ) : (
+                            (draft.atemState?.downstreamKeyers || []).map((keyer, index) => (
+                              <div key={keyer.index} className="grid gap-3 rounded-2xl border border-slate-200 p-4 dark:border-slate-800 md:grid-cols-[1fr_auto_auto_120px] md:items-center">
+                                <div>
+                                  <div className="font-medium text-slate-900 dark:text-white">DSK {keyer.index + 1}</div>
+                                  <div className="text-sm text-slate-500 dark:text-slate-400">Stored downstream key state</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs">On Air</Label>
+                                  <Switch
+                                    checked={Boolean(keyer.onAir)}
+                                    onCheckedChange={(checked) =>
+                                      updateDraft({
+                                        atemState: {
+                                          ...(draft.atemState || {}),
+                                          downstreamKeyers: (draft.atemState?.downstreamKeyers || []).map((entry, entryIndex) =>
+                                            entryIndex === index ? { ...entry, onAir: checked } : entry,
+                                          ),
+                                        },
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs">Tie</Label>
+                                  <Switch
+                                    checked={Boolean(keyer.tie)}
+                                    onCheckedChange={(checked) =>
+                                      updateDraft({
+                                        atemState: {
+                                          ...(draft.atemState || {}),
+                                          downstreamKeyers: (draft.atemState?.downstreamKeyers || []).map((entry, entryIndex) =>
+                                            entryIndex === index ? { ...entry, tie: checked } : entry,
+                                          ),
+                                        },
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Rate</Label>
+                                  <Input
+                                    className="mt-1"
+                                    type="number"
+                                    min={1}
+                                    value={keyer.rate ?? 30}
+                                    onChange={(event) =>
+                                      updateDraft({
+                                        atemState: {
+                                          ...(draft.atemState || {}),
+                                          downstreamKeyers: (draft.atemState?.downstreamKeyers || []).map((entry, entryIndex) =>
+                                            entryIndex === index ? { ...entry, rate: Number.parseInt(event.target.value, 10) || 30 } : entry,
+                                          ),
+                                        },
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="text-sm font-semibold text-slate-900 dark:text-white">Aux Outputs & Upstream Keys</div>
+                          <div className="space-y-3">
+                            {(draft.atemState?.auxOutputs || []).map((aux, index) => (
+                              <div key={`aux-${aux.index}`} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                                <Label className="text-xs">Aux {aux.index + 1}</Label>
+                                <Select
+                                  value={String(aux.sourceId)}
+                                  onValueChange={(value) =>
+                                    updateDraft({
+                                      atemState: {
+                                        ...(draft.atemState || {}),
+                                        auxOutputs: (draft.atemState?.auxOutputs || []).map((entry, entryIndex) =>
+                                          entryIndex === index ? { ...entry, sourceId: Number.parseInt(value, 10) } : entry,
+                                        ),
+                                      },
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(switcherStatus.inputs || []).map((input) => (
+                                      <SelectItem key={input.inputId} value={String(input.inputId)}>
+                                        {input.shortName}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ))}
+
+                            {(draft.atemState?.upstreamKeyers || []).map((keyer, index) => (
+                              <div key={`usk-${keyer.index}`} className="flex items-center justify-between rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                                <div>
+                                  <div className="font-medium text-slate-900 dark:text-white">USK {keyer.index + 1}</div>
+                                  <div className="text-sm text-slate-500 dark:text-slate-400">Store on-air state</div>
+                                </div>
+                                <Switch
+                                  checked={Boolean(keyer.onAir)}
+                                  onCheckedChange={(checked) =>
+                                    updateDraft({
+                                      atemState: {
+                                        ...(draft.atemState || {}),
+                                        upstreamKeyers: (draft.atemState?.upstreamKeyers || []).map((entry, entryIndex) =>
+                                          entryIndex === index ? { ...entry, onAir: checked } : entry,
+                                        ),
+                                      },
+                                    })
+                                  }
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  )}
+                </SectionCard>
+              </TabsContent>
 
-            <div className="flex gap-2 pt-2">
-              {editingButton && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={operatorLocked}
-                  onClick={() => { deleteMutation.mutate(editingButton.id); setEditOpen(false); }}
-                  data-testid="button-delete-scene"
+              <TabsContent value="graphics">
+                <SectionCard
+                  title="OBS Graphics State"
+                  description="Recall the current OBS program scene as part of the broadcast scene."
+                  icon={<Radio className="h-4 w-4" />}
+                  actions={
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={captureObsState}>
+                        Capture Live
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => updateDraft({ obsSceneName: "" })}>
+                        Clear
+                      </Button>
+                    </div>
+                  }
                 >
-                  <Trash2 className="w-3 h-3 mr-1" /> Delete
-                </Button>
-              )}
-              <div className="flex-1" />
-              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-              <Button onClick={handleSave} disabled={operatorLocked} data-testid="button-save-scene">
-                {editingButton ? "Update" : "Create"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>OBS Program Scene</Label>
+                      <Select value={draft.obsSceneName || "none"} onValueChange={(value) => updateDraft({ obsSceneName: value === "none" ? "" : value })}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select scene" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No OBS action</SelectItem>
+                          {obsSceneNames.map((sceneName) => (
+                            <SelectItem key={sceneName} value={sceneName}>
+                              {sceneName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 px-4 py-3 dark:border-slate-800">
+                      <div className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Live OBS</div>
+                      <div className="mt-2 text-sm text-slate-900 dark:text-white">
+                        {obsScenesResult?.state?.currentProgramScene || obsConnection?.currentProgramScene || "Not connected"}
+                      </div>
+                    </div>
+                  </div>
+                </SectionCard>
+              </TabsContent>
+
+              <TabsContent value="cameras">
+                <SectionCard
+                  title="PTZ Camera Preset"
+                  description="Pair this scene with one saved PTZ preset for a fast, deterministic camera move."
+                  icon={<Video className="h-4 w-4" />}
+                >
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Camera</Label>
+                      <Select
+                        value={draft.cameraId !== null ? String(draft.cameraId) : "none"}
+                        onValueChange={(value) => updateDraft({ cameraId: value === "none" ? null : Number.parseInt(value, 10), presetNumber: null })}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No PTZ action</SelectItem>
+                          {cameras.map((camera) => (
+                            <SelectItem key={camera.id} value={String(camera.id)}>
+                              {camera.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Preset</Label>
+                      <Select
+                        value={draft.presetNumber !== null ? String(draft.presetNumber) : "none"}
+                        onValueChange={(value) => updateDraft({ presetNumber: value === "none" ? null : Number.parseInt(value, 10) })}
+                        disabled={draft.cameraId === null}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select preset" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No preset</SelectItem>
+                          {Array.from({ length: 16 }, (_, index) => {
+                            const preset = selectedCameraPresets.find((entry) => entry.presetNumber === index);
+                            return (
+                              <SelectItem key={index} value={String(index)}>
+                                {preset?.name || `Preset ${index + 1}`}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </SectionCard>
+              </TabsContent>
+
+              <TabsContent value="audio">
+                <SectionCard
+                  title="Mixer Actions"
+                  description="Capture the live X32 state or hand-author the channels this scene should own."
+                  icon={<SlidersHorizontal className="h-4 w-4" />}
+                  actions={
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={captureMixerState}>
+                        Capture Live Mix
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          updateDraft({
+                            mixerActions: [...draft.mixerActions, { section: "ch", channel: 1, fader: 0.75, muted: false }],
+                          })
+                        }
+                      >
+                        Add Channel
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => updateDraft({ mixerActions: [] })}>
+                        Clear
+                      </Button>
+                    </div>
+                  }
+                >
+                  {draft.mixerActions.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No mixer state stored for this scene yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {draft.mixerActions.map((action, index) => (
+                        <MixerActionEditor
+                          key={`${action.section}-${action.channel}-${index}`}
+                          action={action}
+                          onUpdate={(updates) =>
+                            updateDraft({
+                              mixerActions: draft.mixerActions.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, ...updates } : entry,
+                              ),
+                            })
+                          }
+                          onRemove={() =>
+                            updateDraft({
+                              mixerActions: draft.mixerActions.filter((_, entryIndex) => entryIndex !== index),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              </TabsContent>
+
+              <TabsContent value="lighting">
+                <SectionCard
+                  title="Lighting Cues"
+                  description="Use saved Hue scenes, live room states, or individual light levels as part of the scene recall."
+                  icon={<Lightbulb className="h-4 w-4" />}
+                  actions={
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={captureLightingState}>
+                        Capture Live Rooms
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          updateDraft({
+                            hueActions: [...draft.hueActions, { type: "scene", bridgeId: hueBridges[0]?.id || 0, sceneId: undefined }],
+                          })
+                        }
+                      >
+                        Add Cue
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => updateDraft({ hueActions: [] })}>
+                        Clear
+                      </Button>
+                    </div>
+                  }
+                >
+                  {draft.hueActions.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No lighting cues stored for this scene yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {draft.hueActions.map((action, index) => (
+                        <HueActionRow
+                          key={`${action.type}-${action.bridgeId}-${index}`}
+                          action={action}
+                          bridges={hueBridges}
+                          onUpdate={(updates) =>
+                            updateDraft({
+                              hueActions: draft.hueActions.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, ...updates } : entry,
+                              ),
+                            })
+                          }
+                          onRemove={() =>
+                            updateDraft({
+                              hueActions: draft.hueActions.filter((_, entryIndex) => entryIndex !== index),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              </TabsContent>
+
+              <TabsContent value="displays">
+                <SectionCard
+                  title="Display Commands"
+                  description="Bundle TVs and signage into the same recall action so the room state follows the shot."
+                  icon={<Monitor className="h-4 w-4" />}
+                  actions={
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={captureDisplayState}>
+                        Capture Live State
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          updateDraft({
+                            displayActions: [...draft.displayActions, { displayId: displays[0]?.id || 0, command: "power_on" }],
+                          })
+                        }
+                      >
+                        Add Command
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => updateDraft({ displayActions: [] })}>
+                        Clear
+                      </Button>
+                    </div>
+                  }
+                >
+                  {draft.displayActions.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No display commands stored for this scene yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {draft.displayActions.map((action, index) => (
+                        <DisplayActionRow
+                          key={`${action.displayId}-${action.command}-${index}`}
+                          action={action}
+                          displays={displays}
+                          onUpdate={(updates) =>
+                            updateDraft({
+                              displayActions: draft.displayActions.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, ...updates } : entry,
+                              ),
+                            })
+                          }
+                          onRemove={() =>
+                            updateDraft({
+                              displayActions: draft.displayActions.filter((_, entryIndex) => entryIndex !== index),
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              </TabsContent>
+            </Tabs>
+          </section>
+        </div>
+      </main>
     </AppLayout>
   );
 }

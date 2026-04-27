@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { attachCurrentUser, requireApiAccess, sessionMiddleware } from "./auth";
 import { errorDetails, logger } from "./logger";
 
 const app = express();
@@ -22,6 +23,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+app.use(sessionMiddleware);
+app.use(attachCurrentUser);
+app.use(requireApiAccess);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

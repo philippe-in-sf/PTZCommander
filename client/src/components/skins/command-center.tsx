@@ -2,14 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Link } from "wouter";
 import {
   Activity,
-  Aperture,
   AudioLines,
   Camera,
   Clock,
   Crosshair,
   Database,
   ChevronDown,
-  Focus,
   Maximize,
   Radio,
   Terminal,
@@ -20,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import type { DashboardSkinProps } from "./types";
 import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { Joystick } from "@/components/ptz/joystick";
+import { CameraPreview } from "@/components/ptz/camera-preview";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
@@ -109,18 +108,21 @@ export default function CommandCenter(props: DashboardSkinProps) {
                   <ChevronDown className="w-3 h-3 ml-1" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
+              <DropdownMenuContent
+                align="start"
+                className="min-w-[12rem] border-slate-700 bg-[#0b1220] text-slate-100 shadow-2xl shadow-black/40"
+              >
                 <DropdownMenuItem asChild>
-                  <Link href="/switcher" className="cursor-pointer">VIDEO</Link>
+                  <Link href="/switcher" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">VIDEO</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/mixer" className="cursor-pointer">AUDIO</Link>
+                  <Link href="/mixer" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">AUDIO</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/lighting" className="cursor-pointer">LIGHTS</Link>
+                  <Link href="/lighting" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">LIGHTS</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/displays" className="cursor-pointer">DISPLAYS</Link>
+                  <Link href="/displays" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">DISPLAYS</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -131,12 +133,15 @@ export default function CommandCenter(props: DashboardSkinProps) {
                   <ChevronDown className="w-3 h-3 ml-1" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
+              <DropdownMenuContent
+                align="start"
+                className="min-w-[12rem] border-slate-700 bg-[#0b1220] text-slate-100 shadow-2xl shadow-black/40"
+              >
                 <DropdownMenuItem asChild>
-                  <Link href="/macros" className="cursor-pointer">MACROS</Link>
+                  <Link href="/macros" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">MACROS</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/diagnostics" className="cursor-pointer">DIAG</Link>
+                  <Link href="/diagnostics" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">DIAG</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -171,57 +176,11 @@ export default function CommandCenter(props: DashboardSkinProps) {
         
         {/* LEFT COLUMN - Cameras & Presets (7 cols) */}
         <div className="col-span-12 lg:col-span-7 flex flex-col gap-4">
-          
-          {/* CAMERA STRIP */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {cameras.map(cam => {
-              const isSelected = selectedCameraId === cam.id;
-              const isProgram = cam.tallyState === 'program';
-              const isPreview = cam.tallyState === 'preview';
-              
-              return (
-                <div 
-                  key={cam.id} 
-                  onClick={() => onSelectCamera(cam.id)}
-                  className={`relative p-3 rounded-sm border cursor-pointer transition-all ${
-                    isSelected 
-                      ? "border-amber-500 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.15)]" 
-                      : "border-slate-800 bg-[#0f172a]/50 hover:border-slate-600"
-                  }`}
-                >
-                  {/* Tally Bar */}
-                  <div className={`absolute top-0 left-0 right-0 h-1 ${
-                    isProgram ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 
-                    isPreview ? 'bg-green-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]' : 
-                    'bg-slate-800'
-                  }`} />
-                  
-                  <div className="mt-2 flex justify-between items-start mb-2">
-                    <div className="font-bold text-slate-200 text-sm truncate pr-2">{cam.name}</div>
-                    <Badge variant="outline" className={`text-[10px] uppercase px-1.5 py-0 h-4 rounded-none border-slate-700 ${isProgram ? 'text-red-400' : isPreview ? 'text-green-400' : 'text-slate-500'}`}>
-                      {cam.tallyState || 'off'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-1 mt-3">
-                    <div className="flex justify-between text-[10px] text-slate-500">
-                      <span>IP</span><span className="text-slate-400">{cam.ip}:{cam.port}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] text-slate-500">
-                      <span>STS</span>
-                      <span className={cam.status === 'online' ? "text-green-400" : "text-slate-500"}>
-                        {cam.status}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {isSelected && (
-                    <div className="absolute -bottom-px -right-px w-2 h-2 border-b-2 border-r-2 border-amber-500"></div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <CameraPreview
+            cameras={cameras}
+            selectedId={selectedCameraId}
+            onSelect={onSelectCamera}
+          />
 
           <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
             {/* PTZ CONTROL PANEL (7 cols) */}
@@ -303,30 +262,11 @@ export default function CommandCenter(props: DashboardSkinProps) {
                 <div className="flex flex-col items-center gap-3">
                   <div className="text-[10px] text-slate-400 font-bold tracking-widest">FOCUS</div>
                   <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-10 w-10 rounded-none border-slate-700 bg-slate-800/50 hover:bg-slate-700 hover:text-amber-400"
-                  >
-                    <Focus className="h-4 w-4" />
-                  </Button>
-                  <div className="flex-1 w-8 bg-slate-900 border border-slate-800 relative py-2 flex justify-center rounded-sm">
-                     <div className="absolute left-0 top-0 bottom-0 w-1 flex flex-col justify-between py-2">
-                      {[...Array(9)].map((_, i) => <div key={i} className="w-full h-px bg-slate-700"></div>)}
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-10 w-10 rounded-none border-slate-700 bg-slate-800/50 hover:bg-slate-700 hover:text-amber-400"
-                  >
-                    <Aperture className="h-4 w-4" />
-                  </Button>
-                  <Button 
                     onClick={() => onFocusAuto()}
                     variant="outline" 
-                    className="h-6 text-[10px] px-2 rounded-none border-amber-900/50 bg-amber-950/30 text-amber-500 mt-1"
+                    className="h-10 min-w-[5rem] text-[10px] px-3 rounded-none border-amber-900/50 bg-amber-950/30 text-amber-500 mt-1"
                   >
-                    AUTO
+                    AUTO FOCUS
                   </Button>
                 </div>
               </div>
