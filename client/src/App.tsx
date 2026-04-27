@@ -73,6 +73,23 @@ function Router() {
 
 function Shell() {
   const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return (
+    <WsSync>
+      <RehearsalChrome />
+    </WsSync>
+  );
+}
+
+function App() {
   const [showStartupSplash, setShowStartupSplash] = useState(true);
 
   useEffect(() => {

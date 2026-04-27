@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Lock } from "lucide-react";
-import { BrandLockup } from "@/components/branding/brand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,11 +45,17 @@ export default function LoginPage() {
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-5xl items-center justify-center">
         <div className="grid w-full gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-[2rem] border border-white/60 bg-white/80 p-8 shadow-[0_24px_90px_rgba(15,23,42,0.12)] backdrop-blur dark:border-white/10 dark:bg-slate-950/60 dark:shadow-[0_24px_90px_rgba(2,6,23,0.55)]">
-            <BrandLockup
-              showVersion
-              caption="Shared Control Surface"
-              imageClassName="h-24 w-auto object-contain"
-            />
+            <div className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-700 dark:text-cyan-300">
+                Shared Control Surface
+              </div>
+              <div className="text-3xl font-bold tracking-tight">
+                PTZ<span className="text-cyan-500">Command</span>
+              </div>
+              <div className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
+                v1.7.0
+              </div>
+            </div>
             <div className="mt-10 space-y-5">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700 dark:text-cyan-300">
                 <Lock className="h-3.5 w-3.5" />

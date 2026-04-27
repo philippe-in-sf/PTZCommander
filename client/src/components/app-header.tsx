@@ -1,12 +1,12 @@
 import { Link } from "wouter";
-import { ChevronDown, Lock, LogOut } from "lucide-react";
+import { ChevronDown, Video, Radio, Lock, LogOut } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog-dialog";
+import { BrandLogo } from "@/components/branding/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SkinSelector } from "@/components/skin-selector";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
-import { BrandLogo } from "@/components/branding/brand";
 import { Button } from "@/components/ui/button";
 import { useSkin } from "@/lib/skin-context";
 import { useAuth } from "@/lib/auth";
@@ -167,18 +167,18 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
   const inactiveClass = "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800";
 
   return (
-    <header className="h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex items-center justify-between px-6 z-50 relative">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="min-h-14 border-b border-border bg-slate-400/60 dark:bg-slate-950/50 backdrop-blur-md flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 py-2 xl:px-6 z-50 relative">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
         <Link href="/">
-          <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+          <div className="flex shrink-0 items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
             <div>
-              <BrandLogo imageClassName="h-9 w-auto" />
+              <BrandLogo variant="transparent" imageClassName="h-9 w-auto" />
               <ChangelogDialog />
             </div>
           </div>
         </Link>
 
-        <nav className="flex items-center gap-1 ml-4 shrink-0">
+        <nav className="flex min-w-0 flex-wrap items-center gap-1 xl:ml-4">
           {PRIMARY_NAV_ITEMS.map((item) => (
             <NavButton key={item.path} item={item} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} />
           ))}
@@ -189,7 +189,7 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
         </nav>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex w-full flex-wrap items-center justify-end gap-2 xl:w-auto xl:gap-3">
         <RehearsalToggle />
         {rightContent}
         <SkinSelector />

@@ -30,6 +30,12 @@ declare global {
 }
 
 const sessionSecret = process.env.SESSION_SECRET || "ptzcommand-dev-session-secret";
+const sessionCookieSecure =
+  process.env.SESSION_COOKIE_SECURE === "true"
+    ? true
+    : process.env.SESSION_COOKIE_SECURE === "false"
+      ? false
+      : "auto";
 
 const sessionStore = !useSqlite && pool
   ? new PgStore({
@@ -49,7 +55,7 @@ export const sessionMiddleware = session({
   cookie: {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: sessionCookieSecure,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 });
@@ -83,7 +89,6 @@ const EXPLICIT_ROUTE_RULES: RouteRule[] = [
   { methods: ["POST"], pattern: /^\/api\/cameras\/\d+\/program$/, role: "operator" },
   { methods: ["POST"], pattern: /^\/api\/cameras\/\d+\/preview$/, role: "operator" },
   { methods: ["PATCH", "POST", "DELETE"], pattern: /^\/api\/presets(?:\/\d+)?(?:\/recall)?$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/scene-buttons\/capture$/, role: "operator" },
   { methods: ["POST"], pattern: /^\/api\/scene-buttons\/\d+\/test$/, role: "operator" },
   { methods: ["POST"], pattern: /^\/api\/scene-buttons\/\d+\/execute$/, role: "operator" },
   { methods: ["POST"], pattern: /^\/api\/layouts\/\d+\/load$/, role: "operator" },

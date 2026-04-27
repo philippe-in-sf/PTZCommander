@@ -114,29 +114,6 @@ export interface RehearsalMode {
   enabled: boolean;
 }
 
-export type SceneCaptureSection = "atem" | "obs" | "mixer" | "hue" | "display";
-export type SceneCaptureMode = "create" | "merge";
-
-export interface SceneCaptureRequest {
-  mode: SceneCaptureMode;
-  targetSceneId?: number;
-  sections: SceneCaptureSection[];
-  scene?: {
-    name?: string;
-    buttonNumber?: number;
-    groupName?: string;
-    color?: string;
-  };
-}
-
-export interface SceneCaptureResponse {
-  success: boolean;
-  mode: SceneCaptureMode;
-  scene: SceneButton;
-  results: string[];
-  warnings: string[];
-}
-
 export const authApi = {
   getSession: async (): Promise<AuthSessionResponse> => {
     const res = await fetch(`${API_BASE}/auth/session`, { credentials: "include" });
