@@ -114,6 +114,68 @@ export interface RehearsalMode {
   enabled: boolean;
 }
 
+export interface HealthDevice {
+  type: "camera" | "mixer" | "switcher" | "display";
+  id: number;
+  name: string;
+  ip: string;
+  port?: number;
+  status: "online" | "offline" | string;
+  tallyState?: string;
+  powerState?: string | null;
+  inputSource?: string | null;
+}
+
+export interface DeviceHealthResponse {
+  cameras: HealthDevice[];
+  mixers: HealthDevice[];
+  switchers: HealthDevice[];
+  displays: HealthDevice[];
+  timestamp: number;
+}
+
+export interface SystemHealthResponse {
+  cpuPercent: number;
+  usedMemoryBytes: number;
+  totalMemoryBytes: number;
+  freeMemoryBytes: number;
+  processRssBytes: number;
+  network: {
+    rxBytesPerSecond: number;
+    txBytesPerSecond: number;
+    rxMbps: number;
+    txMbps: number;
+  };
+  uptimeSeconds: number;
+  sampleMs: number;
+  networkSampleMs: number;
+  timestamp: number;
+}
+
+export type SceneCaptureMode = "create" | "merge";
+
+export type SceneCaptureSection = "atem" | "obs" | "mixer" | "hue" | "display";
+
+export interface SceneCaptureRequest {
+  mode: SceneCaptureMode;
+  targetSceneId?: number;
+  sections: SceneCaptureSection[];
+  scene?: {
+    name?: string;
+    buttonNumber?: number;
+    groupName?: string;
+    color?: string;
+  };
+}
+
+export interface SceneCaptureResponse {
+  success: boolean;
+  mode: SceneCaptureMode;
+  scene: SceneButton;
+  results: string[];
+  warnings: string[];
+}
+
 export const authApi = {
   getSession: async (): Promise<AuthSessionResponse> => {
     const res = await fetch(`${API_BASE}/auth/session`, { credentials: "include" });
@@ -892,12 +954,17 @@ export const sessionLogApi = {
 };
 
 export const healthApi = {
-  getDevices: async (): Promise<any> => {
+  getDevices: async (): Promise<DeviceHealthResponse> => {
     const res = await fetch(`${API_BASE}/health/devices`);
     if (!res.ok) throw new Error("Failed to get device health");
     return res.json();
   },
 
+  getSystem: async (): Promise<SystemHealthResponse> => {
+    const res = await fetch(`${API_BASE}/health/system`);
+    if (!res.ok) throw new Error("Failed to get system health");
+    return res.json();
+  },
 };
 
 export const layoutApi = {

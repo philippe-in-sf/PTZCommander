@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { switcherApi } from "@/lib/api";
 import { useAtemControl, type AtemState } from "@/hooks/use-atem-control";
@@ -47,6 +47,7 @@ export default function SwitcherPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [newSwitcher, setNewSwitcher] = useState({ name: "ATEM Extreme", ip: "", type: "atem" });
+  const [editForm, setEditForm] = useState({ name: "", ip: "" });
 
   const createSwitcherMutation = useMutation({
     mutationFn: switcherApi.create,
@@ -79,6 +80,31 @@ export default function SwitcherPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const updateSwitcherMutation = useMutation({
+    mutationFn: async (updates: { name: string; ip: string }) => {
+      if (!switcher) throw new Error("Switcher not found");
+      const updated = await switcherApi.update(switcher.id, { ...switcher, ...updates });
+      const connection = await switcherApi.connect(switcher.id);
+      return { updated, connection };
+    },
+    onSuccess: ({ connection }) => {
+      queryClient.invalidateQueries({ queryKey: ["switchers"] });
+      setEditOpen(false);
+      toast.success("Switcher settings updated");
+      if (connection.success) {
+        toast.success("Connected to ATEM");
+      } else {
+        toast.error(connection.message || "ATEM control handshake timed out");
+      }
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  useEffect(() => {
+    if (!switcher) return;
+    setEditForm({ name: switcher.name, ip: switcher.ip });
+  }, [switcher, editOpen]);
 
   const switcherHeaderRight = switcher ? (
     <div className="flex items-center gap-2">
@@ -145,6 +171,10 @@ export default function SwitcherPage() {
               <Wifi className="h-4 w-4 mr-2" />
               {connectSwitcherMutation.isPending ? "Connecting..." : "Connect"}
             </Button>
+            <Button variant="outline" onClick={() => setEditOpen(true)} data-testid="button-setup-switcher-big">
+              <Settings className="h-4 w-4 mr-2" />
+              Setup
+            </Button>
           </div>
         </div>
       ) : (
@@ -180,9 +210,35 @@ export default function SwitcherPage() {
           <DialogHeader><DialogTitle>Switcher Settings</DialogTitle></DialogHeader>
           {switcher && (
             <div className="space-y-4">
-              <div><Label>Name</Label><div className="text-slate-900 dark:text-white">{switcher.name}</div></div>
-              <div><Label>IP Address</Label><div className="text-slate-900 dark:text-white font-mono">{switcher.ip}</div></div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-switcher-name">Name</Label>
+                <Input
+                  id="edit-switcher-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                  className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600"
+                  data-testid="input-edit-switcher-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-switcher-ip">IP Address</Label>
+                <Input
+                  id="edit-switcher-ip"
+                  value={editForm.ip}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, ip: e.target.value }))}
+                  className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600 font-mono"
+                  data-testid="input-edit-switcher-ip"
+                />
+              </div>
               <div><Label>Status</Label><div className={atemState.connected ? "text-green-400" : "text-red-400"}>{atemState.connected ? "Connected" : "Disconnected"}</div></div>
+              <Button
+                className="w-full"
+                onClick={() => updateSwitcherMutation.mutate({ name: editForm.name.trim(), ip: editForm.ip.trim() })}
+                disabled={!editForm.name.trim() || !editForm.ip.trim() || updateSwitcherMutation.isPending}
+                data-testid="button-save-switcher-settings"
+              >
+                {updateSwitcherMutation.isPending ? "Saving..." : "Save and reconnect"}
+              </Button>
               <div className="border-t border-slate-300 dark:border-slate-700 pt-4">
                 {!deleteConfirm ? (
                   <Button variant="destructive" className="w-full" onClick={() => setDeleteConfirm(true)} data-testid="button-delete-switcher">
