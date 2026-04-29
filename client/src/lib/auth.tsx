@@ -30,6 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionQuery = useQuery<AuthSessionResponse | null>({
     queryKey: ["/api/auth/session"],
     queryFn: getQueryFn<AuthSessionResponse | null>({ on401: "returnNull" }),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
   });
 
   const bootstrapStatusQuery = useQuery<BootstrapStatus>({

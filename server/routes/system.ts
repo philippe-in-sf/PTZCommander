@@ -2,8 +2,143 @@ import type { RouteContext } from "./types";
 import { logger } from "../logger";
 import { APP_VERSION } from "@shared/version";
 import { readFileSync } from "fs";
+import { readFile } from "fs/promises";
 import { join } from "path";
+import os from "os";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { getRehearsalMode, setRehearsalMode } from "../rehearsal";
+
+const execFileAsync = promisify(execFile);
+
+function readCpuTimes() {
+  return os.cpus().map((cpu) => {
+    const total = Object.values(cpu.times).reduce((sum, value) => sum + value, 0);
+    return { idle: cpu.times.idle, total };
+  });
+}
+
+async function sampleCpuPercent(sampleMs: number = 200) {
+  const start = readCpuTimes();
+  await new Promise((resolve) => setTimeout(resolve, sampleMs));
+  const end = readCpuTimes();
+
+  const usageRatios = end.map((cpu, index) => {
+    const totalDiff = cpu.total - start[index].total;
+    const idleDiff = cpu.idle - start[index].idle;
+    if (totalDiff <= 0) return 0;
+    return 1 - idleDiff / totalDiff;
+  });
+
+  const averageUsage = usageRatios.reduce((sum, value) => sum + value, 0) / Math.max(usageRatios.length, 1);
+  return Math.max(0, Math.min(100, averageUsage * 100));
+}
+
+function getActiveInterfaceNames() {
+  return Object.entries(os.networkInterfaces())
+    .filter(([, entries]) => (entries || []).some((entry) => entry && !entry.internal))
+    .map(([name]) => name);
+}
+
+async function readLinuxNetworkCounters(interfaceNames: string[]) {
+  let rxBytes = 0;
+  let txBytes = 0;
+
+  await Promise.all(interfaceNames.map(async (name) => {
+    try {
+      const [rx, tx] = await Promise.all([
+        readFile(`/sys/class/net/${name}/statistics/rx_bytes`, "utf-8"),
+        readFile(`/sys/class/net/${name}/statistics/tx_bytes`, "utf-8"),
+      ]);
+      rxBytes += Number.parseInt(rx.trim(), 10) || 0;
+      txBytes += Number.parseInt(tx.trim(), 10) || 0;
+    } catch {
+      // Ignore interfaces that do not expose counters.
+    }
+  }));
+
+  return { rxBytes, txBytes };
+}
+
+async function readDarwinNetworkCounters(interfaceNames: string[]) {
+  const { stdout } = await execFileAsync("netstat", ["-ibn"]);
+  const lines = stdout.split("\n").filter(Boolean);
+  const headerLine = lines.find((line) => line.trim().startsWith("Name"));
+  if (!headerLine) {
+    return { rxBytes: 0, txBytes: 0 };
+  }
+
+  const headers = headerLine.trim().split(/\s+/);
+  const nameIndex = headers.indexOf("Name");
+  const rxIndex = headers.indexOf("Ibytes");
+  const txIndex = headers.indexOf("Obytes");
+
+  if (nameIndex === -1 || rxIndex === -1 || txIndex === -1) {
+    return { rxBytes: 0, txBytes: 0 };
+  }
+
+  const countersByInterface = new Map<string, { rxBytes: number; txBytes: number }>();
+
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/);
+    const name = parts[nameIndex];
+    if (!name || !interfaceNames.includes(name)) continue;
+
+    const rxBytes = Number.parseInt(parts[rxIndex] || "0", 10);
+    const txBytes = Number.parseInt(parts[txIndex] || "0", 10);
+    if (!Number.isFinite(rxBytes) || !Number.isFinite(txBytes)) continue;
+
+    const previous = countersByInterface.get(name);
+    countersByInterface.set(name, {
+      rxBytes: previous ? Math.max(previous.rxBytes, rxBytes) : rxBytes,
+      txBytes: previous ? Math.max(previous.txBytes, txBytes) : txBytes,
+    });
+  }
+
+  let rxBytes = 0;
+  let txBytes = 0;
+  for (const counters of countersByInterface.values()) {
+    rxBytes += counters.rxBytes;
+    txBytes += counters.txBytes;
+  }
+
+  return { rxBytes, txBytes };
+}
+
+async function readNetworkCounters() {
+  const activeInterfaceNames = getActiveInterfaceNames()
+    .filter((name) => !name.startsWith("utun") && !name.startsWith("awdl") && !name.startsWith("llw"));
+
+  if (activeInterfaceNames.length === 0) {
+    return { rxBytes: 0, txBytes: 0 };
+  }
+
+  if (process.platform === "linux") {
+    return readLinuxNetworkCounters(activeInterfaceNames);
+  }
+
+  if (process.platform === "darwin") {
+    return readDarwinNetworkCounters(activeInterfaceNames);
+  }
+
+  return { rxBytes: 0, txBytes: 0 };
+}
+
+async function sampleNetworkThroughput(sampleMs: number = 1000) {
+  const start = await readNetworkCounters();
+  await new Promise((resolve) => setTimeout(resolve, sampleMs));
+  const end = await readNetworkCounters();
+
+  const rxBytesPerSecond = Math.max(0, (end.rxBytes - start.rxBytes) / (sampleMs / 1000));
+  const txBytesPerSecond = Math.max(0, (end.txBytes - start.txBytes) / (sampleMs / 1000));
+
+  return {
+    rxBytesPerSecond,
+    txBytesPerSecond,
+    rxMbps: (rxBytesPerSecond * 8) / 1_000_000,
+    txMbps: (txBytesPerSecond * 8) / 1_000_000,
+  };
+}
 
 export function registerSystemRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, x32Manager, atemManager, broadcast, undoStack, sessionLog, addSessionLog } = ctx;
@@ -170,6 +305,34 @@ export function registerSystemRoutes(ctx: RouteContext) {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to get device health" });
+    }
+  });
+
+  app.get("/api/health/system", async (_req, res) => {
+    try {
+      const cpuSampleMs = 200;
+      const networkSampleMs = 1000;
+      const cpuPercent = await sampleCpuPercent(cpuSampleMs);
+      const network = await sampleNetworkThroughput(networkSampleMs);
+      const totalMemoryBytes = os.totalmem();
+      const freeMemoryBytes = os.freemem();
+      const usedMemoryBytes = totalMemoryBytes - freeMemoryBytes;
+      const processRssBytes = process.memoryUsage().rss;
+
+      res.json({
+        cpuPercent,
+        usedMemoryBytes,
+        totalMemoryBytes,
+        freeMemoryBytes,
+        processRssBytes,
+        network,
+        uptimeSeconds: process.uptime(),
+        sampleMs: cpuSampleMs,
+        networkSampleMs,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get system health" });
     }
   });
 

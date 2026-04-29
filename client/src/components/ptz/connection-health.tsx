@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { healthApi } from "@/lib/api";
+import { healthApi, type DeviceHealthResponse } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Activity, Camera, Tv, Music, Wifi, WifiOff, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,18 +8,23 @@ import { cn } from "@/lib/utils";
 export function ConnectionHealth() {
   const [open, setOpen] = useState(false);
 
-  const { data: health } = useQuery({
+  const { data: health } = useQuery<DeviceHealthResponse>({
     queryKey: ["health-devices"],
     queryFn: healthApi.getDevices,
     refetchInterval: open ? 5000 : 30000,
   });
 
-  const totalDevices = (health?.cameras?.length || 0) + (health?.mixers?.length || 0) + (health?.switchers?.length || 0) + (health?.displays?.length || 0);
+  const cameras = health?.cameras ?? [];
+  const mixers = health?.mixers ?? [];
+  const switchers = health?.switchers ?? [];
+  const displays = health?.displays ?? [];
+
+  const totalDevices = cameras.length + mixers.length + switchers.length + displays.length;
   const onlineDevices = [
-    ...(health?.cameras || []),
-    ...(health?.mixers || []),
-    ...(health?.switchers || []),
-    ...(health?.displays || []),
+    ...cameras,
+    ...mixers,
+    ...switchers,
+    ...displays,
   ].filter((d: any) => d.status === "online").length;
 
   return (
@@ -57,13 +62,13 @@ export function ConnectionHealth() {
               </div>
             )}
 
-            {health?.cameras?.length > 0 && (
+            {cameras.length > 0 && (
               <div>
                 <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
                   <Camera className="w-3.5 h-3.5" /> Cameras
                 </h3>
                 <div className="space-y-1.5">
-                  {health.cameras.map((cam: any) => (
+                  {cameras.map((cam: any) => (
                     <DeviceRow
                       key={`cam-${cam.id}`}
                       name={cam.name}
@@ -78,13 +83,13 @@ export function ConnectionHealth() {
               </div>
             )}
 
-            {health?.mixers?.length > 0 && (
+            {mixers.length > 0 && (
               <div>
                 <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
                   <Music className="w-3.5 h-3.5" /> Audio Mixers
                 </h3>
                 <div className="space-y-1.5">
-                  {health.mixers.map((m: any) => (
+                  {mixers.map((m: any) => (
                     <DeviceRow
                       key={`mix-${m.id}`}
                       name={m.name}
@@ -97,13 +102,13 @@ export function ConnectionHealth() {
               </div>
             )}
 
-            {health?.switchers?.length > 0 && (
+            {switchers.length > 0 && (
               <div>
                 <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
                   <Tv className="w-3.5 h-3.5" /> Video Switchers
                 </h3>
                 <div className="space-y-1.5">
-                  {health.switchers.map((s: any) => (
+                  {switchers.map((s: any) => (
                     <DeviceRow
                       key={`sw-${s.id}`}
                       name={s.name}
@@ -116,13 +121,13 @@ export function ConnectionHealth() {
               </div>
             )}
 
-            {health?.displays?.length > 0 && (
+            {displays.length > 0 && (
               <div>
                 <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
                   <Monitor className="w-3.5 h-3.5" /> Displays
                 </h3>
                 <div className="space-y-1.5">
-                  {health.displays.map((display: any) => (
+                  {displays.map((display: any) => (
                     <DeviceRow
                       key={`display-${display.id}`}
                       name={display.name}

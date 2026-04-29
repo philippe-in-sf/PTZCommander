@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UserRole } from "@shared/schema";
 import { AppLayout } from "@/components/app-layout";
@@ -130,6 +130,14 @@ export default function UsersPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const usersError = usersQuery.error instanceof Error ? usersQuery.error : null;
+  const authExpired = !!usersError && /authentication required|not signed in/i.test(usersError.message);
+
+  useEffect(() => {
+    if (!authExpired) return;
+    queryClient.setQueryData(["/api/auth/session"], null);
+  }, [authExpired, queryClient]);
+
   if (!isAdmin) {
     return (
       <AppLayout activePage="/users">
@@ -189,16 +197,24 @@ export default function UsersPage() {
             </Button>
           </div>
 
-          <div className="space-y-4">
-            {(usersQuery.data || []).map((user) => (
-              <UserRow key={user.id} user={user} />
-            ))}
-            {!usersQuery.isLoading && (usersQuery.data?.length ?? 0) === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-300/80 px-6 py-10 text-center text-sm text-slate-500 dark:border-slate-700">
-                No users found.
-              </div>
-            )}
-          </div>
+          {usersError ? (
+            <div className="rounded-2xl border border-amber-300/70 bg-amber-50/80 px-6 py-10 text-center text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100">
+              {authExpired
+                ? "Your admin session expired. Please sign in again."
+                : usersError.message}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {(usersQuery.data || []).map((user) => (
+                <UserRow key={user.id} user={user} />
+              ))}
+              {!usersQuery.isLoading && (usersQuery.data?.length ?? 0) === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-300/80 px-6 py-10 text-center text-sm text-slate-500 dark:border-slate-700">
+                  No users found.
+                </div>
+              )}
+            </div>
+          )}
         </section>
       </main>
     </AppLayout>
