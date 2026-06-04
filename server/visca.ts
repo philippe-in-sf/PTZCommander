@@ -2,8 +2,10 @@ import net from "net";
 import { logger } from "./logger";
 
 const CONNECTION_TIMEOUT_MS = 5000;
+const CONNECTION_VERIFY_TIMEOUT_MS = 1500;
 const VISCA_HEADER = 0x81;
 const VISCA_TERMINATOR = 0xFF;
+const VISCA_VERSION_INQUIRY = Buffer.from([VISCA_HEADER, 0x09, 0x00, 0x02, VISCA_TERMINATOR]);
 
 const PAN_TILT_CMD = [0x01, 0x06, 0x01];
 const ZOOM_CMD = [0x01, 0x04, 0x07];
@@ -89,26 +91,46 @@ export class VISCAClient {
   async connect(): Promise<boolean> {
     return new Promise((resolve) => {
       this.socket = new net.Socket();
+      let settled = false;
+      let verifyTimeout: NodeJS.Timeout | null = null;
+
+      const finish = (connected: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (verifyTimeout) {
+          clearTimeout(verifyTimeout);
+          verifyTimeout = null;
+        }
+        this.connected = connected;
+        resolve(connected);
+      };
 
       const timeout = setTimeout(() => {
         logger.warn("camera", `VISCA connection timeout to ${this.host}:${this.port}`, { action: "visca_timeout", details: { host: this.host, port: this.port } });
         this.socket?.destroy();
-        this.connected = false;
-        resolve(false);
+        finish(false);
       }, CONNECTION_TIMEOUT_MS);
 
       this.socket.on("connect", () => {
-        clearTimeout(timeout);
-        this.connected = true;
-        logger.info("camera", `VISCA connected to ${this.host}:${this.port}`, { action: "visca_connected", details: { host: this.host, port: this.port } });
-        resolve(true);
+        logger.debug("camera", `VISCA TCP socket open to ${this.host}:${this.port}; verifying camera response`, {
+          action: "visca_verify_start",
+          details: { host: this.host, port: this.port },
+        });
+        verifyTimeout = setTimeout(() => {
+          logger.warn("camera", `VISCA verification timeout to ${this.host}:${this.port}`, {
+            action: "visca_verify_timeout",
+            details: { host: this.host, port: this.port, timeoutMs: CONNECTION_VERIFY_TIMEOUT_MS },
+          });
+          this.socket?.destroy();
+          finish(false);
+        }, CONNECTION_VERIFY_TIMEOUT_MS);
+        this.socket?.write(VISCA_VERSION_INQUIRY);
       });
 
       this.socket.on("error", (err) => {
-        clearTimeout(timeout);
         logger.error("camera", `VISCA connection error to ${this.host}:${this.port}: ${err.message}`, { action: "visca_error", details: { host: this.host, port: this.port, error: err.message } });
-        this.connected = false;
-        resolve(false);
+        finish(false);
       });
 
       this.socket.on("close", () => {
@@ -122,6 +144,10 @@ export class VISCAClient {
       });
 
       this.socket.on("data", (chunk: Buffer) => {
+        if (!this.connected && chunk.includes(VISCA_TERMINATOR)) {
+          logger.info("camera", `VISCA connected to ${this.host}:${this.port}`, { action: "visca_connected", details: { host: this.host, port: this.port } });
+          finish(true);
+        }
         this.handleIncomingData(chunk);
       });
 

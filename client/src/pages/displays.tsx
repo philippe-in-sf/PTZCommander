@@ -25,6 +25,16 @@ function displayStatus(display: DisplayDevice) {
   return [power, volume, input].join(" · ");
 }
 
+function displayAddress(display: DisplayDevice) {
+  if (!display.ip) return "No IP address";
+  const port = display.protocol === "samsung_local"
+    ? display.samsungPort
+    : display.protocol === "hisense_vidaa"
+      ? display.hisensePort
+      : null;
+  return port ? `${display.ip}:${port}` : display.ip;
+}
+
 function DisplayCard({ display }: { display: DisplayWithPairing }) {
   const queryClient = useQueryClient();
   const [volume, setVolume] = useState(display.volume ?? 20);
@@ -90,6 +100,7 @@ function DisplayCard({ display }: { display: DisplayWithPairing }) {
             {DISPLAY_BRANDS.find((brand) => brand.value === display.brand)?.label || display.brand}
             {isLocalDisplay ? " · Local network" : " · SmartThings"}
           </p>
+          <p className="text-xs font-mono text-muted-foreground mt-0.5">{displayAddress(display)}</p>
         </div>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="outline" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending} data-testid={`button-refresh-display-${display.id}`}>
@@ -228,9 +239,15 @@ function LocalSamsungSetupPanel() {
   });
 
   function addManual() {
+    const ip = manualIp.trim();
+    if (!ip) {
+      toast.error("Display add failed", { description: "Enter an IP address for the display." });
+      return;
+    }
+
     createMutation.mutate({
       name: manualName.trim() || "Samsung Frame",
-      ip: manualIp.trim(),
+      ip,
       port: parseInt(manualPort, 10) || 8002,
     });
   }
@@ -287,10 +304,15 @@ function LocalSamsungSetupPanel() {
           <Label>Port</Label>
           <Input value={manualPort} onChange={(event) => setManualPort(event.target.value)} placeholder="8002" data-testid="input-display-port" />
         </div>
-        <Button onClick={addManual} disabled={createMutation.isPending || !manualIp.trim()} data-testid="button-add-display">
-          <Plus className="w-4 h-4 mr-2" /> Add
+        <Button onClick={addManual} disabled={createMutation.isPending} data-testid="button-add-display">
+          <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add"}
         </Button>
       </div>
+      {createMutation.error && (
+        <p className="text-xs text-red-600 dark:text-red-400" data-testid="display-add-error">
+          {createMutation.error.message}
+        </p>
+      )}
     </div>
   );
 }
@@ -334,9 +356,15 @@ function LocalHisenseSetupPanel() {
   });
 
   function addManual() {
+    const ip = manualIp.trim();
+    if (!ip) {
+      toast.error("Canvas add failed", { description: "Enter an IP address for the display." });
+      return;
+    }
+
     createMutation.mutate({
       name: manualName.trim() || "Hisense Canvas",
-      ip: manualIp.trim(),
+      ip,
       port: parseInt(manualPort, 10) || 36669,
       useSsl: manualUseSsl === "true",
     });
@@ -405,10 +433,15 @@ function LocalHisenseSetupPanel() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={addManual} disabled={createMutation.isPending || !manualIp.trim()} data-testid="button-add-hisense-display">
-          <Plus className="w-4 h-4 mr-2" /> Add
+        <Button onClick={addManual} disabled={createMutation.isPending} data-testid="button-add-hisense-display">
+          <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add"}
         </Button>
       </div>
+      {createMutation.error && (
+        <p className="text-xs text-red-600 dark:text-red-400" data-testid="hisense-display-add-error">
+          {createMutation.error.message}
+        </p>
+      )}
     </div>
   );
 }

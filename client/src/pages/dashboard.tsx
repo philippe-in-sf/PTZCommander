@@ -66,10 +66,12 @@ export default function Dashboard() {
     return window.localStorage.getItem(FIRST_RUN_DISCOVERY_KEY) === "true";
   });
   const [hasAutoScannedDiscovery, setHasAutoScannedDiscovery] = useState(false);
-  const [newCamera, setNewCamera] = useState<{ name: string; ip: string; port: number; streamUrl: string; previewType: PreviewType; previewRefreshMs: number }>({
+  const [newCamera, setNewCamera] = useState<{ name: string; ip: string; port: number; username: string; password: string; streamUrl: string; previewType: PreviewType; previewRefreshMs: number }>({
     name: "",
     ip: "",
     port: 52381,
+    username: "",
+    password: "",
     streamUrl: "",
     previewType: "none",
     previewRefreshMs: 2000,
@@ -148,7 +150,7 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cameras"] });
       setAddCameraOpen(false);
-      setNewCamera({ name: "", ip: "", port: 52381, streamUrl: "", previewType: "none", previewRefreshMs: 2000 });
+      setNewCamera({ name: "", ip: "", port: 52381, username: "", password: "", streamUrl: "", previewType: "none", previewRefreshMs: 2000 });
       toast.success("Camera added successfully");
     },
     onError: (error: Error) => {
@@ -400,6 +402,8 @@ export default function Dashboard() {
       ip: newCamera.ip,
       port: newCamera.port,
       protocol: "visca",
+      username: newCamera.username || null,
+      password: newCamera.password || null,
       streamUrl: newCamera.previewType === "none" ? null : newCamera.streamUrl || null,
       previewType: newCamera.previewType,
       previewRefreshMs: newCamera.previewRefreshMs,
@@ -674,6 +678,29 @@ export default function Dashboard() {
                         data-testid="input-new-camera-port"
                       />
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="camera-username">Camera Username</Label>
+                        <Input
+                          id="camera-username"
+                          value={newCamera.username}
+                          onChange={(e) => setNewCamera({ ...newCamera, username: e.target.value })}
+                          autoComplete="off"
+                          data-testid="input-new-camera-username"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="camera-password">Camera Password</Label>
+                        <Input
+                          id="camera-password"
+                          type="password"
+                          value={newCamera.password}
+                          onChange={(e) => setNewCamera({ ...newCamera, password: e.target.value })}
+                          autoComplete="off"
+                          data-testid="input-new-camera-password"
+                        />
+                      </div>
+                    </div>
                     <div>
                       <Label htmlFor="preview-type">Preview Source</Label>
                       <select
@@ -759,6 +786,8 @@ export default function Dashboard() {
                 name: c.name,
                 ip: c.ip,
                 port: c.port,
+                username: c.username,
+                password: c.password,
                 streamUrl: c.streamUrl,
                 previewType: c.previewType,
                 previewRefreshMs: c.previewRefreshMs,
