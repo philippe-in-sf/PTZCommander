@@ -1,6 +1,6 @@
 import { fromError } from "zod-validation-error";
 import { bootstrapUserSchema, createUserSchema, loginSchema, patchUserSchema } from "@shared/schema";
-import { destroySession, establishSession, hashPassword, normalizeUsername, sanitizeUser, verifyPassword } from "../auth";
+import { destroySession, establishSession, hashPassword, normalizeUsername, registerApiAccessRule, sanitizeUser, verifyPassword } from "../auth";
 import type { RouteContext } from "./types";
 import rateLimit from "express-rate-limit";
 
@@ -13,6 +13,7 @@ function ensureLastActiveAdmin(users: Awaited<ReturnType<RouteContext["storage"]
 
 export function registerAuthRoutes(ctx: RouteContext) {
   const { app, storage } = ctx;
+  registerApiAccessRule(["GET", "POST", "PATCH"], /^\/api\/users(?:\/\d+)?$/, "admin");
 
   const loginRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,

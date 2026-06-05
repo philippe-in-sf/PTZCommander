@@ -4,6 +4,7 @@ import { fromError } from "zod-validation-error";
 import { z } from "zod";
 import type { RouteContext } from "./types";
 import { logger } from "../logger";
+import { registerApiAccessRule } from "../auth";
 
 const reorderSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1),
@@ -19,6 +20,10 @@ async function withScenes(ctx: RouteContext, cues: RunsheetCue[]): Promise<Runsh
 
 export function registerRunsheetRoutes(ctx: RouteContext) {
   const { app, storage, broadcast } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/runsheet\/cues$/, "operator");
+  registerApiAccessRule(["PATCH"], /^\/api\/runsheet\/cues\/\d+$/, "operator");
+  registerApiAccessRule(["DELETE"], /^\/api\/runsheet\/cues\/\d+$/, "operator");
+  registerApiAccessRule(["PUT"], /^\/api\/runsheet\/cues\/reorder$/, "operator");
 
   app.get("/api/runsheet/cues", async (_req, res) => {
     try {

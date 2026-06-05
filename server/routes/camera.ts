@@ -10,6 +10,8 @@ import net from "net";
 import os from "os";
 import { Readable } from "stream";
 import { z } from "zod";
+import { isRedactedSecret, publicCamera } from "./public-dtos";
+import { registerApiAccessRule } from "../auth";
 
 const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
 const VISCA_VERSION_INQUIRY = Buffer.from([0x81, 0x09, 0x00, 0x02, 0xff]);
@@ -291,11 +293,15 @@ async function runWithConcurrency<T, R>(items: T[], concurrency: number, worker:
 
 export function registerCameraRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, broadcast, pushUndo, addSessionLog, captureSnapshot } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/cameras\/\d+\/webrtc\/offer$/, "viewer");
+  registerApiAccessRule(["POST"], /^\/api\/cameras\/\d+\/program$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/cameras\/\d+\/preview$/, "operator");
+  registerApiAccessRule(["PATCH", "POST", "DELETE"], /^\/api\/presets(?:\/\d+)?(?:\/recall)?$/, "operator");
 
   app.get("/api/cameras", async (_req, res) => {
     try {
       const cameras = await storage.getAllCameras();
-      res.json(cameras);
+      res.json(cameras.map(publicCamera));
     } catch (error) {
       res.status(500).json({ message: "Failed to get cameras" });
     }
@@ -418,7 +424,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
         });
         broadcast({ type: "invalidate", keys: ["cameras"] });
       }
-      res.json({ added, skipped });
+      res.json({ added: added.map(publicCamera), skipped });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to import discovered cameras" });
     }
@@ -431,7 +437,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
       if (!camera) {
         return res.status(404).json({ message: "Camera not found" });
       }
-      res.json(camera);
+      res.json(publicCamera(camera));
     } catch (error) {
       res.status(500).json({ message: "Failed to get camera" });
     }
@@ -452,7 +458,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
       const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
       await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
       broadcast({ type: "invalidate", keys: ["cameras"] });
-      res.json(camera);
+      res.json(publicCamera(await storage.getCamera(camera.id) || camera));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to create camera" });
     }
@@ -461,7 +467,9 @@ export function registerCameraRoutes(ctx: RouteContext) {
   app.patch("/api/cameras/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const result = patchCameraSchema.safeParse(req.body);
+      const body = { ...req.body };
+      if (isRedactedSecret(body.password)) delete body.password;
+      const result = patchCameraSchema.safeParse(body);
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }
@@ -495,7 +503,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
         });
       }
       broadcast({ type: "invalidate", keys: ["cameras"] });
-      res.json(await storage.getCamera(id) || camera);
+      res.json(publicCamera(await storage.getCamera(id) || camera));
     } catch (error) {
       res.status(500).json({ message: "Failed to update camera" });
     }

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -56,6 +56,7 @@ export const presets = pgTable("presets", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("presets_camera_id_idx").on(table.cameraId),
+  uniqueIndex("presets_camera_preset_unique_idx").on(table.cameraId, table.presetNumber),
 ]);
 
 export const mixers = pgTable("mixers", {
@@ -93,6 +94,7 @@ export const sceneButtons = pgTable("scene_buttons", {
   displayActions: text("display_actions"),
 }, (table) => [
   index("scene_buttons_camera_id_idx").on(table.cameraId),
+  uniqueIndex("scene_buttons_button_number_unique_idx").on(table.buttonNumber),
 ]);
 
 export const layouts = pgTable("layouts", {
@@ -147,7 +149,9 @@ export const hueBridges = pgTable("hue_bridges", {
   apiKey: text("api_key"),
   status: text("status").notNull().default("offline"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("hue_bridges_ip_unique_idx").on(table.ip),
+]);
 
 export const displayDevices = pgTable("display_devices", {
   id: serial("id").primaryKey(),

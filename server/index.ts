@@ -7,6 +7,7 @@ import { errorDetails, logger } from "./logger";
 
 const app = express();
 const httpServer = createServer(app);
+const SECRET_LOG_KEY_PATTERN = /(password|apiKey|token|secret)/i;
 
 declare module "http" {
   interface IncomingMessage {
@@ -38,6 +39,23 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+function redactApiLogBody(value: unknown, depth = 0): unknown {
+  if (depth > 6 || value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => redactApiLogBody(item, depth + 1));
+  }
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, childValue] of Object.entries(value)) {
+    if (SECRET_LOG_KEY_PATTERN.test(key)) {
+      redacted[key] = childValue ? "[redacted]" : childValue;
+    } else {
+      redacted[key] = redactApiLogBody(childValue, depth + 1);
+    }
+  }
+  return redacted;
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -54,7 +72,7 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        logLine += ` :: ${JSON.stringify(redactApiLogBody(capturedJsonResponse))}`;
       }
 
       log(logLine);

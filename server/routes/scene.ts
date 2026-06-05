@@ -8,6 +8,7 @@ import type { AtemSwitcherState } from "../atem";
 import { executeDisplayAction, refreshDisplayStatus } from "./display";
 import { isRehearsalMode } from "../rehearsal";
 import { z } from "zod";
+import { registerApiAccessRule } from "../auth";
 
 type SceneSection = "atem" | "obs" | "mixer" | "hue" | "ptz" | "display";
 type CaptureSection = Exclude<SceneSection, "ptz">;
@@ -526,6 +527,8 @@ function getScenePreview(button: SceneButton) {
 
 export function registerSceneRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, x32Manager, atemManager, obsManager, broadcast, pushUndo, addSessionLog } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/scene-buttons\/\d+\/test$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/scene-buttons\/\d+\/execute$/, "operator");
 
   async function executeSceneButton(button: SceneButton, sections?: SceneSection[]) {
     const results: string[] = [];
@@ -813,6 +816,9 @@ export function registerSceneRoutes(ctx: RouteContext) {
           displayActions: null,
           ...capture.updates,
         };
+        if (existingScenes.some((existingScene) => existingScene.buttonNumber === buttonNumber)) {
+          return res.status(409).json({ message: `Scene button ${buttonNumber} already exists.` });
+        }
         scene = await storage.createSceneButton(createPayload);
       }
 
@@ -849,6 +855,10 @@ export function registerSceneRoutes(ctx: RouteContext) {
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }
+      const existingScenes = await storage.getAllSceneButtons();
+      if (existingScenes.some((scene) => scene.buttonNumber === result.data.buttonNumber)) {
+        return res.status(409).json({ message: `Scene button ${result.data.buttonNumber} already exists.` });
+      }
       const button = await storage.createSceneButton(result.data);
       logger.info("system", `Scene button created: ${button.name}`, { action: "scene_button:create", details: { buttonId: button.id, name: button.name } });
       broadcast({ type: "invalidate", keys: ["scene-buttons"] });
@@ -864,6 +874,12 @@ export function registerSceneRoutes(ctx: RouteContext) {
       const result = patchSceneButtonSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
+      }
+      if (result.data.buttonNumber !== undefined) {
+        const existingScenes = await storage.getAllSceneButtons();
+        if (existingScenes.some((scene) => scene.id !== id && scene.buttonNumber === result.data.buttonNumber)) {
+          return res.status(409).json({ message: `Scene button ${result.data.buttonNumber} already exists.` });
+        }
       }
       const button = await storage.updateSceneButton(id, result.data);
       if (!button) {

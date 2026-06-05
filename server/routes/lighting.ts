@@ -2,18 +2,29 @@ import type { RouteContext } from "./types";
 import { insertHueBridgeSchema, patchHueBridgeSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 import { getHueClient, pairBridgeWithDetails, setHueClient, removeHueClient } from "../hue";
+import { isRedactedSecret, publicHueBridge } from "./public-dtos";
+import { registerApiAccessRule } from "../auth";
 
 export function registerLightingRoutes(ctx: RouteContext) {
   const { app, storage, addSessionLog } = ctx;
+  registerApiAccessRule(["PUT"], /^\/api\/hue\/bridges\/\d+\/lights\/[^/]+$/, "operator");
+  registerApiAccessRule(["PUT"], /^\/api\/hue\/bridges\/\d+\/groups\/[^/]+$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/hue\/bridges\/\d+\/scenes\/[^/]+\/activate$/, "operator");
 
   app.get("/api/hue/bridges", async (_req, res) => {
     const bridges = await storage.getAllHueBridges();
-    res.json(bridges);
+    res.json(bridges.map(publicHueBridge));
   });
 
   app.post("/api/hue/bridges", async (req, res) => {
-    const parsed = insertHueBridgeSchema.safeParse(req.body);
+    const body = { ...req.body };
+    if (isRedactedSecret(body.apiKey)) delete body.apiKey;
+    const parsed = insertHueBridgeSchema.safeParse(body);
     if (!parsed.success) return res.status(400).json({ error: fromError(parsed.error).message });
+    const existing = await storage.getAllHueBridges();
+    if (existing.some((bridge) => bridge.ip === parsed.data.ip)) {
+      return res.status(409).json({ error: "A Hue bridge with this IP address already exists." });
+    }
     const bridge = await storage.createHueBridge(parsed.data);
     if (bridge.apiKey) {
       setHueClient(bridge.id, bridge.ip, bridge.apiKey);
@@ -21,17 +32,24 @@ export function registerLightingRoutes(ctx: RouteContext) {
       await storage.updateHueBridge(bridge.id, { status: online ? "online" : "offline" });
       bridge.status = online ? "online" : "offline";
     }
-    res.json(bridge);
+    res.json(publicHueBridge(bridge));
   });
 
   app.patch("/api/hue/bridges/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const result = patchHueBridgeSchema.safeParse(req.body);
+      const body = { ...req.body };
+      if (isRedactedSecret(body.apiKey)) delete body.apiKey;
+      const result = patchHueBridgeSchema.safeParse(body);
       if (!result.success) return res.status(400).json({ error: fromError(result.error).message });
       const bridge = await storage.updateHueBridge(id, result.data);
       if (!bridge) return res.status(404).json({ error: "Bridge not found" });
-      res.json(bridge);
+      if (result.data.apiKey === null) {
+        removeHueClient(id);
+      } else if (result.data.apiKey) {
+        setHueClient(bridge.id, bridge.ip, result.data.apiKey);
+      }
+      res.json(publicHueBridge(bridge));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to update bridge";
       res.status(500).json({ error: message });
@@ -51,9 +69,9 @@ export function registerLightingRoutes(ctx: RouteContext) {
     if (!bridge) return res.status(404).json({ error: "Bridge not found" });
     const { apiKey, error } = await pairBridgeWithDetails(bridge.ip);
     if (!apiKey) return res.status(400).json({ error: error ?? "Pairing failed — press the link button on your Hue bridge, then try again" });
-    await storage.updateHueBridge(id, { apiKey, status: "online" });
+    const updated = await storage.updateHueBridge(id, { apiKey, status: "online" });
     setHueClient(id, bridge.ip, apiKey);
-    res.json({ success: true, apiKey });
+    res.json({ success: true, bridge: publicHueBridge(updated || { ...bridge, apiKey, status: "online" }) });
   });
 
   app.get("/api/hue/bridges/:id/lights", async (req, res) => {

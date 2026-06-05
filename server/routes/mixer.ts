@@ -36,6 +36,11 @@ export function registerMixerRoutes(ctx: RouteContext) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }
 
+      const existing = await storage.getAllMixers();
+      if (existing.length > 0) {
+        return res.status(409).json({ message: "PTZ Command currently supports one X32 mixer. Update or delete the existing mixer instead." });
+      }
+
       const mixer = await storage.createMixer(result.data);
       logger.info("mixer", `Mixer created: ${mixer.name}`, { action: "create", details: { mixerId: mixer.id, name: mixer.name, ip: mixer.ip, port: mixer.port } });
 

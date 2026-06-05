@@ -3,14 +3,19 @@ import { insertLayoutSchema, patchLayoutSchema } from "@shared/schema";
 import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { APP_VERSION } from "@shared/version";
+import { registerApiAccessRule } from "../auth";
+import { buildCurrentLayoutSnapshot } from "./layout-snapshot";
+import { publicLayout } from "./public-dtos";
 
 export function registerLayoutRoutes(ctx: RouteContext) {
   const { app, storage, broadcast, addSessionLog } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/layouts\/\d+\/load$/, "operator");
+  registerApiAccessRule(["GET"], /^\/api\/layouts\/\d+\/export$/, "admin");
 
   app.get("/api/layouts", async (_req, res) => {
     try {
       const allLayouts = await storage.getAllLayouts();
-      res.json(allLayouts);
+      res.json(allLayouts.map(publicLayout));
     } catch (error) {
       res.status(500).json({ message: "Failed to get layouts" });
     }
@@ -19,7 +24,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
   app.get("/api/layouts/active", async (_req, res) => {
     try {
       const layout = await storage.getActiveLayout();
-      res.json(layout || null);
+      res.json(layout ? publicLayout(layout) : null);
     } catch (error) {
       res.status(500).json({ message: "Failed to get active layout" });
     }
@@ -30,7 +35,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const id = parseInt(req.params.id);
       const layout = await storage.getLayout(id);
       if (!layout) return res.status(404).json({ message: "Layout not found" });
-      res.json(layout);
+      res.json(publicLayout(layout));
     } catch (error) {
       res.status(500).json({ message: "Failed to get layout" });
     }
@@ -45,7 +50,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const layout = await storage.createLayout(parsed.data);
       logger.info("system", `Layout created: ${layout.name}`, { action: "layout:create" });
       broadcast({ type: "invalidate", keys: ["layouts"] });
-      res.status(201).json(layout);
+      res.status(201).json(publicLayout(layout));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to create layout" });
     }
@@ -56,25 +61,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const { name, description, color } = req.body;
       if (!name) return res.status(400).json({ message: "Name is required" });
 
-      const allCameras = await storage.getAllCameras();
-      const allPresets: any[] = [];
-      for (const cam of allCameras) {
-        const camPresets = await storage.getPresetsForCamera(cam.id);
-        allPresets.push(...camPresets);
-      }
-      const allSceneButtons = await storage.getAllSceneButtons();
-      const allMixers = await storage.getAllMixers();
-      const allSwitchers = await storage.getAllSwitchers();
-      const allObsConnections = await storage.getAllObsConnections();
-
-      const snapshot = JSON.stringify({
-        cameras: allCameras.map(c => ({ name: c.name, ip: c.ip, port: c.port, protocol: c.protocol, username: c.username, password: c.password, streamUrl: c.streamUrl, previewType: c.previewType, previewRefreshMs: c.previewRefreshMs, atemInputId: c.atemInputId })),
-        presets: allPresets.map(p => ({ cameraIp: allCameras.find(c => c.id === p.cameraId)?.ip, presetNumber: p.presetNumber, name: p.name, pan: p.pan, tilt: p.tilt, zoom: p.zoom, focus: p.focus })),
-        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, obsSceneName: s.obsSceneName, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
-        mixers: allMixers.map(m => ({ name: m.name, ip: m.ip, port: m.port })),
-        switchers: allSwitchers.map(s => ({ name: s.name, ip: s.ip, type: s.type })),
-        obsConnections: allObsConnections.map(o => ({ name: o.name, host: o.host, port: o.port, password: o.password })),
-      });
+      const snapshot = await buildCurrentLayoutSnapshot(storage);
 
       const layout = await storage.createLayout({
         name,
@@ -87,7 +74,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
 
       logger.info("system", `Layout saved from current config: ${name}`, { action: "layout:save_current" });
       broadcast({ type: "invalidate", keys: ["layouts"] });
-      res.status(201).json(layout);
+      res.status(201).json(publicLayout(layout));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to save layout" });
     }
@@ -146,19 +133,19 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       }
 
       if (snapshot.mixers) {
-        for (const m of snapshot.mixers) {
+        for (const m of snapshot.mixers.slice(0, 1)) {
           try { await storage.createMixer(m); } catch {}
         }
       }
 
       if (snapshot.switchers) {
-        for (const s of snapshot.switchers) {
+        for (const s of snapshot.switchers.slice(0, 1)) {
           try { await storage.createSwitcher(s); } catch {}
         }
       }
 
       if (snapshot.obsConnections) {
-        for (const obs of snapshot.obsConnections) {
+        for (const obs of snapshot.obsConnections.slice(0, 1)) {
           try { await storage.createObsConnection(obs); } catch {}
         }
       }
@@ -179,30 +166,12 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const layout = await storage.getLayout(id);
       if (!layout) return res.status(404).json({ message: "Layout not found" });
 
-      const allCameras = await storage.getAllCameras();
-      const allPresets: any[] = [];
-      for (const cam of allCameras) {
-        const camPresets = await storage.getPresetsForCamera(cam.id);
-        allPresets.push(...camPresets);
-      }
-      const allSceneButtons = await storage.getAllSceneButtons();
-      const allMixers = await storage.getAllMixers();
-      const allSwitchers = await storage.getAllSwitchers();
-      const allObsConnections = await storage.getAllObsConnections();
-
-      const snapshot = JSON.stringify({
-        cameras: allCameras.map(c => ({ name: c.name, ip: c.ip, port: c.port, protocol: c.protocol, username: c.username, password: c.password, streamUrl: c.streamUrl, previewType: c.previewType, previewRefreshMs: c.previewRefreshMs, atemInputId: c.atemInputId })),
-        presets: allPresets.map(p => ({ cameraIp: allCameras.find(c => c.id === p.cameraId)?.ip, presetNumber: p.presetNumber, name: p.name, pan: p.pan, tilt: p.tilt, zoom: p.zoom, focus: p.focus })),
-        sceneButtons: allSceneButtons.map(s => ({ buttonNumber: s.buttonNumber, name: s.name, color: s.color, atemInputId: s.atemInputId, atemTransitionType: s.atemTransitionType, obsSceneName: s.obsSceneName, cameraId: s.cameraId, presetNumber: s.presetNumber, mixerActions: s.mixerActions, hueActions: s.hueActions, displayActions: s.displayActions })),
-        mixers: allMixers.map(m => ({ name: m.name, ip: m.ip, port: m.port })),
-        switchers: allSwitchers.map(s => ({ name: s.name, ip: s.ip, type: s.type })),
-        obsConnections: allObsConnections.map(o => ({ name: o.name, host: o.host, port: o.port, password: o.password })),
-      });
+      const snapshot = await buildCurrentLayoutSnapshot(storage);
 
       const updated = await storage.updateLayout(id, { snapshot });
       logger.info("system", `Layout snapshot updated: ${layout.name}`, { action: "layout:update_snapshot" });
       broadcast({ type: "invalidate", keys: ["layouts"] });
-      res.json(updated);
+      res.json(updated ? publicLayout(updated) : null);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to update layout snapshot" });
     }
@@ -218,7 +187,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       const layout = await storage.updateLayout(id, result.data);
       if (!layout) return res.status(404).json({ message: "Layout not found" });
       broadcast({ type: "invalidate", keys: ["layouts"] });
-      res.json(layout);
+      res.json(publicLayout(layout));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to update layout";
       res.status(500).json({ message });
@@ -279,7 +248,7 @@ export function registerLayoutRoutes(ctx: RouteContext) {
       addSessionLog("layout", "Import", `Imported layout: ${created.name}`);
       logger.info("system", `Layout imported: ${created.name}`, { action: "layout:import" });
       broadcast({ type: "invalidate", keys: ["layouts"] });
-      res.status(201).json(created);
+      res.status(201).json(publicLayout(created));
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Failed to import layout" });
     }
