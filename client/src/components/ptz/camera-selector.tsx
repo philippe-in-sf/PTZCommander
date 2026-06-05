@@ -11,6 +11,8 @@ export interface CameraData {
   name: string;
   ip: string;
   port?: number;
+  username?: string | null;
+  password?: string | null;
   streamUrl?: string | null;
   previewType?: "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser" | string;
   previewRefreshMs?: number | null;
@@ -27,6 +29,8 @@ interface CameraSelectorProps {
     name: string;
     ip: string;
     port: number;
+    username?: string | null;
+    password?: string | null;
     streamUrl?: string | null;
     previewType?: string;
     previewRefreshMs?: number;
@@ -43,7 +47,7 @@ export function CameraSelector({
   onDeleteCamera 
 }: CameraSelectorProps) {
   const [editingCamera, setEditingCamera] = useState<CameraData | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, streamUrl: '', previewType: 'none', previewRefreshMs: 2000, atemInputId: '' });
+  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, username: '', password: '', streamUrl: '', previewType: 'none', previewRefreshMs: 2000, atemInputId: '' });
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDeviceError, setVideoDeviceError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -55,6 +59,8 @@ export function CameraSelector({
       name: cam.name, 
       ip: cam.ip, 
       port: cam.port || 52381,
+      username: cam.username || '',
+      password: cam.password || '',
       streamUrl: cam.streamUrl || '',
       previewType: cam.previewType || (cam.streamUrl ? 'snapshot' : 'none'),
       previewRefreshMs: cam.previewRefreshMs || 2000,
@@ -70,6 +76,8 @@ export function CameraSelector({
         name: editForm.name,
         ip: editForm.ip,
         port: editForm.port,
+        username: editForm.username || null,
+        password: editForm.password || null,
         streamUrl: editForm.previewType === 'none' ? null : editForm.streamUrl || null,
         previewType: editForm.previewType,
         previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
@@ -224,6 +232,29 @@ export function CameraSelector({
                 <p className="text-xs text-slate-500 mt-1">
                   Common ports: 5678 (Fomako), 52381 (Sony/standard), 1259
                 </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="edit-username">Camera Username</Label>
+                  <Input
+                    id="edit-username"
+                    value={editForm.username}
+                    onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                    autoComplete="off"
+                    data-testid="input-camera-username"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-password">Camera Password</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    value={editForm.password}
+                    onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                    autoComplete="off"
+                    data-testid="input-camera-password"
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="edit-preview-type">Preview Source</Label>

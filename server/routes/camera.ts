@@ -73,8 +73,8 @@ const webrtcOfferSchema = z.object({
 });
 
 function cameraAuthHeaders(camera: { username: string | null; password: string | null }) {
-  return camera.username && camera.password
-    ? { Authorization: "Basic " + Buffer.from(`${camera.username}:${camera.password}`).toString("base64") }
+  return camera.username
+    ? { Authorization: "Basic " + Buffer.from(`${camera.username}:${camera.password || ""}`).toString("base64") }
     : {};
 }
 
@@ -101,10 +101,10 @@ function applyCameraCredentialsToPreviewUrl(
 ) {
   try {
     const url = new URL(value);
-    if (!camera.username || !camera.password) return url.toString();
+    if (!camera.username) return url.toString();
     if (url.username || url.password) return url.toString();
     url.username = camera.username;
-    url.password = camera.password;
+    url.password = camera.password || "";
     return url.toString();
   } catch {
     return value;
@@ -334,9 +334,32 @@ export function registerCameraRoutes(ctx: RouteContext) {
         return confidence ? { ...target, confidence } : null;
       });
 
-      const discovered = probes
-        .filter((probe): probe is { ip: string; port: number; confidence: DiscoveryConfidence } => !!probe)
-        .sort((a, b) => ipv4ToInt(a.ip) - ipv4ToInt(b.ip) || a.port - b.port)
+      const confidenceRank: Record<DiscoveryConfidence, number> = { confirmed: 0, "port-open": 1 };
+      const preferredPorts = [52381, 5678, 1259];
+      const portPreference = new Map(preferredPorts.map((port, index) => [port, index]));
+      const bestProbeByIp = new Map<string, { ip: string; port: number; confidence: DiscoveryConfidence }>();
+      for (const probe of probes.filter((probe): probe is { ip: string; port: number; confidence: DiscoveryConfidence } => !!probe)) {
+        const current = bestProbeByIp.get(probe.ip);
+        if (!current) {
+          bestProbeByIp.set(probe.ip, probe);
+          continue;
+        }
+
+        const probeRank = confidenceRank[probe.confidence];
+        const currentRank = confidenceRank[current.confidence];
+        const probePortRank = portPreference.get(probe.port) ?? preferredPorts.length;
+        const currentPortRank = portPreference.get(current.port) ?? preferredPorts.length;
+        if (
+          probeRank < currentRank ||
+          (probeRank === currentRank && probePortRank < currentPortRank) ||
+          (probeRank === currentRank && probePortRank === currentPortRank && probe.port < current.port)
+        ) {
+          bestProbeByIp.set(probe.ip, probe);
+        }
+      }
+
+      const discovered = Array.from(bestProbeByIp.values())
+        .sort((a, b) => ipv4ToInt(a.ip) - ipv4ToInt(b.ip))
         .map<DiscoveredCamera>((probe, index) => ({
           ip: probe.ip,
           port: probe.port,
@@ -442,12 +465,37 @@ export function registerCameraRoutes(ctx: RouteContext) {
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }
+      const previousCamera = await storage.getCamera(id);
+      if (!previousCamera) {
+        return res.status(404).json({ message: "Camera not found" });
+      }
+
       const camera = await storage.updateCamera(id, result.data);
       if (!camera) {
         return res.status(404).json({ message: "Camera not found" });
       }
+      if (
+        result.data.ip !== undefined ||
+        result.data.port !== undefined ||
+        result.data.protocol !== undefined
+      ) {
+        cameraManager.disconnectCamera(id);
+        const connected = await cameraManager.connectCamera(camera.id, camera.ip, camera.port);
+        await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
+        logger.info("camera", `Camera connection refreshed after settings update: ${camera.name}`, {
+          action: "camera:reconnect_after_update",
+          details: {
+            cameraId: camera.id,
+            previousIp: previousCamera.ip,
+            previousPort: previousCamera.port,
+            ip: camera.ip,
+            port: camera.port,
+            connected,
+          },
+        });
+      }
       broadcast({ type: "invalidate", keys: ["cameras"] });
-      res.json(camera);
+      res.json(await storage.getCamera(id) || camera);
     } catch (error) {
       res.status(500).json({ message: "Failed to update camera" });
     }
