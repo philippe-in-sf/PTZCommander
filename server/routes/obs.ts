@@ -2,13 +2,12 @@ import { insertObsConnectionSchema, patchObsConnectionSchema } from "@shared/sch
 import { fromError } from "zod-validation-error";
 import { logger } from "../logger";
 import type { RouteContext } from "./types";
-
-function publicObsConnection<T extends { password?: string | null }>(connection: T) {
-  return { ...connection, password: connection.password ? "********" : null };
-}
+import { publicObsConnection } from "./public-dtos";
+import { registerApiAccessRule } from "../auth";
 
 export function registerObsRoutes(ctx: RouteContext) {
   const { app, storage, obsManager, broadcast, addSessionLog } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/obs\/\d+\/program$/, "operator");
 
   async function persistCurrentState(id: number, status: string) {
     const state = obsManager.getState();
@@ -31,6 +30,10 @@ export function registerObsRoutes(ctx: RouteContext) {
     try {
       const parsed = insertObsConnectionSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
+      const existing = await storage.getAllObsConnections();
+      if (existing.length > 0) {
+        return res.status(409).json({ message: "PTZ Command currently supports one OBS connection. Update or delete the existing connection instead." });
+      }
       const connection = await storage.createObsConnection(parsed.data);
       const connected = await obsManager.connect(connection);
       await persistCurrentState(connection.id, connected ? "online" : "offline");

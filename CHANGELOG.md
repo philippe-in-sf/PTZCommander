@@ -2,6 +2,18 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.2] - 2026-06-05
+
+### Added
+- **Project Checks** — added focused tests and a metadata/artifact lint script so version drift and stale build output are caught early
+
+### Changed
+- **Credential Redaction** — camera, Hue, OBS, layout snapshot, and API log responses now redact stored secrets before leaving the server
+- **Route Authorization Ownership** — moved operator/admin route access rules into the modules that register those routes
+- **Single Device Guardrails** — mixer, switcher, and OBS setup now clearly enforce the single-device runtime model
+- **Schema Guardrails** — added SQLite/PostgreSQL indexes, uniqueness checks, and SQLite pragmas for a less hand-wavy local database bootstrap
+- **Tracked Artifact Cleanup** — removed stale generated build folders, old attachments, and a duplicate display page from source control
+
 ## [1.6.0] - 2026-04-22
 
 ### Added

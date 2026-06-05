@@ -82,36 +82,18 @@ const PUBLIC_ROUTE_RULES: RouteRule[] = [
   { methods: ["GET"], pattern: /^\/api\/displays\/smartthings\/oauth\/callback$/, role: "viewer" },
 ];
 
-const EXPLICIT_ROUTE_RULES: RouteRule[] = [
-  { methods: ["GET", "POST", "PATCH"], pattern: /^\/api\/users(?:\/\d+)?$/, role: "admin" },
-  { methods: ["POST"], pattern: /^\/api\/rehearsal$/, role: "admin" },
-  { methods: ["POST"], pattern: /^\/api\/cameras\/\d+\/webrtc\/offer$/, role: "viewer" },
-  { methods: ["POST"], pattern: /^\/api\/cameras\/\d+\/program$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/cameras\/\d+\/preview$/, role: "operator" },
-  { methods: ["PATCH", "POST", "DELETE"], pattern: /^\/api\/presets(?:\/\d+)?(?:\/recall)?$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/scene-buttons\/\d+\/test$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/scene-buttons\/\d+\/execute$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/layouts\/\d+\/load$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/macros\/\d+\/execute$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/undo$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/obs\/\d+\/program$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/switchers\/\d+\/cut$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/switchers\/\d+\/auto$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/switchers\/\d+\/program$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/switchers\/\d+\/preview$/, role: "operator" },
-  { methods: ["PUT"], pattern: /^\/api\/hue\/bridges\/\d+\/lights\/[^/]+$/, role: "operator" },
-  { methods: ["PUT"], pattern: /^\/api\/hue\/bridges\/\d+\/groups\/[^/]+$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/hue\/bridges\/\d+\/scenes\/[^/]+\/activate$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/displays\/\d+\/command$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/displays\/\d+\/refresh$/, role: "operator" },
-  { methods: ["POST"], pattern: /^\/api\/displays\/\d+\/pair$/, role: "admin" },
-  { methods: ["GET"], pattern: /^\/api\/displays\/smartthings\/oauth\/session\/[^/]+$/, role: "admin" },
-  { methods: ["POST"], pattern: /^\/api\/displays\/smartthings\/oauth\/start$/, role: "admin" },
-  { methods: ["POST"], pattern: /^\/api\/runsheet\/cues$/, role: "operator" },
-  { methods: ["PATCH"], pattern: /^\/api\/runsheet\/cues\/\d+$/, role: "operator" },
-  { methods: ["DELETE"], pattern: /^\/api\/runsheet\/cues\/\d+$/, role: "operator" },
-  { methods: ["PUT"], pattern: /^\/api\/runsheet\/cues\/reorder$/, role: "operator" },
-];
+const EXPLICIT_ROUTE_RULES: RouteRule[] = [];
+
+const routeScopedRuleKeys = new Set<string>();
+const ROUTE_SCOPED_RULES: RouteRule[] = [];
+
+export function registerApiAccessRule(methods: string[], pattern: RegExp, role: UserRole) {
+  const normalizedMethods = methods.map((method) => method.toUpperCase()).sort();
+  const key = `${normalizedMethods.join(",")}:${pattern.source}:${role}`;
+  if (routeScopedRuleKeys.has(key)) return;
+  routeScopedRuleKeys.add(key);
+  ROUTE_SCOPED_RULES.unshift({ methods: normalizedMethods, pattern, role });
+}
 
 const OPERATOR_WS_COMMANDS = new Set([
   "pan_tilt",
@@ -147,7 +129,7 @@ function isPublicApiRoute(path: string, method: string) {
 }
 
 function getRequiredRoleForApi(path: string, method: string): UserRole {
-  const explicitRule = EXPLICIT_ROUTE_RULES.find((rule) => matchesRule(path, method, rule));
+  const explicitRule = [...ROUTE_SCOPED_RULES, ...EXPLICIT_ROUTE_RULES].find((rule) => matchesRule(path, method, rule));
   if (explicitRule) {
     return explicitRule.role;
   }

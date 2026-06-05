@@ -4,9 +4,11 @@ import { logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { getHueClient } from "../hue";
 import { executeDisplayAction } from "./display";
+import { registerApiAccessRule } from "../auth";
 
 export function registerMacroRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, atemManager, broadcast, addSessionLog } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/macros\/\d+\/execute$/, "operator");
 
   app.get("/api/macros", async (_req, res) => {
     try {

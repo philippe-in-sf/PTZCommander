@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { APP_VERSION } from "@shared/version";
 
 export default function LoginPage() {
   const { needsSetup, login, bootstrap, loginPending, bootstrapPending } = useAuth();
@@ -53,7 +54,7 @@ export default function LoginPage() {
                 PTZ<span className="text-cyan-500">Command</span>
               </div>
               <div className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
-                v1.7.0
+                v{APP_VERSION}
               </div>
             </div>
             <div className="mt-10 space-y-5">

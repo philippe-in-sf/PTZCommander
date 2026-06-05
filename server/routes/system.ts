@@ -1,6 +1,7 @@
 import type { RouteContext } from "./types";
 import { logger } from "../logger";
 import { APP_VERSION } from "@shared/version";
+import { registerApiAccessRule } from "../auth";
 import { readFileSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
@@ -142,6 +143,8 @@ async function sampleNetworkThroughput(sampleMs: number = 1000) {
 
 export function registerSystemRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, x32Manager, atemManager, broadcast, undoStack, sessionLog, addSessionLog } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/rehearsal$/, "admin");
+  registerApiAccessRule(["POST"], /^\/api\/undo$/, "operator");
 
   app.get("/api/version", (_req, res) => {
     res.json({ version: APP_VERSION });

@@ -2,6 +2,7 @@ import type { RouteContext } from "./types";
 import { patchSwitcherSchema, insertSwitcherSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 import { errorDetails, logger } from "../logger";
+import { registerApiAccessRule } from "../auth";
 
 const ATEM_CONTROL_TIMEOUT_STATUS = "control-timeout";
 const ATEM_CONTROL_TIMEOUT_MESSAGE =
@@ -9,6 +10,10 @@ const ATEM_CONTROL_TIMEOUT_MESSAGE =
 
 export function registerSwitcherRoutes(ctx: RouteContext) {
   const { app, storage, atemManager, broadcast } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/switchers\/\d+\/cut$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/switchers\/\d+\/auto$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/switchers\/\d+\/program$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/switchers\/\d+\/preview$/, "operator");
 
   app.get("/api/switchers", async (_req, res) => {
     try {
@@ -37,6 +42,10 @@ export function registerSwitcherRoutes(ctx: RouteContext) {
       const result = insertSwitcherSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
+      }
+      const existing = await storage.getAllSwitchers();
+      if (existing.length > 0) {
+        return res.status(409).json({ message: "PTZ Command currently supports one ATEM switcher. Update or delete the existing switcher instead." });
       }
       const switcher = await storage.createSwitcher(result.data);
       const connected = await atemManager.connect(switcher.ip);

@@ -1,6 +1,6 @@
 {
   "name": "rest-express",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -9,6 +9,8 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "lint": "tsx script/lint.ts",
+    "test": "tsx --test tests/*.test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

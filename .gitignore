@@ -1,8 +1,12 @@
 node_modules
 dist
+dist*/
+.dist-next
+.dist-previous
 data/
 .DS_Store
 server/public
+attached_assets/
 vite.config.ts.*
 *.tar.gz
 ios/**/xcuserdata/

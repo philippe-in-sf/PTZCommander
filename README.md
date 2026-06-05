@@ -1,10 +1,10 @@
 # PTZ Command - Camera & Audio Control System
 
-Current version: **1.7.0**
-A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, a Behringer X32 audio mixer via OSC, and a Blackmagic ATEM video switcher — all from a single interface.
+Current version: **1.7.2**
+A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, one Behringer X32 audio mixer via OSC, and one Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
-A professional PTZ camera and audio mixer controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP and a Behringer X32 audio mixer via OSC, all from a single interface.
+A professional PTZ camera and audio mixer controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP and one Behringer X32 audio mixer via OSC, all from a single interface.
 
 ## Screenshots
 
@@ -45,7 +45,7 @@ Touch-optimized mobile web view with camera control, scene execution, and switch
 - Edit and delete cameras via settings gear icon
 
 ### Audio Mixer Control
-- Behringer X32/M32 mixer support via OSC protocol
+- Single Behringer X32/M32 mixer support via OSC protocol
 - Full mixer section access: Channels, Mix Bus, Aux In, FX Returns, Matrix, DCA
 - Real-time state synchronization with mixer hardware
 - Channel names pulled from mixer
@@ -53,7 +53,7 @@ Touch-optimized mobile web view with camera control, scene execution, and switch
 - Edit and delete mixer configuration via settings gear icon
 
 ### Video Switcher Control
-- Blackmagic ATEM switcher support
+- Single Blackmagic ATEM switcher support
 - Program/Preview input selection
 - Transition controls: Mix, Dip, Wipe, Stinger, DVE with adjustable rates
 - Upstream and Downstream Keyer controls (on-air, tie, auto)

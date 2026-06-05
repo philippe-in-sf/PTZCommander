@@ -7,6 +7,7 @@ import { discoverHisenseDisplays, HisenseVidaaClient, keyForHisenseAction } from
 import { discoverSamsungDisplays, keyForSamsungAction, SamsungLocalDisplayClient } from "../samsung-local";
 import { logger } from "../logger";
 import type { DisplayDevice } from "@shared/schema";
+import { registerApiAccessRule } from "../auth";
 
 const smartThingsDiscoverSchema = z.object({
   token: z.string().min(10),
@@ -258,6 +259,11 @@ export async function refreshDisplayStatus(ctx: RouteContext, id: number, option
 
 export function registerDisplayRoutes(ctx: RouteContext) {
   const { app, storage, broadcast } = ctx;
+  registerApiAccessRule(["POST"], /^\/api\/displays\/\d+\/command$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/displays\/\d+\/refresh$/, "operator");
+  registerApiAccessRule(["POST"], /^\/api\/displays\/\d+\/pair$/, "admin");
+  registerApiAccessRule(["GET"], /^\/api\/displays\/smartthings\/oauth\/session\/[^/]+$/, "admin");
+  registerApiAccessRule(["POST"], /^\/api\/displays\/smartthings\/oauth\/start$/, "admin");
 
   app.get("/api/displays", async (_req, res) => {
     try {
