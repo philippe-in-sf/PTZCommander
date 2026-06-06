@@ -35,8 +35,6 @@ export function registerObsRoutes(ctx: RouteContext) {
         return res.status(409).json({ message: "PTZ Command currently supports one OBS connection. Update or delete the existing connection instead." });
       }
       const connection = await storage.createObsConnection(parsed.data);
-      const connected = await obsManager.connect(connection);
-      await persistCurrentState(connection.id, connected ? "online" : "offline");
       logger.info("switcher", `OBS connection created: ${connection.name}`, { action: "obs:create", details: { id: connection.id, host: connection.host, port: connection.port } });
       addSessionLog("switcher", "OBS Added", `Added ${connection.name}`);
       broadcast({ type: "invalidate", keys: ["obs"] });
@@ -114,12 +112,7 @@ export function registerObsRoutes(ctx: RouteContext) {
       const id = parseInt(req.params.id);
       const connection = await storage.getObsConnection(id);
       if (!connection) return res.status(404).json({ message: "OBS connection not found" });
-      let client = obsManager.getClient();
-      if (!client || !client.isConnected()) {
-        const connected = await obsManager.connect(connection);
-        await persistCurrentState(id, connected ? "online" : "offline");
-        client = obsManager.getClient();
-      }
+      const client = obsManager.getClient();
       if (!client || !client.isConnected()) return res.status(503).json({ message: "OBS is not connected" });
       const scenes = await client.getScenes();
       await persistCurrentState(id, "online");

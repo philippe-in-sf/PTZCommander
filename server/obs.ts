@@ -89,17 +89,26 @@ export class ObsClient {
 
     return new Promise((resolve) => {
       let settled = false;
-      const settle = (connected: boolean) => {
+      const settle = (connected: boolean, error?: string) => {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        if (!connected) {
+          this.identified = false;
+          this.rejectPending(new Error(error || "OBS WebSocket disconnected"));
+          if (this.ws) {
+            this.ws.removeAllListeners();
+            this.ws.terminate();
+            this.ws = null;
+          }
+        }
         resolve(connected);
       };
 
       const timeout = setTimeout(() => {
-        this.setState({ connected: false, error: "Connection timed out" });
-        this.disconnect();
-        settle(false);
+        const message = "OBS WebSocket connection timed out";
+        this.setState({ connected: false, error: message });
+        settle(false, message);
       }, timeoutMs);
 
       try {
@@ -124,20 +133,25 @@ export class ObsClient {
           const message = error instanceof Error ? error.message : String(error);
           logger.error("switcher", `OBS connection error: ${message}`, { action: "obs_error", details: { error: message } });
           this.setState({ connected: false, error: message });
-          settle(false);
+          settle(false, message);
         });
 
-        ws.on("close", () => {
+        ws.on("close", (code, reason) => {
+          const reasonText = reason.toString();
+          const message = reasonText
+            ? `OBS WebSocket closed ${code}: ${reasonText}`
+            : `OBS WebSocket closed ${code}`;
           this.identified = false;
           this.rejectPending(new Error("OBS WebSocket disconnected"));
-          this.setState({ connected: false });
-          logger.info("switcher", "OBS WebSocket disconnected", { action: "obs_disconnected" });
+          this.setState({ connected: false, error: message });
+          logger.info("switcher", message, { action: "obs_disconnected", details: { code, reason: reasonText } });
+          settle(false, message);
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("switcher", `OBS connection exception: ${message}`, { action: "obs_connect_exception" });
         this.setState({ connected: false, error: message });
-        settle(false);
+        settle(false, message);
       }
     });
   }
@@ -192,7 +206,7 @@ export class ObsClient {
     this.setState({ currentPreviewScene: sceneName });
   }
 
-  private async handleMessage(message: { op: number; d?: any }, settleConnect: (connected: boolean) => void) {
+  private async handleMessage(message: { op: number; d?: any }, settleConnect: (connected: boolean, error?: string) => void) {
     if (message.op === OBS_OP_HELLO) {
       const authentication = message.d?.authentication;
       const identify: Record<string, unknown> = {
@@ -202,7 +216,7 @@ export class ObsClient {
         if (!this.config.password) {
           this.setState({ connected: false, error: "OBS requires a WebSocket password" });
           this.ws?.close();
-          settleConnect(false);
+          settleConnect(false, "OBS requires a WebSocket password");
           return;
         }
         identify.authentication = obsAuth(this.config.password, authentication.salt, authentication.challenge);

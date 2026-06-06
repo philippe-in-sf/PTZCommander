@@ -5,6 +5,27 @@ import { fromError } from "zod-validation-error";
 import { getHueClient } from "../hue";
 import { executeDisplayAction } from "./display";
 import { registerApiAccessRule } from "../auth";
+import { parseMacroSteps, stringifyMacroSteps, type MacroStepValue } from "@shared/automation-schemas";
+
+function normalizeMacroPayload<T extends { steps?: string | null }>(payload: T): { ok: true; data: T; steps?: MacroStepValue[] } | { ok: false; message: string } {
+  if (payload.steps === undefined || payload.steps === null) {
+    return { ok: true, data: payload };
+  }
+
+  const steps = parseMacroSteps(payload.steps);
+  if (!steps) {
+    return { ok: false, message: "Invalid macro steps payload" };
+  }
+
+  return {
+    ok: true,
+    data: {
+      ...payload,
+      steps: stringifyMacroSteps(steps),
+    },
+    steps,
+  };
+}
 
 export function registerMacroRoutes(ctx: RouteContext) {
   const { app, storage, cameraManager, atemManager, broadcast, addSessionLog } = ctx;
@@ -36,7 +57,11 @@ export function registerMacroRoutes(ctx: RouteContext) {
       if (!parsed.success) {
         return res.status(400).json({ message: fromError(parsed.error).message });
       }
-      const macro = await storage.createMacro(parsed.data);
+      const normalized = normalizeMacroPayload(parsed.data);
+      if (!normalized.ok) {
+        return res.status(400).json({ message: normalized.message });
+      }
+      const macro = await storage.createMacro(normalized.data);
       logger.info("system", `Macro created: ${macro.name}`, { action: "macro:create" });
       broadcast({ type: "invalidate", keys: ["macros"] });
       res.status(201).json(macro);
@@ -52,7 +77,11 @@ export function registerMacroRoutes(ctx: RouteContext) {
       if (!result.success) {
         return res.status(400).json({ message: fromError(result.error).toString() });
       }
-      const macro = await storage.updateMacro(id, result.data);
+      const normalized = normalizeMacroPayload(result.data);
+      if (!normalized.ok) {
+        return res.status(400).json({ message: normalized.message });
+      }
+      const macro = await storage.updateMacro(id, normalized.data);
       if (!macro) return res.status(404).json({ message: "Macro not found" });
       logger.info("system", `Macro updated: ${macro.name}`, { action: "macro:update" });
       broadcast({ type: "invalidate", keys: ["macros"] });
@@ -81,7 +110,10 @@ export function registerMacroRoutes(ctx: RouteContext) {
       const macro = await storage.getMacro(id);
       if (!macro) return res.status(404).json({ message: "Macro not found" });
 
-      const steps = JSON.parse(macro.steps);
+      const steps = parseMacroSteps(macro.steps);
+      if (!steps) {
+        return res.status(422).json({ message: "Macro steps are invalid. Open the macro editor and save a corrected version." });
+      }
       logger.info("system", `Executing macro: ${macro.name} (${steps.length} steps)`, { action: "macro:execute" });
 
       for (let i = 0; i < steps.length; i++) {

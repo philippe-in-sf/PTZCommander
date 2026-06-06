@@ -9,6 +9,16 @@ import { executeDisplayAction, refreshDisplayStatus } from "./display";
 import { isRehearsalMode } from "../rehearsal";
 import { z } from "zod";
 import { registerApiAccessRule } from "../auth";
+import {
+  displayActionSchema,
+  hueActionSchema,
+  mixerActionSchema,
+  parseVersionedActionArray,
+  parseVersionedObject,
+  sceneAtemStateSchema,
+  stringifyVersionedActionArray,
+  stringifyVersionedObject,
+} from "@shared/automation-schemas";
 
 type SceneSection = "atem" | "obs" | "mixer" | "hue" | "ptz" | "display";
 type CaptureSection = Exclude<SceneSection, "ptz">;
@@ -130,6 +140,22 @@ function parseJsonObject<T>(value: string | null): T | null {
   } catch {
     return null;
   }
+}
+
+function parseMixerActions(value: string | null) {
+  return parseVersionedActionArray(value, mixerActionSchema as z.ZodType<MixerAction>);
+}
+
+function parseHueActions(value: string | null) {
+  return parseVersionedActionArray(value, hueActionSchema as z.ZodType<HueAction>);
+}
+
+function parseDisplayActions(value: string | null) {
+  return parseVersionedActionArray(value, displayActionSchema as z.ZodType<DisplayAction>);
+}
+
+function parseAtemSceneState(value: string | null) {
+  return parseVersionedObject(value, sceneAtemStateSchema as z.ZodType<SceneAtemState>);
 }
 
 function sectionEnabled(section: SceneSection, sections?: SceneSection[]) {
@@ -350,7 +376,7 @@ async function captureSceneSections(
     const atemState = atemManager.getState();
     if (atemState?.connected) {
       const sceneState = captureAtemSceneState(atemState);
-      updates.atemState = JSON.stringify(sceneState);
+      updates.atemState = stringifyVersionedObject(sceneState);
       updates.atemInputId = sceneState.programInput ?? null;
       updates.atemTransitionType = mergeTarget?.atemTransitionType || "cut";
       results.push(`ATEM: captured ${describeAtemSceneState(sceneState) || "live switcher state"}`);
@@ -402,7 +428,7 @@ async function captureSceneSections(
     const mixerClient = x32Manager.getClient();
     if (mixerClient && mixerClient.isConnected()) {
       const actions = buildMixerActionsFromStates(mixerClient.getAllStates());
-      updates.mixerActions = actions.length > 0 ? JSON.stringify(actions) : null;
+      updates.mixerActions = actions.length > 0 ? stringifyVersionedActionArray(actions) : null;
       results.push(`Mixer: captured ${actions.length} channel state${actions.length === 1 ? "" : "s"}`);
     } else {
       warnings.push("Mixer: skipped because the X32 mixer is not connected.");
@@ -451,7 +477,7 @@ async function captureSceneSections(
         if (!entry.ok) warnings.push(`Lighting: ${entry.bridgeName} skipped because ${entry.error}.`);
       }
       if (actions.length > 0) {
-        updates.hueActions = JSON.stringify(actions);
+        updates.hueActions = stringifyVersionedActionArray(actions);
         results.push(`Lighting: captured ${actions.length} light state${actions.length === 1 ? "" : "s"}`);
       } else if (warnings.length === 0 || !warnings.some((warning) => warning.startsWith("Lighting:"))) {
         warnings.push("Lighting: skipped because no readable light state was available.");
@@ -475,7 +501,7 @@ async function captureSceneSections(
         }),
       );
       const actions = buildDisplayActionsFromState(refreshedDisplays);
-      updates.displayActions = actions.length > 0 ? JSON.stringify(actions) : null;
+      updates.displayActions = actions.length > 0 ? stringifyVersionedActionArray(actions) : null;
       results.push(`Displays: captured ${actions.length} command${actions.length === 1 ? "" : "s"} from live state`);
     }
   }
@@ -501,7 +527,7 @@ function getNextSceneButtonNumber(sceneButtons: SceneButton[]) {
 
 function getScenePreview(button: SceneButton) {
   const preview: string[] = [];
-  const atemState = normalizeAtemState(parseJsonObject<SceneAtemState>(button.atemState));
+  const atemState = normalizeAtemState(parseAtemSceneState(button.atemState));
   if (atemState) {
     preview.push(`ATEM: ${describeAtemSceneState(atemState) || "state captured"}`);
   } else if (button.atemInputId !== null && button.atemInputId !== undefined) {
@@ -513,16 +539,46 @@ function getScenePreview(button: SceneButton) {
   if (button.cameraId !== null && button.cameraId !== undefined && button.presetNumber !== null && button.presetNumber !== undefined) {
     preview.push(`PTZ: camera ${button.cameraId} recalls preset ${button.presetNumber + 1}`);
   }
-  const mixerActions = parseJsonArray<MixerAction>(button.mixerActions);
+  const mixerActions = parseMixerActions(button.mixerActions);
   if (mixerActions === null) preview.push("Mixer: invalid action data");
   else if (mixerActions.length > 0) preview.push(`Mixer: ${mixerActions.length} channel action(s)`);
-  const hueActions = parseJsonArray<HueAction>(button.hueActions);
+  const hueActions = parseHueActions(button.hueActions);
   if (hueActions === null) preview.push("Hue: invalid action data");
   else if (hueActions.length > 0) preview.push(`Hue: ${hueActions.length} lighting action(s)`);
-  const displayActions = parseJsonArray<DisplayAction>(button.displayActions);
+  const displayActions = parseDisplayActions(button.displayActions);
   if (displayActions === null) preview.push("Displays: invalid action data");
   else if (displayActions.length > 0) preview.push(`Displays: ${displayActions.length} action(s)`);
   return preview.length > 0 ? preview : ["No hardware actions configured"];
+}
+
+function normalizeSceneButtonPayload<T extends Partial<InsertSceneButton>>(payload: T): { ok: true; data: T } | { ok: false; message: string } {
+  const normalized = { ...payload };
+
+  if (payload.atemState !== undefined && payload.atemState !== null) {
+    const state = parseAtemSceneState(payload.atemState);
+    if (!state) return { ok: false, message: "Invalid ATEM scene state payload" };
+    normalized.atemState = stringifyVersionedObject(state) as T["atemState"];
+  }
+
+  if (payload.mixerActions !== undefined && payload.mixerActions !== null) {
+    const actions = parseMixerActions(payload.mixerActions);
+    if (!actions) return { ok: false, message: "Invalid mixer action payload" };
+    normalized.mixerActions = stringifyVersionedActionArray(actions) as T["mixerActions"];
+  }
+
+  if (payload.hueActions !== undefined && payload.hueActions !== null) {
+    const actions = parseHueActions(payload.hueActions);
+    if (!actions) return { ok: false, message: "Invalid Hue action payload" };
+    normalized.hueActions = stringifyVersionedActionArray(actions) as T["hueActions"];
+  }
+
+  if (payload.displayActions !== undefined && payload.displayActions !== null) {
+    const actions = parseDisplayActions(payload.displayActions);
+    if (!actions) return { ok: false, message: "Invalid display action payload" };
+    normalized.displayActions = stringifyVersionedActionArray(actions) as T["displayActions"];
+  }
+
+  return { ok: true, data: normalized };
 }
 
 export function registerSceneRoutes(ctx: RouteContext) {
@@ -534,7 +590,7 @@ export function registerSceneRoutes(ctx: RouteContext) {
     const results: string[] = [];
     const undoSteps: Array<() => Promise<void>> = [];
     const rehearsal = isRehearsalMode();
-    const atemSceneState = normalizeAtemState(parseJsonObject<SceneAtemState>(button.atemState));
+    const atemSceneState = normalizeAtemState(parseAtemSceneState(button.atemState));
 
     if (sectionEnabled("atem", sections) && (atemSceneState || button.atemInputId !== null && button.atemInputId !== undefined)) {
       if (rehearsal) {
@@ -593,7 +649,7 @@ export function registerSceneRoutes(ctx: RouteContext) {
     }
 
     if (sectionEnabled("mixer", sections) && button.mixerActions) {
-      const actions = parseJsonArray<MixerAction>(button.mixerActions);
+      const actions = parseMixerActions(button.mixerActions);
       if (actions === null) {
         results.push("Mixer: invalid actions data");
       } else if (rehearsal) {
@@ -637,7 +693,7 @@ export function registerSceneRoutes(ctx: RouteContext) {
     }
 
     if (sectionEnabled("hue", sections) && button.hueActions) {
-      const hueActions = parseJsonArray<HueAction>(button.hueActions);
+      const hueActions = parseHueActions(button.hueActions);
       if (hueActions === null) {
         results.push("Hue: invalid actions data");
       } else {
@@ -735,7 +791,7 @@ export function registerSceneRoutes(ctx: RouteContext) {
     }
 
     if (sectionEnabled("display", sections) && button.displayActions) {
-      const displayActions = parseJsonArray<DisplayAction>(button.displayActions);
+      const displayActions = parseDisplayActions(button.displayActions);
       if (displayActions === null) {
         results.push("Displays: invalid actions data");
       } else {
@@ -859,7 +915,11 @@ export function registerSceneRoutes(ctx: RouteContext) {
       if (existingScenes.some((scene) => scene.buttonNumber === result.data.buttonNumber)) {
         return res.status(409).json({ message: `Scene button ${result.data.buttonNumber} already exists.` });
       }
-      const button = await storage.createSceneButton(result.data);
+      const normalized = normalizeSceneButtonPayload(result.data);
+      if (!normalized.ok) {
+        return res.status(400).json({ message: normalized.message });
+      }
+      const button = await storage.createSceneButton(normalized.data);
       logger.info("system", `Scene button created: ${button.name}`, { action: "scene_button:create", details: { buttonId: button.id, name: button.name } });
       broadcast({ type: "invalidate", keys: ["scene-buttons"] });
       res.json(button);
@@ -881,7 +941,11 @@ export function registerSceneRoutes(ctx: RouteContext) {
           return res.status(409).json({ message: `Scene button ${result.data.buttonNumber} already exists.` });
         }
       }
-      const button = await storage.updateSceneButton(id, result.data);
+      const normalized = normalizeSceneButtonPayload(result.data);
+      if (!normalized.ok) {
+        return res.status(400).json({ message: normalized.message });
+      }
+      const button = await storage.updateSceneButton(id, normalized.data);
       if (!button) {
         return res.status(404).json({ message: "Scene button not found" });
       }

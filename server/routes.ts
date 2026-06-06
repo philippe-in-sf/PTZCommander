@@ -11,6 +11,7 @@ import { errorDetails, logger, setupAuditLogging } from "./logger";
 import { setHueClient, getHueClient } from "./hue";
 import { APP_VERSION } from "@shared/version";
 import { insertPresetSchema } from "@shared/schema";
+import { describeLiveWsCommandError, parseLiveWsCommand } from "@shared/live-ws-commands";
 import { isRehearsalMode } from "./rehearsal";
 import http from "http";
 import https from "https";
@@ -246,9 +247,23 @@ export async function registerRoutes(
 
     ws.on("message", async (data: Buffer) => {
       try {
-        const message = JSON.parse(data.toString()) as { type: string; [key: string]: unknown };
+        const rawMessage = JSON.parse(data.toString());
+        const parsedMessage = parseLiveWsCommand(rawMessage);
+        if (!parsedMessage.success) {
+          const commandId = typeof rawMessage?.commandId === "string" ? rawMessage.commandId : undefined;
+          const commandType = typeof rawMessage?.type === "string" ? rawMessage.type : "unknown";
+          const message = describeLiveWsCommandError(parsedMessage.error);
+          logger.warn("websocket", `Rejected invalid command ${commandType}: ${message}`, {
+            action: "ws_command_invalid",
+            details: { command: commandType, commandId, message },
+          });
+          ws.send(JSON.stringify({ type: "command_error", command: commandType, commandId, message }));
+          return;
+        }
+
+        const message = parsedMessage.data;
         if (wsCommandRequiresOperator(message.type) && !hasRequiredRole(currentUser.role, "operator")) {
-          ws.send(JSON.stringify({ type: "permission_error", message: "Operator access required for live control." }));
+          ws.send(JSON.stringify({ type: "permission_error", command: message.type, commandId: message.commandId, message: "Operator access required for live control." }));
           return;
         }
 
@@ -678,6 +693,10 @@ export async function registerRoutes(
             break;
           }
         }
+
+        if (message.commandId && message.type !== "store_preset") {
+          ws.send(JSON.stringify({ type: "command_ack", command: message.type, commandId: message.commandId }));
+        }
       } catch (error: unknown) {
         logger.error("websocket", `Error processing message: ${error instanceof Error ? error.message : String(error)}`, { action: "ws_message_error" });
       }
@@ -736,12 +755,7 @@ export async function registerRoutes(
       const obsConnections = await storage.getAllObsConnections();
       const obsConnection = obsConnections[0];
       if (obsConnection) {
-        const connected = await obsManager.connect(obsConnection);
-        const state = obsManager.getState();
-        await storage.updateObsConnectionStatus(obsConnection.id, connected ? "online" : "offline", {
-          currentProgramScene: state?.currentProgramScene ?? null,
-          studioMode: state?.studioMode ?? false,
-        });
+        await storage.updateObsConnectionStatus(obsConnection.id, "offline");
       }
     } catch (error: unknown) {
       logger.error("switcher", `Error initializing OBS connection: ${error instanceof Error ? error.message : String(error)}`, { action: "obs_init_error" });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { 
   Camera, Settings, Video, Mic, Lightbulb, Activity, MonitorPlay, 
@@ -12,6 +12,7 @@ import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
+import { OperatorStatusStrip } from "@/components/operator-status-strip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export default function BroadcastConsole(props: DashboardSkinProps) {
@@ -19,6 +20,24 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
   const [pgmInput, setPgmInput] = useState(1);
   const [pvwInput, setPvwInput] = useState(2);
   const [storeMode, setStoreMode] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date()));
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(new Intl.DateTimeFormat("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).format(new Date()));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const tabs = [
     { name: "Dashboard", path: "/" },
@@ -102,10 +121,8 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
         </div>
         <div className="flex items-center space-x-4 text-[10px] text-zinc-400">
           <RehearsalToggle />
-          <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-green-400"></div><span>ATEM: OK</span></div>
-          <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-green-400"></div><span>X32: OK</span></div>
-          <div className="flex items-center space-x-1"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div><span>HUE: WARN</span></div>
-          <span className="ml-4 tabular-nums text-zinc-300">14:02:45:12</span>
+          <OperatorStatusStrip compact tone="broadcast" />
+          <span className="ml-4 tabular-nums text-zinc-300">{currentTime}</span>
           <ThemeToggle />
           <SkinSelector />
         </div>

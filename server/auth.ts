@@ -29,6 +29,10 @@ declare global {
   }
 }
 
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET must be set in production.");
+}
+
 const sessionSecret = process.env.SESSION_SECRET || "ptzcommand-dev-session-secret";
 const sessionCookieSecure =
   process.env.SESSION_COOKIE_SECURE === "true"

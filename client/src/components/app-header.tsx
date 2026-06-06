@@ -7,6 +7,7 @@ import { SkinSelector } from "@/components/skin-selector";
 import { LayoutSelector } from "@/components/layouts/layout-selector";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
+import { OperatorStatusStrip } from "@/components/operator-status-strip";
 import { Button } from "@/components/ui/button";
 import { useSkin } from "@/lib/skin-context";
 import { useAuth } from "@/lib/auth";
@@ -191,6 +192,7 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
 
       <div className="flex w-full flex-wrap items-center justify-end gap-2 xl:w-auto xl:gap-3">
         <RehearsalToggle />
+        <OperatorStatusStrip />
         {rightContent}
         <SkinSelector />
         <ThemeToggle />
@@ -231,6 +233,7 @@ function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
       </div>
       <div className="flex items-center space-x-4 text-[10px] text-zinc-400">
         <RehearsalToggle />
+        <OperatorStatusStrip compact tone="broadcast" />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
@@ -268,6 +271,7 @@ function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
 
       <div className="flex items-center gap-3">
         <RehearsalToggle />
+        <OperatorStatusStrip compact tone="glass" />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
@@ -305,6 +309,7 @@ function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
 
       <div className="flex items-center gap-4 text-xs font-mono">
         <RehearsalToggle />
+        <OperatorStatusStrip compact tone="command" />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />

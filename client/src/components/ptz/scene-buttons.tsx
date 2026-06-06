@@ -11,6 +11,7 @@ import { Plus, Trash2, Settings, Zap, Play } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SceneButton, Camera } from "@shared/schema";
+import { mixerActionSchema, parseVersionedActionArray, stringifyVersionedActionArray } from "@shared/automation-schemas";
 
 interface MixerAction {
   section: string;
@@ -114,10 +115,7 @@ export function SceneButtons() {
 
   const openEdit = (btn: SceneButton) => {
     setEditingButton(btn);
-    let mixerActions: MixerAction[] = [];
-    try {
-      if (btn.mixerActions) mixerActions = JSON.parse(btn.mixerActions);
-    } catch {}
+    const mixerActions = (parseVersionedActionArray(btn.mixerActions, mixerActionSchema) || []) as MixerAction[];
     setFormData({
       buttonNumber: btn.buttonNumber,
       name: btn.name,
@@ -141,7 +139,7 @@ export function SceneButtons() {
       cameraId: formData.cameraId,
       presetNumber: formData.presetNumber,
       mixerActions: formData.mixerActions.length > 0
-        ? JSON.stringify(formData.mixerActions)
+        ? stringifyVersionedActionArray(formData.mixerActions)
         : null,
     };
 
