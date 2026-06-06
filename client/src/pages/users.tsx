@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UserRole } from "@shared/schema";
 import { AppLayout } from "@/components/app-layout";
@@ -105,6 +106,7 @@ export default function UsersPage() {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("viewer");
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const usersQuery = useQuery({
     queryKey: ["users"],
@@ -113,22 +115,51 @@ export default function UsersPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () => userAdminApi.create({
-      username,
-      displayName,
-      password,
-      role,
-    }),
+    mutationFn: userAdminApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setUsername("");
       setDisplayName("");
       setPassword("");
       setRole("viewer");
+      setCreateError(null);
       toast.success("User created");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      setCreateError(error.message);
+      toast.error(error.message);
+    },
   });
+
+  function handleCreateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (createMutation.isPending) return;
+
+    const nextUsername = username.trim();
+    const nextDisplayName = displayName.trim();
+    const nextPassword = password.trim();
+
+    if (!nextDisplayName) {
+      setCreateError("Display name is required.");
+      return;
+    }
+    if (nextUsername.length < 3 || nextUsername.length > 32 || !/^[a-z0-9._-]+$/i.test(nextUsername)) {
+      setCreateError("Username must be 3-32 characters using letters, numbers, dots, dashes, or underscores.");
+      return;
+    }
+    if (nextPassword.length < 8 || nextPassword.length > 128) {
+      setCreateError("Password must be 8-128 characters.");
+      return;
+    }
+
+    setCreateError(null);
+    createMutation.mutate({
+      username: nextUsername,
+      displayName: nextDisplayName,
+      password: nextPassword,
+      role,
+    });
+  }
 
   const usersError = usersQuery.error instanceof Error ? usersQuery.error : null;
   const authExpired = !!usersError && /authentication required|not signed in/i.test(usersError.message);
@@ -163,31 +194,34 @@ export default function UsersPage() {
           <Badge variant="secondary">{usersQuery.data?.length ?? 0} accounts</Badge>
         </section>
 
-        <section className="grid gap-4 rounded-[1.75rem] border border-slate-200/80 bg-white/75 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 lg:grid-cols-4">
+        <form className="grid gap-4 rounded-[1.75rem] border border-slate-200/80 bg-white/75 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 lg:grid-cols-[1fr_1fr_1fr_0.75fr_auto]" onSubmit={handleCreateUser} noValidate>
           <div className="space-y-2">
             <Label htmlFor="new-user-displayName">Display name</Label>
-            <Input id="new-user-displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Control Room West" />
+            <Input id="new-user-displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Control Room West" autoComplete="name" disabled={createMutation.isPending} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-user-username">Username</Label>
-            <Input id="new-user-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="west-operator" />
+            <Input id="new-user-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="west-operator" autoComplete="username" disabled={createMutation.isPending} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-user-password">Password</Label>
-            <Input id="new-user-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" />
+            <Input id="new-user-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" autoComplete="new-password" disabled={createMutation.isPending} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-user-role">Role</Label>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <UserRoleSelect value={role} onChange={setRole} disabled={createMutation.isPending} />
-              </div>
-              <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-                Add user
-              </Button>
-            </div>
+            <UserRoleSelect value={role} onChange={setRole} disabled={createMutation.isPending} />
           </div>
-        </section>
+          <div className="flex items-end">
+            <Button type="submit" disabled={createMutation.isPending} data-testid="button-add-user" className="w-full whitespace-nowrap">
+              {createMutation.isPending ? "Adding..." : "Add user"}
+            </Button>
+          </div>
+          {createError && (
+            <div className="rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-100 lg:col-span-5" role="alert">
+              {createError}
+            </div>
+          )}
+        </form>
 
         <section className="space-y-4">
           <div className="flex items-center justify-between gap-3">
