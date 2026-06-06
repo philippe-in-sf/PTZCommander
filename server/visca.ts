@@ -118,12 +118,20 @@ export class VISCAClient {
           details: { host: this.host, port: this.port },
         });
         verifyTimeout = setTimeout(() => {
-          logger.warn("camera", `VISCA verification timeout to ${this.host}:${this.port}`, {
+          if (this.socket?.destroyed) {
+            logger.warn("camera", `VISCA verification timeout to ${this.host}:${this.port}`, {
+              action: "visca_verify_timeout",
+              details: { host: this.host, port: this.port, timeoutMs: CONNECTION_VERIFY_TIMEOUT_MS },
+            });
+            finish(false);
+            return;
+          }
+
+          logger.warn("camera", `VISCA verification timeout to ${this.host}:${this.port}; keeping open socket for VISCA control`, {
             action: "visca_verify_timeout",
             details: { host: this.host, port: this.port, timeoutMs: CONNECTION_VERIFY_TIMEOUT_MS },
           });
-          this.socket?.destroy();
-          finish(false);
+          finish(true);
         }, CONNECTION_VERIFY_TIMEOUT_MS);
         this.socket?.write(VISCA_VERSION_INQUIRY);
       });
@@ -134,6 +142,9 @@ export class VISCAClient {
       });
 
       this.socket.on("close", () => {
+        if (!settled) {
+          finish(false);
+        }
         this.connected = false;
         if (this.pendingCommand) {
           clearTimeout(this.pendingCommand.timeout);

@@ -7,13 +7,26 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>/bin/zsh</string>
-      <string>-lc</string>
-      <string>cd __ROOT__ &amp;&amp; /usr/bin/env PORT=__PORT__ NODE_ENV=production SESSION_SECRET=__SESSION_SECRET__ SESSION_COOKIE_SECURE=false npm run start</string>
+      <string>__NODE_BIN__</string>
+      <string>__ROOT__/dist/index.cjs</string>
     </array>
 
     <key>WorkingDirectory</key>
     <string>__ROOT__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <key>PORT</key>
+      <string>__PORT__</string>
+      <key>NODE_ENV</key>
+      <string>production</string>
+      <key>SESSION_SECRET</key>
+      <string>__SESSION_SECRET__</string>
+      <key>SESSION_COOKIE_SECURE</key>
+      <string>false</string>
+    </dict>
 
     <key>RunAtLoad</key>
     <true/>
@@ -22,9 +35,9 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>__ROOT__/deploy/logs/ptzcommander.stdout.log</string>
+    <string>__LOG_DIR__/ptzcommander.stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>__ROOT__/deploy/logs/ptzcommander.stderr.log</string>
+    <string>__LOG_DIR__/ptzcommander.stderr.log</string>
   </dict>
 </plist>
