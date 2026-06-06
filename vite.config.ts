@@ -5,7 +5,7 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 
-const projectRoot = path.resolve(import.meta.dirname);
+const projectRoot = path.resolve(process.cwd());
 
 export default defineConfig({
   plugins: [

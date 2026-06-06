@@ -1,7 +1,6 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -79,7 +78,7 @@ function requestAssetPath(requestPath: string) {
 export function serveStatic(app: Express) {
   const moduleDir = typeof __dirname !== "undefined"
     ? __dirname
-    : path.dirname(fileURLToPath(new URL(import.meta.url)));
+    : path.resolve(process.cwd(), "server");
   const candidatePaths = [
     path.resolve(moduleDir, "public"),
     path.resolve(moduleDir, "..", "dist", "public"),

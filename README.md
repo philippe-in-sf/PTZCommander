@@ -173,10 +173,13 @@ http://your-hostname.local:3478
 On macOS, this repo also includes a background service installer:
 
 ```bash
+npm run build
 ./deploy/install-launchd.sh
 ```
 
-That installs a `launchd` agent, keeps PTZ Command running after login, and writes logs to `deploy/logs`.
+That installs a `launchd` agent, keeps PTZ Command running after login, and writes logs to `~/Library/Logs/PTZCommand`.
+
+The installer launches the built `dist/index.cjs` file with the detected Node binary, then checks `http://127.0.0.1:$PORT/api/version` before declaring victory. The self-check prints the live app version, working directory, Node version, runtime PID, and launchd PID. It exits nonzero if the build is stale, the running service is missing runtime metadata, reports a different app version, points at a different checkout, or if another process is still answering on the port. Use `PTZCOMMAND_SELF_CHECK_TIMEOUT=60 ./deploy/install-launchd.sh` if the Mac needs more startup time.
 
 ## Camera Setup
 

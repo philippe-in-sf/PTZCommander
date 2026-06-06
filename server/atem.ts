@@ -3,6 +3,7 @@ import os from "node:os";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 import { errorDetails, logger } from "./logger";
 
 export interface AtemConfig {
@@ -105,7 +106,11 @@ let atemSocketPatchApplied = false;
 let atemPreferredLocalAddress: string | null = null;
 const ATEM_CONNECT_TIMEOUT_MS = 10000;
 const ATEM_MODULE_RETRY_COUNT = 5;
-const require = createRequire(import.meta.url);
+const require = createRequire(
+  typeof __filename !== "undefined"
+    ? __filename
+    : pathToFileURL(path.join(process.cwd(), "server", "atem.ts")).href,
+);
 
 function ipv4ToInt(ip: string) {
   return ip.split(".").reduce((acc, part) => ((acc << 8) + Number(part)) >>> 0, 0);

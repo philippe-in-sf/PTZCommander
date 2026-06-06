@@ -12,6 +12,15 @@ import { getRehearsalMode, setRehearsalMode } from "../rehearsal";
 
 const execFileAsync = promisify(execFile);
 
+function getVersionMetadata() {
+  return {
+    version: APP_VERSION,
+    workingDirectory: process.cwd(),
+    nodeVersion: process.version,
+    pid: process.pid,
+  };
+}
+
 function readCpuTimes() {
   return os.cpus().map((cpu) => {
     const total = Object.values(cpu.times).reduce((sum, value) => sum + value, 0);
@@ -147,7 +156,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
   registerApiAccessRule(["POST"], /^\/api\/undo$/, "operator");
 
   app.get("/api/version", (_req, res) => {
-    res.json({ version: APP_VERSION });
+    res.json(getVersionMetadata());
   });
 
   app.get("/api/rehearsal", (_req, res) => {

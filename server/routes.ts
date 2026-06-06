@@ -715,6 +715,7 @@ export async function registerRoutes(
         await storage.updateCameraStatus(camera.id, connected ? "online" : "offline");
       }
       logger.info("camera", `Initialized ${cameras.length} camera connection(s)`, { action: "visca_init" });
+      broadcast({ type: "invalidate", keys: ["cameras", "health-devices"] });
     } catch (error: unknown) {
       logger.error("camera", `Error initializing camera connections: ${error instanceof Error ? error.message : String(error)}`, { action: "visca_init_error" });
     }
