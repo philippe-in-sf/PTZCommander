@@ -177,7 +177,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["obs-status"] });
       queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
       if (data.success) toast.success("Connected to OBS");
-      else toast.error("Failed to connect to OBS");
+      else toast.error(data.state?.error || "Failed to connect to OBS");
     },
     onError: (error: Error) => toast.error(error.message),
   });

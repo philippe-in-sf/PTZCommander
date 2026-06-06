@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
 import type { Macro, Camera as CameraType, DisplayDevice } from "@shared/schema";
+import { parseMacroSteps, stringifyMacroSteps, type MacroStepValue } from "@shared/automation-schemas";
 
 interface MacroStep {
   id: string;
@@ -599,12 +600,8 @@ export default function MacrosPage() {
     setFormDescription(macro.description || "");
     setFormNotes(macro.notes || "");
     setFormColor(macro.color);
-    try {
-      const parsed = JSON.parse(macro.steps);
-      setFormSteps(parsed.map((s: any) => ({ ...s, id: s.id || generateId() })));
-    } catch {
-      setFormSteps([]);
-    }
+    const parsed = parseMacroSteps(macro.steps) || [];
+    setFormSteps(parsed.map((s: any) => ({ ...s, id: s.id || generateId() })));
     setEditOpen(true);
   }
 
@@ -653,9 +650,10 @@ export default function MacrosPage() {
       return;
     }
 
-    const stepsJson = JSON.stringify(formSteps.map(({ id, ...rest }) => (
+    const steps = formSteps.map(({ id, ...rest }) => (
       rest.type === "display_command" && !rest.command ? { ...rest, command: "power_on" } : rest
-    )));
+    )) as MacroStepValue[];
+    const stepsJson = stringifyMacroSteps(steps);
 
     if (editingMacro) {
       updateMutation.mutate({
@@ -704,7 +702,7 @@ export default function MacrosPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {allMacros.map(macro => {
-                const steps = (() => { try { return JSON.parse(macro.steps); } catch { return []; } })();
+                const steps = parseMacroSteps(macro.steps) || [];
                 const isExecuting = executingId === macro.id;
 
                 return (

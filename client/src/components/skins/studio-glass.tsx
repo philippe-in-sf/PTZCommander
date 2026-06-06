@@ -35,6 +35,7 @@ import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
 import { SkinSelector } from "@/components/skin-selector";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RehearsalToggle } from "@/components/rehearsal-toggle";
+import { OperatorStatusStrip } from "@/components/operator-status-strip";
 
 const scenes = ["Pre-Service", "Worship", "Sermon", "Altar Call", "Post-Service", "Emergency"];
 const atemInputs = [
@@ -157,9 +158,9 @@ export default function StudioGlass(props: DashboardSkinProps) {
             <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
               <Activity className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </div>
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">System Health</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">All services nominal</p>
+              <OperatorStatusStrip compact tone="glass" className="mt-2" />
             </div>
           </GlassPanel>
         </div>

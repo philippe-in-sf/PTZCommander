@@ -29,6 +29,16 @@ import {
 import type { AtemState } from "@/hooks/use-atem-control";
 import type { Camera, DisplayDevice, Preset, SceneButton } from "@shared/schema";
 import {
+  displayActionSchema,
+  hueActionSchema,
+  mixerActionSchema,
+  parseVersionedActionArray,
+  parseVersionedObject,
+  sceneAtemStateSchema,
+  stringifyVersionedActionArray,
+  stringifyVersionedObject,
+} from "@shared/automation-schemas";
+import {
   Camera as CameraIcon,
   Folder,
   Lightbulb,
@@ -248,26 +258,6 @@ const DEFAULT_CAPTURE_SECTIONS: CaptureSectionsState = {
   display: true,
 };
 
-function parseJsonArray<T>(value: string | null | undefined): T[] {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseJsonObject<T>(value: string | null | undefined): T | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as T : null;
-  } catch {
-    return null;
-  }
-}
-
 function getSceneGroupName(scene: Pick<SceneButton, "groupName">) {
   return scene.groupName?.trim() || "General";
 }
@@ -319,13 +309,13 @@ function sceneToDraft(scene: SceneButton): SceneDraft {
     color: scene.color,
     atemInputId: scene.atemInputId,
     atemTransitionType: scene.atemTransitionType || "cut",
-    atemState: parseJsonObject<SceneAtemState>(scene.atemState),
+    atemState: parseVersionedObject(scene.atemState, sceneAtemStateSchema) as SceneAtemState | null,
     obsSceneName: scene.obsSceneName || "",
     cameraId: scene.cameraId,
     presetNumber: scene.presetNumber,
-    mixerActions: parseJsonArray<MixerAction>(scene.mixerActions),
-    hueActions: parseJsonArray<HueSceneAction>(scene.hueActions),
-    displayActions: parseJsonArray<DisplayAction>(scene.displayActions),
+    mixerActions: (parseVersionedActionArray(scene.mixerActions, mixerActionSchema) || []) as MixerAction[],
+    hueActions: (parseVersionedActionArray(scene.hueActions, hueActionSchema) || []) as HueSceneAction[],
+    displayActions: (parseVersionedActionArray(scene.displayActions, displayActionSchema) || []) as DisplayAction[],
   };
 }
 
@@ -337,14 +327,14 @@ function serializeDraft(draft: SceneDraft) {
     groupName: draft.groupName.trim() || "General",
     color: draft.color,
     atemInputId: draft.atemState?.programInput ?? draft.atemInputId,
-    atemState: draft.atemState ? JSON.stringify(draft.atemState) : null,
+    atemState: draft.atemState ? stringifyVersionedObject(draft.atemState) : null,
     atemTransitionType: draft.atemTransitionType,
     obsSceneName: draft.obsSceneName.trim() || null,
     cameraId: draft.cameraId,
     presetNumber: draft.presetNumber,
-    mixerActions: draft.mixerActions.length > 0 ? JSON.stringify(draft.mixerActions) : null,
-    hueActions: draft.hueActions.length > 0 ? JSON.stringify(draft.hueActions) : null,
-    displayActions: validDisplayActions.length > 0 ? JSON.stringify(validDisplayActions) : null,
+    mixerActions: draft.mixerActions.length > 0 ? stringifyVersionedActionArray(draft.mixerActions) : null,
+    hueActions: draft.hueActions.length > 0 ? stringifyVersionedActionArray(draft.hueActions) : null,
+    displayActions: validDisplayActions.length > 0 ? stringifyVersionedActionArray(validDisplayActions) : null,
   };
 }
 
@@ -983,6 +973,12 @@ export default function ScenesPage() {
   const mixer = mixers[0] ?? null;
   const obsConnection = obsConnections[0] ?? null;
 
+  const { data: obsStatus } = useQuery<{ connected?: boolean; currentProgramScene?: string | null }>({
+    queryKey: ["obs-status", obsConnection?.id],
+    queryFn: () => obsApi.getStatus(obsConnection!.id),
+    enabled: Boolean(obsConnection),
+  });
+
   const { data: switcherStatus } = useQuery<AtemState>({
     queryKey: ["switcher-status", switcher?.id],
     queryFn: () => switcherApi.getStatus(switcher!.id),
@@ -992,7 +988,7 @@ export default function ScenesPage() {
   const { data: obsScenesResult } = useQuery<{ scenes: ObsScene[]; state: { currentProgramScene?: string | null } }>({
     queryKey: ["obs-scenes", obsConnection?.id],
     queryFn: () => obsApi.getScenes(obsConnection!.id),
-    enabled: Boolean(obsConnection),
+    enabled: Boolean(obsConnection && obsStatus?.connected),
     retry: false,
   });
 

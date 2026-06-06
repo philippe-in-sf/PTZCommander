@@ -1,6 +1,7 @@
 import { users, cameras, presets, mixers, switchers, sceneButtons, layouts, macros, obsConnections, runsheetCues, auditLogs, hueBridges, displayDevices, type User, type UserRole, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type ObsConnection, type InsertObsConnection, type RunsheetCue, type InsertRunsheetCue, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
 import { sql, desc, eq, and } from "drizzle-orm";
 import { db, sqlite, useSqlite } from "./db";
+import { decryptSecret, encryptSecret } from "./secrets";
 
 export interface IStorage {
   // User operations
@@ -111,7 +112,7 @@ function sqliteRowToCamera(row: any): Camera {
     port: row.port,
     protocol: row.protocol,
     username: row.username,
-    password: row.password,
+    password: decryptSecret(row.password),
     streamUrl: row.stream_url,
     previewType: row.preview_type || (row.stream_url ? "snapshot" : "none"),
     previewRefreshMs: row.preview_refresh_ms || 2000,
@@ -181,7 +182,7 @@ function sqliteRowToObsConnection(row: any): ObsConnection {
     name: row.name,
     host: row.host,
     port: row.port,
-    password: row.password,
+    password: decryptSecret(row.password),
     status: row.status,
     currentProgramScene: row.current_program_scene,
     studioMode: Boolean(row.studio_mode),
@@ -227,18 +228,18 @@ function sqliteRowToDisplayDevice(row: any): DisplayDevice {
     ip: row.ip,
     protocol: row.protocol,
     smartthingsDeviceId: row.smartthings_device_id,
-    smartthingsToken: row.smartthings_token,
-    smartthingsRefreshToken: row.smartthings_refresh_token,
+    smartthingsToken: decryptSecret(row.smartthings_token),
+    smartthingsRefreshToken: decryptSecret(row.smartthings_refresh_token),
     smartthingsTokenExpiresAt: row.smartthings_token_expires_at ? new Date(row.smartthings_token_expires_at) : null,
     smartthingsClientId: row.smartthings_client_id,
-    smartthingsClientSecret: row.smartthings_client_secret,
-    samsungToken: row.samsung_token,
+    smartthingsClientSecret: decryptSecret(row.smartthings_client_secret),
+    samsungToken: decryptSecret(row.samsung_token),
     samsungPort: row.samsung_port,
     samsungModel: row.samsung_model,
     hisensePort: row.hisense_port,
     hisenseUseSsl: Boolean(row.hisense_use_ssl),
     hisenseUsername: row.hisense_username,
-    hisensePassword: row.hisense_password,
+    hisensePassword: decryptSecret(row.hisense_password),
     hisenseClientName: row.hisense_client_name,
     hisenseModel: row.hisense_model,
     hisensePaired: Boolean(row.hisense_paired),
@@ -276,6 +277,61 @@ function sqliteRowToAuditLog(row: any): AuditLog {
     details: row.details,
     userId: row.user_id,
   };
+}
+
+function decryptCameraSecrets<T extends Camera>(camera: T): T {
+  return { ...camera, password: decryptSecret(camera.password) } as T;
+}
+
+function encryptCameraSecrets<T extends Partial<Camera> | InsertCamera>(camera: T): T {
+  return {
+    ...camera,
+    password: camera.password !== undefined ? encryptSecret(camera.password) : camera.password,
+  } as T;
+}
+
+function decryptObsSecrets<T extends ObsConnection>(connection: T): T {
+  return { ...connection, password: decryptSecret(connection.password) } as T;
+}
+
+function encryptObsSecrets<T extends Partial<ObsConnection> | InsertObsConnection>(connection: T): T {
+  return {
+    ...connection,
+    password: connection.password !== undefined ? encryptSecret(connection.password) : connection.password,
+  } as T;
+}
+
+function decryptHueBridgeSecrets<T extends HueBridge>(bridge: T): T {
+  return { ...bridge, apiKey: decryptSecret(bridge.apiKey) } as T;
+}
+
+function encryptHueBridgeSecrets<T extends Partial<HueBridge> | InsertHueBridge>(bridge: T): T {
+  return {
+    ...bridge,
+    apiKey: bridge.apiKey !== undefined ? encryptSecret(bridge.apiKey) : bridge.apiKey,
+  } as T;
+}
+
+function decryptDisplaySecrets<T extends DisplayDevice>(display: T): T {
+  return {
+    ...display,
+    smartthingsToken: decryptSecret(display.smartthingsToken),
+    smartthingsRefreshToken: decryptSecret(display.smartthingsRefreshToken),
+    smartthingsClientSecret: decryptSecret(display.smartthingsClientSecret),
+    samsungToken: decryptSecret(display.samsungToken),
+    hisensePassword: decryptSecret(display.hisensePassword),
+  } as T;
+}
+
+function encryptDisplaySecrets<T extends Partial<DisplayDevice> | InsertDisplayDevice>(display: T): T {
+  return {
+    ...display,
+    smartthingsToken: display.smartthingsToken !== undefined ? encryptSecret(display.smartthingsToken) : display.smartthingsToken,
+    smartthingsRefreshToken: display.smartthingsRefreshToken !== undefined ? encryptSecret(display.smartthingsRefreshToken) : display.smartthingsRefreshToken,
+    smartthingsClientSecret: display.smartthingsClientSecret !== undefined ? encryptSecret(display.smartthingsClientSecret) : display.smartthingsClientSecret,
+    samsungToken: display.samsungToken !== undefined ? encryptSecret(display.samsungToken) : display.samsungToken,
+    hisensePassword: display.hisensePassword !== undefined ? encryptSecret(display.hisensePassword) : display.hisensePassword,
+  } as T;
 }
 
 function sqliteRowToUser(row: any): User {
@@ -386,7 +442,8 @@ export class DatabaseStorage implements IStorage {
       const rows = sqlite.prepare('SELECT * FROM cameras').all();
       return rows.map(sqliteRowToCamera);
     }
-    return await db.select().from(cameras);
+    const rows = await db.select().from(cameras);
+    return rows.map(decryptCameraSecrets);
   }
 
   async getCamera(id: number): Promise<Camera | undefined> {
@@ -395,7 +452,7 @@ export class DatabaseStorage implements IStorage {
       return row ? sqliteRowToCamera(row) : undefined;
     }
     const [camera] = await db.select().from(cameras).where(eq(cameras.id, id));
-    return camera || undefined;
+    return camera ? decryptCameraSecrets(camera) : undefined;
   }
 
   async getCameraByIp(ip: string): Promise<Camera | undefined> {
@@ -404,52 +461,54 @@ export class DatabaseStorage implements IStorage {
       return row ? sqliteRowToCamera(row) : undefined;
     }
     const [camera] = await db.select().from(cameras).where(eq(cameras.ip, ip));
-    return camera || undefined;
+    return camera ? decryptCameraSecrets(camera) : undefined;
   }
 
   async createCamera(insertCamera: InsertCamera): Promise<Camera> {
+    const encryptedCamera = encryptCameraSecrets(insertCamera);
     if (useSqlite && sqlite) {
       const stmt = sqlite.prepare(`
         INSERT INTO cameras (name, ip, port, protocol, username, password, stream_url, preview_type, preview_refresh_ms, atem_input_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const result = stmt.run(
-        insertCamera.name,
-        insertCamera.ip,
-        insertCamera.port || 52381,
-        insertCamera.protocol || 'visca',
-        insertCamera.username || null,
-        insertCamera.password || null,
-        insertCamera.streamUrl || null,
-        insertCamera.previewType || (insertCamera.streamUrl ? "snapshot" : "none"),
-        insertCamera.previewRefreshMs || 2000,
-        insertCamera.atemInputId || null
+        encryptedCamera.name,
+        encryptedCamera.ip,
+        encryptedCamera.port || 52381,
+        encryptedCamera.protocol || 'visca',
+        encryptedCamera.username || null,
+        encryptedCamera.password || null,
+        encryptedCamera.streamUrl || null,
+        encryptedCamera.previewType || (encryptedCamera.streamUrl ? "snapshot" : "none"),
+        encryptedCamera.previewRefreshMs || 2000,
+        encryptedCamera.atemInputId || null
       );
       return this.getCamera(Number(result.lastInsertRowid)) as Promise<Camera>;
     }
-    const [camera] = await db.insert(cameras).values(insertCamera).returning();
-    return camera;
+    const [camera] = await db.insert(cameras).values(encryptedCamera).returning();
+    return decryptCameraSecrets(camera);
   }
 
   async updateCamera(id: number, updates: Partial<Camera>): Promise<Camera | undefined> {
+    const encryptedUpdates = encryptCameraSecrets(updates);
     if (useSqlite && sqlite) {
       const setClauses: string[] = [];
       const values: any[] = [];
       
-      if (updates.name !== undefined) { setClauses.push('name = ?'); values.push(updates.name); }
-      if (updates.ip !== undefined) { setClauses.push('ip = ?'); values.push(updates.ip); }
-      if (updates.port !== undefined) { setClauses.push('port = ?'); values.push(updates.port); }
-      if (updates.protocol !== undefined) { setClauses.push('protocol = ?'); values.push(updates.protocol); }
-      if (updates.username !== undefined) { setClauses.push('username = ?'); values.push(updates.username); }
-      if (updates.password !== undefined) { setClauses.push('password = ?'); values.push(updates.password); }
-      if (updates.streamUrl !== undefined) { setClauses.push('stream_url = ?'); values.push(updates.streamUrl); }
-      if (updates.previewType !== undefined) { setClauses.push('preview_type = ?'); values.push(updates.previewType); }
-      if (updates.previewRefreshMs !== undefined) { setClauses.push('preview_refresh_ms = ?'); values.push(updates.previewRefreshMs); }
-      if (updates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(updates.atemInputId); }
-      if (updates.tallyState !== undefined) { setClauses.push('tally_state = ?'); values.push(updates.tallyState); }
-      if (updates.status !== undefined) { setClauses.push('status = ?'); values.push(updates.status); }
-      if (updates.isProgramOutput !== undefined) { setClauses.push('is_program_output = ?'); values.push(updates.isProgramOutput ? 1 : 0); }
-      if (updates.isPreviewOutput !== undefined) { setClauses.push('is_preview_output = ?'); values.push(updates.isPreviewOutput ? 1 : 0); }
+      if (encryptedUpdates.name !== undefined) { setClauses.push('name = ?'); values.push(encryptedUpdates.name); }
+      if (encryptedUpdates.ip !== undefined) { setClauses.push('ip = ?'); values.push(encryptedUpdates.ip); }
+      if (encryptedUpdates.port !== undefined) { setClauses.push('port = ?'); values.push(encryptedUpdates.port); }
+      if (encryptedUpdates.protocol !== undefined) { setClauses.push('protocol = ?'); values.push(encryptedUpdates.protocol); }
+      if (encryptedUpdates.username !== undefined) { setClauses.push('username = ?'); values.push(encryptedUpdates.username); }
+      if (encryptedUpdates.password !== undefined) { setClauses.push('password = ?'); values.push(encryptedUpdates.password); }
+      if (encryptedUpdates.streamUrl !== undefined) { setClauses.push('stream_url = ?'); values.push(encryptedUpdates.streamUrl); }
+      if (encryptedUpdates.previewType !== undefined) { setClauses.push('preview_type = ?'); values.push(encryptedUpdates.previewType); }
+      if (encryptedUpdates.previewRefreshMs !== undefined) { setClauses.push('preview_refresh_ms = ?'); values.push(encryptedUpdates.previewRefreshMs); }
+      if (encryptedUpdates.atemInputId !== undefined) { setClauses.push('atem_input_id = ?'); values.push(encryptedUpdates.atemInputId); }
+      if (encryptedUpdates.tallyState !== undefined) { setClauses.push('tally_state = ?'); values.push(encryptedUpdates.tallyState); }
+      if (encryptedUpdates.status !== undefined) { setClauses.push('status = ?'); values.push(encryptedUpdates.status); }
+      if (encryptedUpdates.isProgramOutput !== undefined) { setClauses.push('is_program_output = ?'); values.push(encryptedUpdates.isProgramOutput ? 1 : 0); }
+      if (encryptedUpdates.isPreviewOutput !== undefined) { setClauses.push('is_preview_output = ?'); values.push(encryptedUpdates.isPreviewOutput ? 1 : 0); }
       
       if (setClauses.length === 0) return this.getCamera(id);
       
@@ -459,10 +518,10 @@ export class DatabaseStorage implements IStorage {
     }
     const [camera] = await db
       .update(cameras)
-      .set(updates)
+      .set(encryptedUpdates)
       .where(eq(cameras.id, id))
       .returning();
-    return camera || undefined;
+    return camera ? decryptCameraSecrets(camera) : undefined;
   }
 
   async deleteCamera(id: number): Promise<void> {
@@ -1011,7 +1070,8 @@ export class DatabaseStorage implements IStorage {
       const rows = sqlite.prepare('SELECT * FROM obs_connections ORDER BY id').all();
       return rows.map(sqliteRowToObsConnection);
     }
-    return await db.select().from(obsConnections);
+    const rows = await db.select().from(obsConnections);
+    return rows.map(decryptObsSecrets);
   }
 
   async getObsConnection(id: number): Promise<ObsConnection | undefined> {
@@ -1020,44 +1080,46 @@ export class DatabaseStorage implements IStorage {
       return row ? sqliteRowToObsConnection(row) : undefined;
     }
     const [connection] = await db.select().from(obsConnections).where(eq(obsConnections.id, id));
-    return connection || undefined;
+    return connection ? decryptObsSecrets(connection) : undefined;
   }
 
   async createObsConnection(connection: InsertObsConnection): Promise<ObsConnection> {
+    const encryptedConnection = encryptObsSecrets(connection);
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
         INSERT INTO obs_connections (name, host, port, password, status, current_program_scene, studio_mode)
         VALUES (?, ?, ?, ?, 'offline', NULL, 0)
       `).run(
-        connection.name,
-        connection.host,
-        connection.port || 4455,
-        connection.password || null
+        encryptedConnection.name,
+        encryptedConnection.host,
+        encryptedConnection.port || 4455,
+        encryptedConnection.password || null
       );
       return this.getObsConnection(Number(result.lastInsertRowid)) as Promise<ObsConnection>;
     }
-    const [created] = await db.insert(obsConnections).values(connection).returning();
-    return created;
+    const [created] = await db.insert(obsConnections).values(encryptedConnection).returning();
+    return decryptObsSecrets(created);
   }
 
   async updateObsConnection(id: number, updates: Partial<ObsConnection>): Promise<ObsConnection | undefined> {
+    const encryptedUpdates = encryptObsSecrets(updates);
     if (useSqlite && sqlite) {
       const fields: string[] = [];
       const values: any[] = [];
-      if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
-      if (updates.host !== undefined) { fields.push('host = ?'); values.push(updates.host); }
-      if (updates.port !== undefined) { fields.push('port = ?'); values.push(updates.port); }
-      if (updates.password !== undefined) { fields.push('password = ?'); values.push(updates.password); }
-      if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status); }
-      if (updates.currentProgramScene !== undefined) { fields.push('current_program_scene = ?'); values.push(updates.currentProgramScene); }
-      if (updates.studioMode !== undefined) { fields.push('studio_mode = ?'); values.push(updates.studioMode ? 1 : 0); }
+      if (encryptedUpdates.name !== undefined) { fields.push('name = ?'); values.push(encryptedUpdates.name); }
+      if (encryptedUpdates.host !== undefined) { fields.push('host = ?'); values.push(encryptedUpdates.host); }
+      if (encryptedUpdates.port !== undefined) { fields.push('port = ?'); values.push(encryptedUpdates.port); }
+      if (encryptedUpdates.password !== undefined) { fields.push('password = ?'); values.push(encryptedUpdates.password); }
+      if (encryptedUpdates.status !== undefined) { fields.push('status = ?'); values.push(encryptedUpdates.status); }
+      if (encryptedUpdates.currentProgramScene !== undefined) { fields.push('current_program_scene = ?'); values.push(encryptedUpdates.currentProgramScene); }
+      if (encryptedUpdates.studioMode !== undefined) { fields.push('studio_mode = ?'); values.push(encryptedUpdates.studioMode ? 1 : 0); }
       if (!fields.length) return this.getObsConnection(id);
       values.push(id);
       sqlite.prepare(`UPDATE obs_connections SET ${fields.join(', ')} WHERE id = ?`).run(...values);
       return this.getObsConnection(id);
     }
-    const [updated] = await db.update(obsConnections).set(updates).where(eq(obsConnections.id, id)).returning();
-    return updated || undefined;
+    const [updated] = await db.update(obsConnections).set(encryptedUpdates).where(eq(obsConnections.id, id)).returning();
+    return updated ? decryptObsSecrets(updated) : undefined;
   }
 
   async deleteObsConnection(id: number): Promise<void> {
@@ -1222,49 +1284,52 @@ export class DatabaseStorage implements IStorage {
   async getAllHueBridges(): Promise<HueBridge[]> {
     if (useSqlite && sqlite) {
       const rows = sqlite.prepare('SELECT * FROM hue_bridges ORDER BY id').all();
-      return rows.map((r: any) => ({
+      return rows.map((r: any) => decryptHueBridgeSecrets({
         id: r.id, name: r.name, ip: r.ip, apiKey: r.api_key,
         status: r.status, createdAt: new Date(r.created_at),
       }));
     }
-    return await db.select().from(hueBridges);
+    const rows = await db.select().from(hueBridges);
+    return rows.map(decryptHueBridgeSecrets);
   }
 
   async getHueBridge(id: number): Promise<HueBridge | undefined> {
     if (useSqlite && sqlite) {
       const row: any = sqlite.prepare('SELECT * FROM hue_bridges WHERE id = ?').get(id);
       if (!row) return undefined;
-      return { id: row.id, name: row.name, ip: row.ip, apiKey: row.api_key, status: row.status, createdAt: new Date(row.created_at) };
+      return decryptHueBridgeSecrets({ id: row.id, name: row.name, ip: row.ip, apiKey: row.api_key, status: row.status, createdAt: new Date(row.created_at) });
     }
     const [bridge] = await db.select().from(hueBridges).where(eq(hueBridges.id, id));
-    return bridge;
+    return bridge ? decryptHueBridgeSecrets(bridge) : undefined;
   }
 
   async createHueBridge(bridge: InsertHueBridge): Promise<HueBridge> {
+    const encryptedBridge = encryptHueBridgeSecrets(bridge);
     if (useSqlite && sqlite) {
       const result = sqlite.prepare('INSERT INTO hue_bridges (name, ip, api_key, status, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *')
-        .get(bridge.name, bridge.ip, bridge.apiKey ?? null, 'offline', new Date().toISOString()) as any;
-      return { id: result.id, name: result.name, ip: result.ip, apiKey: result.api_key, status: result.status, createdAt: new Date(result.created_at) };
+        .get(encryptedBridge.name, encryptedBridge.ip, encryptedBridge.apiKey ?? null, 'offline', new Date().toISOString()) as any;
+      return decryptHueBridgeSecrets({ id: result.id, name: result.name, ip: result.ip, apiKey: result.api_key, status: result.status, createdAt: new Date(result.created_at) });
     }
-    const [created] = await db.insert(hueBridges).values(bridge).returning();
-    return created;
+    const [created] = await db.insert(hueBridges).values(encryptedBridge).returning();
+    return decryptHueBridgeSecrets(created);
   }
 
   async updateHueBridge(id: number, updates: Partial<HueBridge>): Promise<HueBridge | undefined> {
+    const encryptedUpdates = encryptHueBridgeSecrets(updates);
     if (useSqlite && sqlite) {
       const fields: string[] = [];
       const vals: any[] = [];
-      if (updates.name !== undefined) { fields.push('name = ?'); vals.push(updates.name); }
-      if (updates.ip !== undefined) { fields.push('ip = ?'); vals.push(updates.ip); }
-      if (updates.apiKey !== undefined) { fields.push('api_key = ?'); vals.push(updates.apiKey); }
-      if (updates.status !== undefined) { fields.push('status = ?'); vals.push(updates.status); }
+      if (encryptedUpdates.name !== undefined) { fields.push('name = ?'); vals.push(encryptedUpdates.name); }
+      if (encryptedUpdates.ip !== undefined) { fields.push('ip = ?'); vals.push(encryptedUpdates.ip); }
+      if (encryptedUpdates.apiKey !== undefined) { fields.push('api_key = ?'); vals.push(encryptedUpdates.apiKey); }
+      if (encryptedUpdates.status !== undefined) { fields.push('status = ?'); vals.push(encryptedUpdates.status); }
       if (!fields.length) return this.getHueBridge(id);
       vals.push(id);
       sqlite.prepare(`UPDATE hue_bridges SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
       return this.getHueBridge(id);
     }
-    const [updated] = await db.update(hueBridges).set(updates).where(eq(hueBridges.id, id)).returning();
-    return updated;
+    const [updated] = await db.update(hueBridges).set(encryptedUpdates).where(eq(hueBridges.id, id)).returning();
+    return updated ? decryptHueBridgeSecrets(updated) : undefined;
   }
 
   async deleteHueBridge(id: number): Promise<void> {
@@ -1281,7 +1346,8 @@ export class DatabaseStorage implements IStorage {
       const rows = sqlite.prepare('SELECT * FROM display_devices ORDER BY id').all();
       return rows.map(sqliteRowToDisplayDevice);
     }
-    return await db.select().from(displayDevices);
+    const rows = await db.select().from(displayDevices);
+    return rows.map(decryptDisplaySecrets);
   }
 
   async getDisplayDevice(id: number): Promise<DisplayDevice | undefined> {
@@ -1290,79 +1356,84 @@ export class DatabaseStorage implements IStorage {
       return row ? sqliteRowToDisplayDevice(row) : undefined;
     }
     const [display] = await db.select().from(displayDevices).where(eq(displayDevices.id, id));
-    return display || undefined;
+    return display ? decryptDisplaySecrets(display) : undefined;
   }
 
   async createDisplayDevice(display: InsertDisplayDevice): Promise<DisplayDevice> {
+    const encryptedDisplay = encryptDisplaySecrets({
+      ...display,
+      hisensePassword: display.hisensePassword ?? "multimqttservice",
+    });
     if (useSqlite && sqlite) {
       const result = sqlite.prepare(`
         INSERT INTO display_devices (name, brand, ip, protocol, smartthings_device_id, smartthings_token, smartthings_refresh_token, smartthings_token_expires_at, smartthings_client_id, smartthings_client_secret, samsung_token, samsung_port, samsung_model, hisense_port, hisense_use_ssl, hisense_username, hisense_password, hisense_client_name, hisense_model, hisense_paired)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        display.name,
-        display.brand || "samsung_frame",
-        display.ip ?? null,
-        display.protocol || "smartthings",
-        display.smartthingsDeviceId ?? null,
-        display.smartthingsToken ?? null,
-        display.smartthingsRefreshToken ?? null,
-        display.smartthingsTokenExpiresAt ? new Date(display.smartthingsTokenExpiresAt).toISOString() : null,
-        display.smartthingsClientId ?? null,
-        display.smartthingsClientSecret ?? null,
-        display.samsungToken ?? null,
-        display.samsungPort ?? 8002,
-        display.samsungModel ?? null,
-        display.hisensePort ?? 36669,
-        display.hisenseUseSsl === false ? 0 : 1,
-        display.hisenseUsername ?? "hisenseservice",
-        display.hisensePassword ?? "multimqttservice",
-        display.hisenseClientName ?? "PTZCommander",
-        display.hisenseModel ?? null,
-        display.hisensePaired ? 1 : 0
+        encryptedDisplay.name,
+        encryptedDisplay.brand || "samsung_frame",
+        encryptedDisplay.ip ?? null,
+        encryptedDisplay.protocol || "smartthings",
+        encryptedDisplay.smartthingsDeviceId ?? null,
+        encryptedDisplay.smartthingsToken ?? null,
+        encryptedDisplay.smartthingsRefreshToken ?? null,
+        encryptedDisplay.smartthingsTokenExpiresAt ? new Date(encryptedDisplay.smartthingsTokenExpiresAt).toISOString() : null,
+        encryptedDisplay.smartthingsClientId ?? null,
+        encryptedDisplay.smartthingsClientSecret ?? null,
+        encryptedDisplay.samsungToken ?? null,
+        encryptedDisplay.samsungPort ?? 8002,
+        encryptedDisplay.samsungModel ?? null,
+        encryptedDisplay.hisensePort ?? 36669,
+        encryptedDisplay.hisenseUseSsl === false ? 0 : 1,
+        encryptedDisplay.hisenseUsername ?? "hisenseservice",
+        encryptedDisplay.hisensePassword,
+        encryptedDisplay.hisenseClientName ?? "PTZCommander",
+        encryptedDisplay.hisenseModel ?? null,
+        encryptedDisplay.hisensePaired ? 1 : 0
       );
       return this.getDisplayDevice(Number(result.lastInsertRowid)) as Promise<DisplayDevice>;
     }
-    const [created] = await db.insert(displayDevices).values(display).returning();
-    return created;
+    const [created] = await db.insert(displayDevices).values(encryptedDisplay).returning();
+    return decryptDisplaySecrets(created);
   }
 
   async updateDisplayDevice(id: number, updates: Partial<DisplayDevice>): Promise<DisplayDevice | undefined> {
+    const encryptedUpdates = encryptDisplaySecrets(updates);
     if (useSqlite && sqlite) {
       const fields: string[] = [];
       const vals: any[] = [];
-      if (updates.name !== undefined) { fields.push('name = ?'); vals.push(updates.name); }
-      if (updates.brand !== undefined) { fields.push('brand = ?'); vals.push(updates.brand); }
-      if (updates.ip !== undefined) { fields.push('ip = ?'); vals.push(updates.ip); }
-      if (updates.protocol !== undefined) { fields.push('protocol = ?'); vals.push(updates.protocol); }
-      if (updates.smartthingsDeviceId !== undefined) { fields.push('smartthings_device_id = ?'); vals.push(updates.smartthingsDeviceId); }
-      if (updates.smartthingsToken !== undefined) { fields.push('smartthings_token = ?'); vals.push(updates.smartthingsToken); }
-      if (updates.smartthingsRefreshToken !== undefined) { fields.push('smartthings_refresh_token = ?'); vals.push(updates.smartthingsRefreshToken); }
-      if (updates.smartthingsTokenExpiresAt !== undefined) { fields.push('smartthings_token_expires_at = ?'); vals.push(updates.smartthingsTokenExpiresAt ? new Date(updates.smartthingsTokenExpiresAt).toISOString() : null); }
-      if (updates.smartthingsClientId !== undefined) { fields.push('smartthings_client_id = ?'); vals.push(updates.smartthingsClientId); }
-      if (updates.smartthingsClientSecret !== undefined) { fields.push('smartthings_client_secret = ?'); vals.push(updates.smartthingsClientSecret); }
-      if (updates.samsungToken !== undefined) { fields.push('samsung_token = ?'); vals.push(updates.samsungToken); }
-      if (updates.samsungPort !== undefined) { fields.push('samsung_port = ?'); vals.push(updates.samsungPort); }
-      if (updates.samsungModel !== undefined) { fields.push('samsung_model = ?'); vals.push(updates.samsungModel); }
-      if (updates.hisensePort !== undefined) { fields.push('hisense_port = ?'); vals.push(updates.hisensePort); }
-      if (updates.hisenseUseSsl !== undefined) { fields.push('hisense_use_ssl = ?'); vals.push(updates.hisenseUseSsl ? 1 : 0); }
-      if (updates.hisenseUsername !== undefined) { fields.push('hisense_username = ?'); vals.push(updates.hisenseUsername); }
-      if (updates.hisensePassword !== undefined) { fields.push('hisense_password = ?'); vals.push(updates.hisensePassword); }
-      if (updates.hisenseClientName !== undefined) { fields.push('hisense_client_name = ?'); vals.push(updates.hisenseClientName); }
-      if (updates.hisenseModel !== undefined) { fields.push('hisense_model = ?'); vals.push(updates.hisenseModel); }
-      if (updates.hisensePaired !== undefined) { fields.push('hisense_paired = ?'); vals.push(updates.hisensePaired ? 1 : 0); }
-      if (updates.status !== undefined) { fields.push('status = ?'); vals.push(updates.status); }
-      if (updates.powerState !== undefined) { fields.push('power_state = ?'); vals.push(updates.powerState); }
-      if (updates.volume !== undefined) { fields.push('volume = ?'); vals.push(updates.volume); }
-      if (updates.muted !== undefined) { fields.push('muted = ?'); vals.push(updates.muted ? 1 : 0); }
-      if (updates.inputSource !== undefined) { fields.push('input_source = ?'); vals.push(updates.inputSource); }
-      if (updates.artModeStatus !== undefined) { fields.push('art_mode_status = ?'); vals.push(updates.artModeStatus); }
+      if (encryptedUpdates.name !== undefined) { fields.push('name = ?'); vals.push(encryptedUpdates.name); }
+      if (encryptedUpdates.brand !== undefined) { fields.push('brand = ?'); vals.push(encryptedUpdates.brand); }
+      if (encryptedUpdates.ip !== undefined) { fields.push('ip = ?'); vals.push(encryptedUpdates.ip); }
+      if (encryptedUpdates.protocol !== undefined) { fields.push('protocol = ?'); vals.push(encryptedUpdates.protocol); }
+      if (encryptedUpdates.smartthingsDeviceId !== undefined) { fields.push('smartthings_device_id = ?'); vals.push(encryptedUpdates.smartthingsDeviceId); }
+      if (encryptedUpdates.smartthingsToken !== undefined) { fields.push('smartthings_token = ?'); vals.push(encryptedUpdates.smartthingsToken); }
+      if (encryptedUpdates.smartthingsRefreshToken !== undefined) { fields.push('smartthings_refresh_token = ?'); vals.push(encryptedUpdates.smartthingsRefreshToken); }
+      if (encryptedUpdates.smartthingsTokenExpiresAt !== undefined) { fields.push('smartthings_token_expires_at = ?'); vals.push(encryptedUpdates.smartthingsTokenExpiresAt ? new Date(encryptedUpdates.smartthingsTokenExpiresAt).toISOString() : null); }
+      if (encryptedUpdates.smartthingsClientId !== undefined) { fields.push('smartthings_client_id = ?'); vals.push(encryptedUpdates.smartthingsClientId); }
+      if (encryptedUpdates.smartthingsClientSecret !== undefined) { fields.push('smartthings_client_secret = ?'); vals.push(encryptedUpdates.smartthingsClientSecret); }
+      if (encryptedUpdates.samsungToken !== undefined) { fields.push('samsung_token = ?'); vals.push(encryptedUpdates.samsungToken); }
+      if (encryptedUpdates.samsungPort !== undefined) { fields.push('samsung_port = ?'); vals.push(encryptedUpdates.samsungPort); }
+      if (encryptedUpdates.samsungModel !== undefined) { fields.push('samsung_model = ?'); vals.push(encryptedUpdates.samsungModel); }
+      if (encryptedUpdates.hisensePort !== undefined) { fields.push('hisense_port = ?'); vals.push(encryptedUpdates.hisensePort); }
+      if (encryptedUpdates.hisenseUseSsl !== undefined) { fields.push('hisense_use_ssl = ?'); vals.push(encryptedUpdates.hisenseUseSsl ? 1 : 0); }
+      if (encryptedUpdates.hisenseUsername !== undefined) { fields.push('hisense_username = ?'); vals.push(encryptedUpdates.hisenseUsername); }
+      if (encryptedUpdates.hisensePassword !== undefined) { fields.push('hisense_password = ?'); vals.push(encryptedUpdates.hisensePassword); }
+      if (encryptedUpdates.hisenseClientName !== undefined) { fields.push('hisense_client_name = ?'); vals.push(encryptedUpdates.hisenseClientName); }
+      if (encryptedUpdates.hisenseModel !== undefined) { fields.push('hisense_model = ?'); vals.push(encryptedUpdates.hisenseModel); }
+      if (encryptedUpdates.hisensePaired !== undefined) { fields.push('hisense_paired = ?'); vals.push(encryptedUpdates.hisensePaired ? 1 : 0); }
+      if (encryptedUpdates.status !== undefined) { fields.push('status = ?'); vals.push(encryptedUpdates.status); }
+      if (encryptedUpdates.powerState !== undefined) { fields.push('power_state = ?'); vals.push(encryptedUpdates.powerState); }
+      if (encryptedUpdates.volume !== undefined) { fields.push('volume = ?'); vals.push(encryptedUpdates.volume); }
+      if (encryptedUpdates.muted !== undefined) { fields.push('muted = ?'); vals.push(encryptedUpdates.muted ? 1 : 0); }
+      if (encryptedUpdates.inputSource !== undefined) { fields.push('input_source = ?'); vals.push(encryptedUpdates.inputSource); }
+      if (encryptedUpdates.artModeStatus !== undefined) { fields.push('art_mode_status = ?'); vals.push(encryptedUpdates.artModeStatus); }
       if (!fields.length) return this.getDisplayDevice(id);
       vals.push(id);
       sqlite.prepare(`UPDATE display_devices SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
       return this.getDisplayDevice(id);
     }
-    const [updated] = await db.update(displayDevices).set(updates).where(eq(displayDevices.id, id)).returning();
-    return updated || undefined;
+    const [updated] = await db.update(displayDevices).set(encryptedUpdates).where(eq(displayDevices.id, id)).returning();
+    return updated ? decryptDisplaySecrets(updated) : undefined;
   }
 
   async deleteDisplayDevice(id: number): Promise<void> {

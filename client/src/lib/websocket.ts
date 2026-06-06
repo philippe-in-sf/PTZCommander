@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { InsertPreset, Preset } from "@shared/schema";
+import { liveWsCommandSchema, type LiveWsCommand } from "@shared/live-ws-commands";
 
 export type MixerChannelState = {
   channel: number;
@@ -14,6 +15,9 @@ export type WsMessageInbound =
   | { type: "atem_state"; [key: string]: unknown }
   | { type: "mixer_state"; section?: string; channels: MixerChannelState[] }
   | { type: "mixer_section_state"; section: string; channels: MixerChannelState[] }
+  | { type: "command_ack"; command: string; commandId?: string }
+  | { type: "command_error"; command: string; commandId?: string; message: string }
+  | { type: "permission_error"; command?: string; commandId?: string; message: string }
   | { type: "preset_store_result"; requestId: string; ok: boolean; preset?: Preset; message?: string }
   | { type: string; [key: string]: unknown };
 
@@ -26,6 +30,7 @@ export class PTZWebSocket {
   private reconnectDelay = 1000;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 30000;
+  private commandSequence = 0;
   private messageHandlers: Set<WebSocketMessageHandler> = new Set();
   private connectionHandlers: Set<WebSocketConnectionHandler> = new Set();
   private pendingPresetStores = new Map<string, {
@@ -128,9 +133,21 @@ export class PTZWebSocket {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
-  send(data: Record<string, unknown>): void {
+  send(data: LiveWsCommand | Record<string, unknown>): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+      const commandType = typeof data.type === "string" ? data.type : "";
+      const highFrequency = commandType === "pan_tilt";
+      const payload = !("commandId" in data) && !highFrequency
+        ? { ...data, commandId: `${Date.now()}-${++this.commandSequence}` }
+        : data;
+
+      const parsed = liveWsCommandSchema.safeParse(payload);
+      if (!parsed.success) {
+        console.warn("Blocked invalid PTZ Command WebSocket payload", parsed.error.issues, payload);
+        return;
+      }
+
+      this.ws.send(JSON.stringify(parsed.data));
     }
   }
 

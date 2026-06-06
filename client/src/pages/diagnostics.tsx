@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Lightbulb, Monitor, RefreshCw, Server, Video, Volume2 } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Database, Gauge, Lightbulb, Monitor, RefreshCw, Server, Video, Volume2, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/app-layout";
 import { healthApi } from "@/lib/api";
@@ -24,6 +24,18 @@ type HealthResponse = {
   switchers: DeviceHealth[];
   displays: DeviceHealth[];
   timestamp: number;
+};
+
+type SystemHealthResponse = {
+  cpuPercent: number;
+  usedMemoryBytes: number;
+  totalMemoryBytes: number;
+  processRssBytes: number;
+  network: {
+    rxMbps: number;
+    txMbps: number;
+  };
+  uptimeSeconds: number;
 };
 
 type HueBridgeStatus = {
@@ -72,6 +84,22 @@ function DeviceRow({ device, icon }: { device: DeviceHealth; icon: ReactNode }) 
   );
 }
 
+function formatBytes(bytes: number | undefined) {
+  if (!Number.isFinite(bytes)) return "--";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes!;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(value >= 10 || unit === 0 ? 0 : 1)} ${units[unit]}`;
+}
+
+function formatPercent(value: number | undefined) {
+  return Number.isFinite(value) ? `${Math.round(value!)}%` : "--";
+}
+
 export default function DiagnosticsPage() {
   const healthQuery = useQuery<HealthResponse>({
     queryKey: ["health-devices"],
@@ -82,6 +110,10 @@ export default function DiagnosticsPage() {
   });
   const logsQuery = useQuery<RecentLog[]>({
     queryKey: ["/api/logs/recent"],
+  });
+  const systemQuery = useQuery<SystemHealthResponse>({
+    queryKey: ["health-system"],
+    queryFn: healthApi.getSystem,
   });
 
   const health = healthQuery.data;
@@ -99,6 +131,7 @@ export default function DiagnosticsPage() {
     healthQuery.refetch();
     hueQuery.refetch();
     logsQuery.refetch();
+    systemQuery.refetch();
   };
 
   return (
@@ -111,8 +144,8 @@ export default function DiagnosticsPage() {
             </h2>
             <p className="text-sm text-slate-500 mt-1">Device health, Hue bridge status, and recent system events.</p>
           </div>
-          <Button variant="outline" onClick={refreshAll} disabled={healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching}>
-            <RefreshCw className={cn("w-4 h-4 mr-2", (healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching) && "animate-spin")} />
+          <Button variant="outline" onClick={refreshAll} disabled={healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching || systemQuery.isFetching}>
+            <RefreshCw className={cn("w-4 h-4 mr-2", (healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching || systemQuery.isFetching) && "animate-spin")} />
             Refresh
           </Button>
         </div>
@@ -131,6 +164,26 @@ export default function DiagnosticsPage() {
             <p className="text-3xl font-bold mt-2">{offlineBridgeCount}</p>
           </div>
         </div>
+
+        <section className="space-y-3">
+          <h3 className="font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-cyan-500" /> System Load</h3>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4">
+              <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2"><Gauge className="w-3.5 h-3.5" /> CPU</p>
+              <p className="text-3xl font-bold mt-2">{formatPercent(systemQuery.data?.cpuPercent)}</p>
+            </div>
+            <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4">
+              <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2"><Database className="w-3.5 h-3.5" /> Memory</p>
+              <p className="text-3xl font-bold mt-2">{formatBytes(systemQuery.data?.usedMemoryBytes)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">of {formatBytes(systemQuery.data?.totalMemoryBytes)}</p>
+            </div>
+            <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4">
+              <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2"><Wifi className="w-3.5 h-3.5" /> Network</p>
+              <p className="text-3xl font-bold mt-2 tabular-nums">{(systemQuery.data?.network.rxMbps ?? 0).toFixed(1)} / {(systemQuery.data?.network.txMbps ?? 0).toFixed(1)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Mbps in / out</p>
+            </div>
+          </div>
+        </section>
 
         <section className="space-y-3">
           <h3 className="font-semibold flex items-center gap-2"><Server className="w-4 h-4 text-cyan-500" /> Device Health</h3>
