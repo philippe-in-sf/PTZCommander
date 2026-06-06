@@ -2,6 +2,7 @@ import type { RouteContext } from "./types";
 import { insertCameraSchema, insertPresetSchema, patchCameraSchema, patchPresetSchema } from "@shared/schema";
 import { errorDetails, logger } from "../logger";
 import { fromError } from "zod-validation-error";
+import { createHash } from "crypto";
 import { spawn } from "child_process";
 import type { ChildProcessWithoutNullStreams } from "child_process";
 import type { Response } from "express";
@@ -16,12 +17,23 @@ import { registerApiAccessRule } from "../auth";
 const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
 const VISCA_VERSION_INQUIRY = Buffer.from([0x81, 0x09, 0x00, 0x02, 0xff]);
 const FFMPEG_PREVIEW_STARTUP_TIMEOUT_MS = 8000;
+const FFMPEG_FRAME_CAPTURE_TIMEOUT_MS = 7000;
+const FFMPEG_FRAME_CACHE_TTL_MS = 1200;
+const FFMPEG_FRAME_STALE_TTL_MS = 30_000;
+const FFMPEG_FRAME_MAX_BYTES = 8 * 1024 * 1024;
 const ffmpegPreviewRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many network preview attempts; wait a minute and try again" },
+});
+const ffmpegFrameRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 360,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many camera frame attempts; wait a minute and try again" },
 });
 type FfmpegPreviewProtocol = "rtsp" | "rtp";
 const FFMPEG_PREVIEW_FORCE_KILL_MS = 2000;
@@ -42,6 +54,14 @@ interface FfmpegPreviewHub {
 }
 
 const activeFfmpegPreviewSessions = new Map<string, FfmpegPreviewHub>();
+
+interface FfmpegFrameCacheEntry {
+  buffer: Buffer;
+  capturedAt: number;
+}
+
+const ffmpegFrameCache = new Map<string, FfmpegFrameCacheEntry>();
+const activeFfmpegFrameCaptures = new Map<string, Promise<FfmpegFrameCacheEntry>>();
 
 type DiscoveryConfidence = "confirmed" | "port-open";
 
@@ -132,6 +152,158 @@ function ffmpegPreviewErrorMessage(stderr: string, protocol: FfmpegPreviewProtoc
   const message = redactFfmpegPreviewDiagnostics(stderr).trim().split("\n").pop() || "";
   if (/ffmpeg: not found/i.test(message)) return "FFmpeg is not installed on the app host";
   return message || `${protocol.toUpperCase()} preview ended before video was available`;
+}
+
+function ffmpegFrameErrorMessage(error: unknown, protocol: FfmpegPreviewProtocol) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return redactFfmpegPreviewDiagnostics(message).trim() || `${protocol.toUpperCase()} frame capture failed`;
+}
+
+function ffmpegFrameCacheKey(
+  protocol: FfmpegPreviewProtocol,
+  cameraId: number,
+  normalizedUrl: string,
+  camera: { username: string | null; password: string | null },
+) {
+  const digest = createHash("sha256")
+    .update(normalizedUrl)
+    .update("\0")
+    .update(camera.username || "")
+    .update("\0")
+    .update(camera.password || "")
+    .digest("hex")
+    .slice(0, 16);
+  return `${protocol}:${cameraId}:${digest}`;
+}
+
+function captureFfmpegFrame(ffmpegPath: string, inputUrl: string, protocol: FfmpegPreviewProtocol) {
+  return new Promise<Buffer>((resolve, reject) => {
+    const args = [
+      "-hide_banner",
+      "-loglevel",
+      "warning",
+      "-nostdin",
+      ...(protocol === "rtsp" ? ["-rtsp_transport", "tcp", "-timeout", "5000000"] : []),
+      "-i",
+      inputUrl,
+      "-map",
+      "0:v:0",
+      "-an",
+      "-sn",
+      "-dn",
+      "-frames:v",
+      "1",
+      "-q:v",
+      "4",
+      "-f",
+      "image2pipe",
+      "-vcodec",
+      "mjpeg",
+      "pipe:1",
+    ];
+
+    const ffmpeg = spawn(ffmpegPath, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      env: process.env,
+    }) as unknown as ChildProcessWithoutNullStreams;
+
+    const stdout: Buffer[] = [];
+    let stderr = "";
+    let bytes = 0;
+    let settled = false;
+    let timeout: NodeJS.Timeout;
+
+    const finish = (error: Error | null, frame?: Buffer) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (error && !ffmpeg.killed) {
+        ffmpeg.kill("SIGTERM");
+        setTimeout(() => {
+          if (!ffmpeg.killed) ffmpeg.kill("SIGKILL");
+        }, FFMPEG_PREVIEW_FORCE_KILL_MS).unref();
+      }
+      if (error) reject(error);
+      else resolve(frame || Buffer.alloc(0));
+    };
+
+    timeout = setTimeout(() => {
+      finish(new Error(`${protocol.toUpperCase()} frame capture timed out`));
+    }, FFMPEG_FRAME_CAPTURE_TIMEOUT_MS);
+
+    ffmpeg.stdout.on("data", (chunk: Buffer) => {
+      if (settled) return;
+      bytes += chunk.length;
+      if (bytes > FFMPEG_FRAME_MAX_BYTES) {
+        finish(new Error(`${protocol.toUpperCase()} frame exceeded ${FFMPEG_FRAME_MAX_BYTES} bytes`));
+        return;
+      }
+      stdout.push(chunk);
+    });
+
+    ffmpeg.stderr.on("data", (chunk) => {
+      stderr = `${stderr}${chunk.toString()}`.slice(-4000);
+    });
+
+    ffmpeg.once("error", (error: NodeJS.ErrnoException) => {
+      finish(error.code === "ENOENT"
+        ? new Error("FFmpeg is not installed on the app host")
+        : new Error(error.message || `Failed to start ${protocol.toUpperCase()} frame capture`));
+    });
+
+    ffmpeg.once("close", (code, signal) => {
+      if (settled) return;
+      const frame = Buffer.concat(stdout);
+      if (code === 0 && frame.length > 0) {
+        finish(null, frame);
+        return;
+      }
+
+      const diagnostic = redactFfmpegPreviewDiagnostics(stderr).trim().split("\n").pop();
+      finish(new Error(diagnostic || `${protocol.toUpperCase()} frame capture exited with ${code ?? signal ?? "no frame"}`));
+    });
+  });
+}
+
+async function getFfmpegFrame(
+  ffmpegPath: string,
+  protocol: FfmpegPreviewProtocol,
+  cameraId: number,
+  normalizedUrl: string,
+  inputUrl: string,
+  camera: { username: string | null; password: string | null },
+) {
+  const key = ffmpegFrameCacheKey(protocol, cameraId, normalizedUrl, camera);
+  const now = Date.now();
+  const cached = ffmpegFrameCache.get(key);
+  if (cached && now - cached.capturedAt < FFMPEG_FRAME_CACHE_TTL_MS) {
+    return { entry: cached, stale: false };
+  }
+
+  let capture = activeFfmpegFrameCaptures.get(key);
+  if (!capture) {
+    capture = captureFfmpegFrame(ffmpegPath, inputUrl, protocol)
+      .then((buffer) => {
+        const entry = { buffer, capturedAt: Date.now() };
+        ffmpegFrameCache.set(key, entry);
+        return entry;
+      })
+      .finally(() => {
+        activeFfmpegFrameCaptures.delete(key);
+      });
+    activeFfmpegFrameCaptures.set(key, capture);
+  }
+
+  try {
+    return { entry: await capture, stale: false };
+  } catch (error) {
+    const stale = ffmpegFrameCache.get(key);
+    if (stale && Date.now() - stale.capturedAt < FFMPEG_FRAME_STALE_TTL_MS) {
+      return { entry: stale, stale: true, error };
+    }
+    throw error;
+  }
 }
 
 function previewSessionKey(
@@ -649,6 +821,48 @@ export function registerCameraRoutes(ctx: RouteContext) {
     }
   });
 
+  const registerFfmpegFrameRoute = (routePath: string, protocol: FfmpegPreviewProtocol) => {
+    app.get(routePath, ffmpegFrameRateLimiter, async (req, res) => {
+      const label = protocol.toUpperCase();
+      try {
+        const id = parseInt(String(req.params.id));
+        const camera = await storage.getCamera(id);
+        if (!camera) return res.status(404).json({ message: "Camera not found" });
+        if (!camera.streamUrl) return res.status(404).json({ message: `No ${label} URL configured` });
+
+        const normalizedUrl = normalizeFfmpegPreviewUrl(camera.streamUrl, protocol);
+        if (!normalizedUrl) {
+          const allowed = protocol === "rtsp" ? "rtsp:// or rtsps://" : "rtp://";
+          return res.status(400).json({ message: `${label} frame URLs must start with ${allowed}` });
+        }
+
+        const inputUrl = applyCameraCredentialsToPreviewUrl(normalizedUrl, camera);
+        const result = await getFfmpegFrame(getFfmpegPath(), protocol, camera.id, normalizedUrl, inputUrl, camera);
+        const error = "error" in result ? result.error : undefined;
+
+        res.setHeader("Content-Type", "image/jpeg");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        if (result.stale) {
+          res.setHeader("X-PTZ-Preview-Stale", "true");
+          res.setHeader("X-PTZ-Preview-Stale-Age-Ms", String(Date.now() - result.entry.capturedAt));
+          if (error) {
+            res.setHeader("X-PTZ-Preview-Error", ffmpegFrameErrorMessage(error, protocol).slice(0, 240));
+          }
+        }
+        res.send(result.entry.buffer);
+      } catch (error: any) {
+        logger.warn("camera", `${label} frame capture failed`, {
+          action: `camera:${protocol}_frame_failed`,
+          details: {
+            cameraId: req.params.id,
+            message: ffmpegFrameErrorMessage(error, protocol),
+          },
+        });
+        res.status(502).json({ message: ffmpegFrameErrorMessage(error, protocol) });
+      }
+    });
+  };
+
   const registerFfmpegPreviewStreamRoute = (routePath: string, protocol: FfmpegPreviewProtocol) => {
     app.get(routePath, ffmpegPreviewRateLimiter, async (req, res) => {
       const label = protocol.toUpperCase();
@@ -835,6 +1049,8 @@ export function registerCameraRoutes(ctx: RouteContext) {
     });
   };
 
+  registerFfmpegFrameRoute("/api/cameras/:id/rtsp-frame", "rtsp");
+  registerFfmpegFrameRoute("/api/cameras/:id/rtp-frame", "rtp");
   registerFfmpegPreviewStreamRoute("/api/cameras/:id/rtsp-stream", "rtsp");
   registerFfmpegPreviewStreamRoute("/api/cameras/:id/rtp-stream", "rtp");
 

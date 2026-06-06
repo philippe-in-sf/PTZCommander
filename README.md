@@ -1,6 +1,6 @@
 # PTZ Command - Camera & Audio Control System
 
-Current version: **1.7.3**
+Current version: **1.7.4**
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, one Behringer X32 audio mixer via OSC, and one Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
@@ -194,10 +194,10 @@ The installer launches the built `dist/index.cjs` file with the detected Node bi
 
 - **RTSP**: Set the preview source to `RTSP stream` and enter the RTSP URL
 - **RTP**: Set the preview source to `RTP stream` and enter an `rtp://...` URL
-- **Snapshot / MJPEG**: Use the camera's HTTP snapshot or MJPEG endpoint
+- **Snapshot / MJPEG**: Use the camera's HTTP snapshot endpoint or direct MJPEG endpoint
 - **Browser USB/UVC**: Use `Browser USB/UVC input` for local capture devices in the browser
 
-RTSP and RTP previews are opened by FFmpeg on the app host and then proxied into the web UI.
+RTSP and RTP previews are sampled by FFmpeg on the app host as short-lived JPEG frames. The UI polls those frames and keeps the last good image briefly if a capture attempt hiccups, which avoids fragile long-lived browser RTSP/MJPEG sessions. Direct MJPEG preview still proxies the camera's HTTP MJPEG stream.
 
 #### FoMaKo RTSP examples
 
@@ -304,6 +304,7 @@ If the camera requires RTSP authentication, save the camera username and passwor
 - For FoMaKo cameras, try `rtsp://CAMERA_IP:554/live/av0` first, then `.../live/av1`
 - If the preview returns `401 Unauthorized`, verify the saved camera username/password
 - RTSP and RTP previews require FFmpeg on the computer running PTZ Command
+- RTSP/RTP tiles poll server-captured JPEG frames; if one frame fails, the UI may show the last good frame while the next capture retries
 - RTP streams may require SDP or camera-side stream settings that FFmpeg can open directly
 - Use the Logs viewer (Camera category) to see the exact preview error from FFmpeg
 

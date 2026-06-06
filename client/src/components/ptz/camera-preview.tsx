@@ -112,6 +112,81 @@ function SnapshotPreview({ camera, refreshInterval, className }: {
   return <PreviewState loading={loading} error={error} label="No snapshot" />;
 }
 
+function PolledFramePreview({ camera, refreshInterval, className, endpoint, errorLabel, loadingLabel }: {
+  camera: CameraType;
+  refreshInterval: number;
+  className?: string;
+  endpoint: "rtsp-frame" | "rtp-frame";
+  errorLabel: string;
+  loadingLabel: string;
+}) {
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const requestSeqRef = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadImage = () => {
+      if (imgRef.current) {
+        imgRef.current.onload = null;
+        imgRef.current.onerror = null;
+      }
+
+      const requestSeq = ++requestSeqRef.current;
+      const url = `/api/cameras/${camera.id}/${endpoint}?t=${Date.now()}`;
+      const img = new Image();
+      imgRef.current = img;
+      img.onload = () => {
+        if (cancelled || requestSeq !== requestSeqRef.current) return;
+        setImgSrc(url);
+        setError(false);
+        setLoading(false);
+      };
+      img.onerror = () => {
+        if (cancelled || requestSeq !== requestSeqRef.current) return;
+        setError(true);
+        setLoading(false);
+      };
+      img.src = url;
+    };
+
+    setImgSrc(null);
+    setError(false);
+    setLoading(true);
+    loadImage();
+    timerRef.current = setInterval(loadImage, Math.max(1000, refreshInterval));
+
+    return () => {
+      cancelled = true;
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (imgRef.current) {
+        imgRef.current.onload = null;
+        imgRef.current.onerror = null;
+        imgRef.current = null;
+      }
+    };
+  }, [camera.id, endpoint, refreshInterval]);
+
+  if (imgSrc) {
+    return (
+      <>
+        <img src={imgSrc} alt={camera.name} className={cn("w-full h-full object-cover", className)} />
+        {error && (
+          <div className="absolute bottom-6 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-mono uppercase text-amber-300">
+            Last good frame
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return <PreviewState loading={loading} error={error} label={error ? errorLabel : loadingLabel} />;
+}
+
 function StreamingImagePreview({ camera, className, endpoint, errorLabel, loadingLabel }: {
   camera: CameraType;
   className?: string;
@@ -209,24 +284,26 @@ function MjpegPreview({ camera, className }: { camera: CameraType; className?: s
   );
 }
 
-function RtspPreview({ camera, className }: { camera: CameraType; className?: string }) {
+function RtspPreview({ camera, refreshInterval, className }: { camera: CameraType; refreshInterval: number; className?: string }) {
   return (
-    <StreamingImagePreview
+    <PolledFramePreview
       camera={camera}
+      refreshInterval={refreshInterval}
       className={className}
-      endpoint="rtsp-stream"
+      endpoint="rtsp-frame"
       errorLabel="No RTSP signal"
       loadingLabel="Opening RTSP"
     />
   );
 }
 
-function RtpPreview({ camera, className }: { camera: CameraType; className?: string }) {
+function RtpPreview({ camera, refreshInterval, className }: { camera: CameraType; refreshInterval: number; className?: string }) {
   return (
-    <StreamingImagePreview
+    <PolledFramePreview
       camera={camera}
+      refreshInterval={refreshInterval}
       className={className}
-      endpoint="rtp-stream"
+      endpoint="rtp-frame"
       errorLabel="No RTP signal"
       loadingLabel="Opening RTP"
     />
@@ -413,8 +490,8 @@ function PreviewMedia({ camera, refreshInterval, className, active = true, strea
     return <PreviewState loading label={`Preparing ${previewLabel(type)} preview`} />;
   }
   if (type === "mjpeg") return <MjpegPreview camera={camera} className={className} />;
-  if (type === "rtsp") return <RtspPreview camera={camera} className={className} />;
-  if (type === "rtp") return <RtpPreview camera={camera} className={className} />;
+  if (type === "rtsp") return <RtspPreview camera={camera} refreshInterval={refreshInterval} className={className} />;
+  if (type === "rtp") return <RtpPreview camera={camera} refreshInterval={refreshInterval} className={className} />;
   if (type === "webrtc") return <WebRtcPreview camera={camera} className={className} />;
   if (type === "browser") return <BrowserVideoPreview camera={camera} className={className} />;
   return <SnapshotPreview camera={camera} refreshInterval={refreshInterval} className={className} />;
