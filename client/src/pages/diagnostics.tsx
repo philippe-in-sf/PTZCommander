@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Database, Download, Gauge, Lightbulb, Loader2, Monitor, RefreshCw, Server, ShieldAlert, Video, Volume2, Wifi } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Database, Download, Gauge, Lightbulb, Loader2, Monitor, RefreshCw, Server, Video, Volume2, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/app-layout";
@@ -200,7 +200,7 @@ export default function DiagnosticsPage() {
             <p className="text-3xl font-bold mt-2">{offlineBridgeCount}</p>
           </div>
           <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4">
-            <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5" /> Warnings / Errors</p>
+            <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5" /> Warnings / Errors</p>
             <p className="text-3xl font-bold mt-2">{logsQuery.isError ? "--" : `${warningCount}/${errorCount}`}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">warn / error</p>
           </div>
