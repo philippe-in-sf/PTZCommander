@@ -2,6 +2,14 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.5] - 2026-06-13
+
+### Added
+- **OBS Recording Controls** — added Dashboard recording status plus start, stop, pause, and resume controls for OBS WebSocket recording, with stop confirmation and rehearsal-mode suppression.
+
+### Changed
+- **Version Display** — interface version labels now report v1.7.5
+
 ## [1.7.2] - 2026-06-05
 
 ### Added
