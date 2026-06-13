@@ -2,6 +2,7 @@ import type { RouteContext } from "./types";
 import { logger } from "../logger";
 import { APP_VERSION } from "@shared/version";
 import { registerApiAccessRule } from "../auth";
+import { buildDiagnosticsBundle } from "../diagnostics";
 import { readFileSync } from "fs";
 import { readFile } from "fs/promises";
 import { join } from "path";
@@ -150,10 +151,88 @@ async function sampleNetworkThroughput(sampleMs: number = 1000) {
   };
 }
 
+async function getDeviceHealthSnapshot(ctx: Pick<RouteContext, "storage" | "cameraManager" | "x32Manager" | "atemManager">) {
+  const cameras = await ctx.storage.getAllCameras();
+  const mixers = await ctx.storage.getAllMixers();
+  const switchers = await ctx.storage.getAllSwitchers();
+  const displays = await ctx.storage.getAllDisplayDevices();
+
+  return {
+    cameras: cameras.map((cam) => {
+      const client = ctx.cameraManager.getClient(cam.id);
+      return {
+        type: "camera" as const,
+        id: cam.id,
+        name: cam.name,
+        ip: cam.ip,
+        port: cam.port,
+        status: client?.isConnected() ? "online" : "offline",
+        tallyState: cam.tallyState,
+      };
+    }),
+    mixers: mixers.map((m) => {
+      const client = ctx.x32Manager.getClient();
+      return {
+        type: "mixer" as const,
+        id: m.id,
+        name: m.name,
+        ip: m.ip,
+        port: m.port,
+        status: client?.isConnected() ? "online" : "offline",
+      };
+    }),
+    switchers: switchers.map((s) => {
+      const atemState = ctx.atemManager.getState();
+      return {
+        type: "switcher" as const,
+        id: s.id,
+        name: s.name,
+        ip: s.ip,
+        status: atemState?.connected ? "online" : "offline",
+      };
+    }),
+    displays: displays.map((display) => ({
+      type: "display" as const,
+      id: display.id,
+      name: display.name,
+      ip: display.ip,
+      status: display.status,
+      powerState: display.powerState,
+      inputSource: display.inputSource,
+    })),
+    timestamp: Date.now(),
+  };
+}
+
+async function getSystemHealthSnapshot() {
+  const cpuSampleMs = 200;
+  const networkSampleMs = 1000;
+  const cpuPercent = await sampleCpuPercent(cpuSampleMs);
+  const network = await sampleNetworkThroughput(networkSampleMs);
+  const totalMemoryBytes = os.totalmem();
+  const freeMemoryBytes = os.freemem();
+  const usedMemoryBytes = totalMemoryBytes - freeMemoryBytes;
+  const processRssBytes = process.memoryUsage().rss;
+
+  return {
+    cpuPercent,
+    usedMemoryBytes,
+    totalMemoryBytes,
+    freeMemoryBytes,
+    processRssBytes,
+    network,
+    uptimeSeconds: process.uptime(),
+    sampleMs: cpuSampleMs,
+    networkSampleMs,
+    timestamp: Date.now(),
+  };
+}
+
 export function registerSystemRoutes(ctx: RouteContext) {
-  const { app, storage, cameraManager, x32Manager, atemManager, broadcast, undoStack, sessionLog, addSessionLog } = ctx;
+  const { app, storage, broadcast, undoStack, sessionLog, addSessionLog } = ctx;
   registerApiAccessRule(["POST"], /^\/api\/rehearsal$/, "admin");
   registerApiAccessRule(["POST"], /^\/api\/undo$/, "operator");
+  registerApiAccessRule(["GET"], /^\/api\/diagnostics\/bundle$/, "operator");
 
   app.get("/api/version", (_req, res) => {
     res.json(getVersionMetadata());
@@ -255,66 +334,33 @@ export function registerSystemRoutes(ctx: RouteContext) {
     res.json({ success: true });
   });
 
+  app.get("/api/diagnostics/bundle", async (_req, res) => {
+    try {
+      const bundle = await buildDiagnosticsBundle({
+        version: APP_VERSION,
+        collectors: {
+          system: () => getSystemHealthSnapshot(),
+          health: () => getDeviceHealthSnapshot(ctx),
+          hueBridges: () => storage.getAllHueBridges(),
+          recentLogs: async () => logger.getRecentLogs(50),
+          auditLogs: () => storage.getAuditLogs(100),
+          sessionLog: async () => [...sessionLog],
+        },
+      });
+
+      res.json(bundle);
+    } catch (error: any) {
+      logger.error("system", "Failed to export diagnostics", {
+        action: "diagnostics_export",
+        details: { message: error?.message || String(error) },
+      });
+      res.status(500).json({ message: "Failed to export diagnostics" });
+    }
+  });
+
   app.get("/api/health/devices", async (_req, res) => {
     try {
-      const cameras = await storage.getAllCameras();
-      const mixers = await storage.getAllMixers();
-      const switchers = await storage.getAllSwitchers();
-      const displays = await storage.getAllDisplayDevices();
-
-      const cameraHealth = cameras.map(cam => {
-        const client = cameraManager.getClient(cam.id);
-        return {
-          type: "camera" as const,
-          id: cam.id,
-          name: cam.name,
-          ip: cam.ip,
-          port: cam.port,
-          status: client?.isConnected() ? "online" : "offline",
-          tallyState: cam.tallyState,
-        };
-      });
-
-      const mixerHealth = mixers.map(m => {
-        const client = x32Manager.getClient();
-        return {
-          type: "mixer" as const,
-          id: m.id,
-          name: m.name,
-          ip: m.ip,
-          port: m.port,
-          status: client?.isConnected() ? "online" : "offline",
-        };
-      });
-
-      const switcherHealth = switchers.map(s => {
-        const atemState = atemManager.getState();
-        return {
-          type: "switcher" as const,
-          id: s.id,
-          name: s.name,
-          ip: s.ip,
-          status: atemState?.connected ? "online" : "offline",
-        };
-      });
-
-      const displayHealth = displays.map(display => ({
-        type: "display" as const,
-        id: display.id,
-        name: display.name,
-        ip: display.ip,
-        status: display.status,
-        powerState: display.powerState,
-        inputSource: display.inputSource,
-      }));
-
-      res.json({
-        cameras: cameraHealth,
-        mixers: mixerHealth,
-        switchers: switcherHealth,
-        displays: displayHealth,
-        timestamp: Date.now(),
-      });
+      res.json(await getDeviceHealthSnapshot(ctx));
     } catch (error) {
       res.status(500).json({ message: "Failed to get device health" });
     }
@@ -322,27 +368,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
 
   app.get("/api/health/system", async (_req, res) => {
     try {
-      const cpuSampleMs = 200;
-      const networkSampleMs = 1000;
-      const cpuPercent = await sampleCpuPercent(cpuSampleMs);
-      const network = await sampleNetworkThroughput(networkSampleMs);
-      const totalMemoryBytes = os.totalmem();
-      const freeMemoryBytes = os.freemem();
-      const usedMemoryBytes = totalMemoryBytes - freeMemoryBytes;
-      const processRssBytes = process.memoryUsage().rss;
-
-      res.json({
-        cpuPercent,
-        usedMemoryBytes,
-        totalMemoryBytes,
-        freeMemoryBytes,
-        processRssBytes,
-        network,
-        uptimeSeconds: process.uptime(),
-        sampleMs: cpuSampleMs,
-        networkSampleMs,
-        timestamp: Date.now(),
-      });
+      res.json(await getSystemHealthSnapshot());
     } catch (error) {
       res.status(500).json({ message: "Failed to get system health" });
     }

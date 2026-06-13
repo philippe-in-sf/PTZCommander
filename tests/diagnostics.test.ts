@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildDiagnosticsBundle,
   REDACTED_DIAGNOSTIC_VALUE,
   redactDiagnosticsValue,
   summarizeDiagnostics,
@@ -78,4 +79,44 @@ test("diagnosticsBundleFilename includes version and filesystem-safe timestamp",
     diagnosticsBundleFilename("1.7.8", "2026-06-13T08:30:00.000Z"),
     "ptz-command-diagnostics-v1.7.8-2026-06-13T08-30-00.json",
   );
+});
+
+test("buildDiagnosticsBundle preserves partial data and records collection errors", async () => {
+  const bundle = await buildDiagnosticsBundle({
+    version: "1.7.8",
+    now: new Date("2026-06-13T08:30:00.000Z"),
+    runtime: {
+      nodeVersion: "v20.19.0",
+      platform: "darwin",
+      arch: "arm64",
+      pid: 1234,
+      uptimeSeconds: 42,
+      workingDirectory: "/workspace",
+    },
+    collectors: {
+      system: async () => ({ cpuPercent: 12 }),
+      health: async () => ({
+        cameras: [{ type: "camera", id: 1, name: "Cam 1", ip: "192.168.0.10", status: "offline" }],
+        mixers: [],
+        switchers: [],
+        displays: [],
+        timestamp: 1710000000000,
+      }),
+      hueBridges: async () => [{ id: 1, name: "Hue", ip: "192.168.0.20", status: "online", apiKey: "hue-secret" }],
+      recentLogs: async () => [{ level: "error", category: "system", message: "Bad thing" }],
+      auditLogs: async () => {
+        throw new Error("audit unavailable");
+      },
+      sessionLog: async () => [{ id: 1, timestamp: 1710000000000, category: "system", action: "Started", details: "ok" }],
+    },
+  });
+
+  assert.equal(bundle.version, "1.7.8");
+  assert.equal(bundle.generatedAt, "2026-06-13T08:30:00.000Z");
+  assert.equal((bundle.system as any).cpuPercent, 12);
+  assert.equal(bundle.auditLogs.length, 0);
+  assert.deepEqual(bundle.collectionErrors, [{ section: "auditLogs", message: "audit unavailable" }]);
+  assert.equal(bundle.summary.offlineDevices, 1);
+  assert.equal(bundle.summary.errors, 1);
+  assert.equal((bundle.hueBridges[0] as any).apiKey, REDACTED_DIAGNOSTIC_VALUE);
 });

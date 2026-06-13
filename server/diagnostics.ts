@@ -14,7 +14,7 @@ export interface DiagnosticsHealthDevice {
   type: string;
   id: number;
   name: string;
-  ip: string;
+  ip: string | null;
   port?: number;
   status?: string;
 }
@@ -118,4 +118,105 @@ export function summarizeDiagnostics(input: DiagnosticsSummaryInput): Diagnostic
         }
       : null,
   };
+}
+
+export interface DiagnosticsRuntime {
+  nodeVersion: string;
+  platform: NodeJS.Platform;
+  arch: string;
+  pid: number;
+  uptimeSeconds: number;
+  workingDirectory: string;
+}
+
+export interface DiagnosticsCollectionError {
+  section: string;
+  message: string;
+}
+
+export interface DiagnosticsCollectors {
+  system: () => Promise<unknown>;
+  health: () => Promise<DiagnosticsHealthSnapshot>;
+  hueBridges: () => Promise<DiagnosticsHueBridge[]>;
+  recentLogs: () => Promise<DiagnosticsLogEntry[]>;
+  auditLogs: () => Promise<unknown[]>;
+  sessionLog: () => Promise<unknown[]>;
+}
+
+export interface BuildDiagnosticsBundleOptions {
+  version: string;
+  now?: Date;
+  runtime?: DiagnosticsRuntime;
+  collectors: DiagnosticsCollectors;
+}
+
+export interface DiagnosticsBundle {
+  generatedAt: string;
+  version: string;
+  runtime: DiagnosticsRuntime;
+  system: unknown;
+  health: DiagnosticsHealthSnapshot | null;
+  hueBridges: DiagnosticsHueBridge[];
+  recentLogs: DiagnosticsLogEntry[];
+  auditLogs: unknown[];
+  sessionLog: unknown[];
+  summary: DiagnosticsSummary;
+  collectionErrors: DiagnosticsCollectionError[];
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function currentRuntime(): DiagnosticsRuntime {
+  return {
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    pid: process.pid,
+    uptimeSeconds: process.uptime(),
+    workingDirectory: process.cwd(),
+  };
+}
+
+async function collectSection<T>(
+  section: string,
+  fallback: T,
+  errors: DiagnosticsCollectionError[],
+  collector: () => Promise<T>,
+) {
+  try {
+    return await collector();
+  } catch (error) {
+    errors.push({ section, message: errorMessage(error) });
+    return fallback;
+  }
+}
+
+export async function buildDiagnosticsBundle(options: BuildDiagnosticsBundleOptions): Promise<DiagnosticsBundle> {
+  const collectionErrors: DiagnosticsCollectionError[] = [];
+  const [system, health, hueBridges, recentLogs, auditLogs, sessionLog] = await Promise.all([
+    collectSection("system", null, collectionErrors, options.collectors.system),
+    collectSection<DiagnosticsHealthSnapshot | null>("health", null, collectionErrors, options.collectors.health),
+    collectSection<DiagnosticsHueBridge[]>("hueBridges", [], collectionErrors, options.collectors.hueBridges),
+    collectSection<DiagnosticsLogEntry[]>("recentLogs", [], collectionErrors, options.collectors.recentLogs),
+    collectSection<unknown[]>("auditLogs", [], collectionErrors, options.collectors.auditLogs),
+    collectSection<unknown[]>("sessionLog", [], collectionErrors, options.collectors.sessionLog),
+  ]);
+
+  const bundle: DiagnosticsBundle = {
+    generatedAt: (options.now ?? new Date()).toISOString(),
+    version: options.version,
+    runtime: options.runtime ?? currentRuntime(),
+    system,
+    health,
+    hueBridges,
+    recentLogs,
+    auditLogs,
+    sessionLog,
+    summary: summarizeDiagnostics({ health, hueBridges, recentLogs }),
+    collectionErrors,
+  };
+
+  return redactDiagnosticsValue(bundle) as DiagnosticsBundle;
 }
