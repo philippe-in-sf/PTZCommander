@@ -107,7 +107,18 @@ export interface ObsState {
   currentPreviewScene?: string | null;
   studioMode?: boolean;
   scenes?: ObsScene[];
+  recordingActive?: boolean;
+  recordingPaused?: boolean;
+  recordingTimecode?: string | null;
+  recordingDurationMs?: number | null;
+  recordingOutputPath?: string | null;
   error?: string;
+}
+
+export interface ObsRecordingResponse {
+  success: boolean;
+  suppressed?: boolean;
+  state: ObsState;
 }
 
 export interface RehearsalMode {
@@ -627,6 +638,41 @@ export const obsApi = {
       throw new Error(payload?.message || "Failed to switch OBS scene");
     }
     return res.json();
+  },
+
+  getRecordingStatus: async (id: number): Promise<ObsRecordingResponse> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/recording`);
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(payload?.message || "Failed to get OBS recording status");
+    return payload;
+  },
+
+  startRecording: async (id: number): Promise<ObsRecordingResponse> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/recording/start`, { method: "POST" });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(payload?.message || "Failed to start OBS recording");
+    return payload;
+  },
+
+  stopRecording: async (id: number): Promise<ObsRecordingResponse> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/recording/stop`, { method: "POST" });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(payload?.message || "Failed to stop OBS recording");
+    return payload;
+  },
+
+  pauseRecording: async (id: number): Promise<ObsRecordingResponse> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/recording/pause`, { method: "POST" });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(payload?.message || "Failed to pause OBS recording");
+    return payload;
+  },
+
+  resumeRecording: async (id: number): Promise<ObsRecordingResponse> => {
+    const res = await fetch(`${API_BASE}/obs/${id}/recording/resume`, { method: "POST" });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(payload?.message || "Failed to resume OBS recording");
+    return payload;
   },
 };
 

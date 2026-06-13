@@ -61,6 +61,7 @@ export { default as MoreHorizontal } from "lucide-react/dist/esm/icons/ellipsis.
 export { default as Music } from "lucide-react/dist/esm/icons/music.js";
 export { default as Palette } from "lucide-react/dist/esm/icons/palette.js";
 export { default as PanelLeftIcon } from "lucide-react/dist/esm/icons/panel-left.js";
+export { default as Pause } from "lucide-react/dist/esm/icons/pause.js";
 export { default as Pencil } from "lucide-react/dist/esm/icons/pencil.js";
 export { default as Play } from "lucide-react/dist/esm/icons/play.js";
 export { default as Plus } from "lucide-react/dist/esm/icons/plus.js";
