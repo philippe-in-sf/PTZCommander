@@ -2,6 +2,14 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.6] - 2026-06-13
+
+### Added
+- **Control Surface Shortcuts** — added Stream Deck-ready `Ctrl+Alt+1` through `Ctrl+Alt+0` shortcuts for executing scene buttons 1 through 10 from the signed-in app.
+
+### Changed
+- **Version Display** — interface version labels now report v1.7.6
+
 ## [1.7.5] - 2026-06-13
 
 ### Added

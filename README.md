@@ -1,6 +1,6 @@
 # PTZ Command - Camera & Audio Control System
 
-Current version: **1.7.5**
+Current version: **1.7.6**
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, one Behringer X32 audio mixer via OSC, and one Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
@@ -276,6 +276,15 @@ If the camera requires RTSP authentication, save the camera username and passwor
 5. **Transitions**: Select transition style (Mix, Dip, Wipe, Stinger, DVE) and adjust rate
 6. **Keyers**: Control upstream and downstream keyers from their respective tabs
 7. **Macros**: Run, stop, or continue macros from the Macros tab
+
+### Control Surface Shortcuts
+
+PTZ Command includes fixed keyboard shortcuts for Stream Deck profiles and other physical control surfaces that can emit key combinations:
+
+- `Ctrl+Alt+1` through `Ctrl+Alt+9` execute scene buttons 1 through 9
+- `Ctrl+Alt+0` executes scene button 10
+
+On macOS, use Control+Option+number. Shortcuts only work after sign-in and are ignored while typing in fields or while a dialog is focused.
 
 ### Viewing Logs
 1. Click the "Logs" button in the header bar
