@@ -22,6 +22,11 @@ export interface ObsState {
   currentPreviewScene: string | null;
   studioMode: boolean;
   scenes: ObsScene[];
+  recordingActive: boolean;
+  recordingPaused: boolean;
+  recordingTimecode: string | null;
+  recordingDurationMs: number | null;
+  recordingOutputPath: string | null;
   error?: string;
 }
 
@@ -52,6 +57,74 @@ function obsAuth(password: string, salt: string, challenge: string) {
   return createHash("sha256").update(secret + challenge).digest("base64");
 }
 
+type RecordingPatch = Pick<
+  ObsState,
+  "recordingActive" | "recordingPaused" | "recordingTimecode" | "recordingDurationMs" | "recordingOutputPath"
+>;
+
+export type ObsRecordingStatusData = {
+  outputActive?: unknown;
+  outputPaused?: unknown;
+  outputTimecode?: unknown;
+  outputDuration?: unknown;
+  outputPath?: unknown;
+};
+
+export const DEFAULT_RECORDING_STATE: RecordingPatch = {
+  recordingActive: false,
+  recordingPaused: false,
+  recordingTimecode: null,
+  recordingDurationMs: null,
+  recordingOutputPath: null,
+};
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function durationOrNull(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+export function normalizeRecordingStatus(data: ObsRecordingStatusData | null | undefined): RecordingPatch {
+  const recordingActive = Boolean(data?.outputActive);
+  return {
+    recordingActive,
+    recordingPaused: recordingActive ? Boolean(data?.outputPaused) : false,
+    recordingTimecode: stringOrNull(data?.outputTimecode),
+    recordingDurationMs: durationOrNull(data?.outputDuration),
+    recordingOutputPath: stringOrNull(data?.outputPath),
+  };
+}
+
+export function normalizeRecordingEvent(eventData: ObsRecordingStatusData & { outputState?: unknown }, previous: ObsState): RecordingPatch {
+  const outputState = typeof eventData.outputState === "string" ? eventData.outputState : "";
+  const hasActiveFlag = typeof eventData.outputActive === "boolean";
+  const recordingActive = hasActiveFlag
+    ? Boolean(eventData.outputActive)
+    : outputState.includes("STOPPED")
+      ? false
+      : outputState.includes("STARTED") || outputState.includes("PAUSED") || outputState.includes("RESUMED")
+        ? true
+        : previous.recordingActive;
+
+  const recordingPaused = !recordingActive
+    ? false
+    : outputState.includes("PAUSED")
+      ? true
+      : outputState.includes("RESUMED") || outputState.includes("STARTED")
+        ? false
+        : previous.recordingPaused;
+
+  return {
+    recordingActive,
+    recordingPaused,
+    recordingTimecode: previous.recordingTimecode,
+    recordingDurationMs: previous.recordingDurationMs,
+    recordingOutputPath: stringOrNull(eventData.outputPath) ?? previous.recordingOutputPath,
+  };
+}
+
 export class ObsClient {
   private ws: WebSocket | null = null;
   private pending = new Map<string, PendingRequest>();
@@ -67,6 +140,7 @@ export class ObsClient {
       currentPreviewScene: null,
       studioMode: false,
       scenes: [],
+      ...DEFAULT_RECORDING_STATE,
     };
   }
 
