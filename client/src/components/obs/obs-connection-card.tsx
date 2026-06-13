@@ -3,8 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { Plus, Radio, Repeat, Play, LogOut, Trash2, Wifi } from "lucide-react";
+import { CircleDot, Pause, Plus, Radio, Repeat, Play, LogOut, Square, Trash2, Wifi } from "lucide-react";
 import type { ObsConnection } from "@shared/schema";
 import type { ObsScene, ObsState } from "@/lib/api";
 
@@ -28,6 +39,11 @@ export function OBSConnectionCard({
   deleting,
   onSwitchScene,
   switching,
+  onStartRecording,
+  onStopRecording,
+  onPauseRecording,
+  onResumeRecording,
+  recordingPending,
   onRefreshScenes,
 }: {
   connection: ObsConnection | null;
@@ -49,14 +65,40 @@ export function OBSConnectionCard({
   deleting: boolean;
   onSwitchScene: () => void;
   switching: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+  onPauseRecording: () => void;
+  onResumeRecording: () => void;
+  recordingPending: boolean;
   onRefreshScenes: () => void;
 }) {
   const connected = Boolean(status?.connected || connection?.status === "online");
+  const liveRecordingStatus = Boolean(status?.connected);
   const currentScene = status?.currentProgramScene || connection?.currentProgramScene;
   const sceneNames = scenes.map((scene) => scene.sceneName);
   const selectableSceneNames = selectedSceneName && !sceneNames.includes(selectedSceneName)
     ? [selectedSceneName, ...sceneNames]
     : sceneNames;
+  const recordingActive = Boolean(status?.recordingActive);
+  const recordingPaused = Boolean(status?.recordingPaused);
+  const recordingLabel = !liveRecordingStatus
+    ? "Unknown"
+    : recordingPaused
+      ? "Paused"
+      : recordingActive
+        ? "Recording"
+        : "Standby";
+  const recordingClass = recordingPaused
+    ? "bg-amber-500/10 text-amber-600 dark:text-amber-300"
+    : recordingActive
+      ? "bg-red-500/10 text-red-600 dark:text-red-300"
+      : liveRecordingStatus
+        ? "bg-slate-500/10 text-slate-600 dark:text-slate-300"
+        : "bg-slate-500/10 text-slate-500 dark:text-slate-400";
+  const canStartRecording = liveRecordingStatus && !recordingActive && !recordingPending;
+  const canStopRecording = liveRecordingStatus && recordingActive && !recordingPending;
+  const canPauseRecording = liveRecordingStatus && recordingActive && !recordingPaused && !recordingPending;
+  const canResumeRecording = liveRecordingStatus && recordingActive && recordingPaused && !recordingPending;
 
   return (
     <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg px-4 py-3" data-testid="obs-websocket-controller">
@@ -161,6 +203,70 @@ export function OBSConnectionCard({
                 )}
               </div>
             ) : null}
+            {connection && (
+              <div className="rounded-md border border-slate-400/30 dark:border-slate-800 bg-slate-200/50 dark:bg-slate-950/50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em]", recordingClass)}>
+                        <CircleDot className="mr-1 h-3 w-3" />
+                        {recordingLabel}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Recording</span>
+                    </div>
+                    <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
+                      {status?.recordingTimecode
+                        ? `Timecode ${status.recordingTimecode}`
+                        : status?.recordingOutputPath
+                          ? `Last file: ${status.recordingOutputPath}`
+                          : liveRecordingStatus
+                            ? "OBS recording output is ready"
+                            : "Connect OBS to read recording state"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!recordingActive && (
+                      <Button size="sm" variant="outline" onClick={onStartRecording} disabled={!canStartRecording} data-testid="button-start-obs-recording">
+                        <CircleDot className="h-4 w-4 mr-2" /> Start Recording
+                      </Button>
+                    )}
+                    {recordingActive && !recordingPaused && (
+                      <Button size="sm" variant="outline" onClick={onPauseRecording} disabled={!canPauseRecording} data-testid="button-pause-obs-recording">
+                        <Pause className="h-4 w-4 mr-2" /> Pause
+                      </Button>
+                    )}
+                    {recordingActive && recordingPaused && (
+                      <Button size="sm" variant="outline" onClick={onResumeRecording} disabled={!canResumeRecording} data-testid="button-resume-obs-recording">
+                        <Play className="h-4 w-4 mr-2" /> Resume
+                      </Button>
+                    )}
+                    {recordingActive && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="destructive" disabled={!canStopRecording} data-testid="button-stop-obs-recording">
+                            <Square className="h-4 w-4 mr-2" /> Stop Recording
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Stop OBS recording?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              OBS will stop writing the current recording file. This cannot be undone from PTZ Command.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={onStopRecording} className="bg-red-600 text-white hover:bg-red-700">
+                              Stop Recording
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               {connected ? (
                 <Button variant="outline" className="w-full sm:w-auto" onClick={onDisconnect} disabled={disconnecting} data-testid="button-disconnect-obs">

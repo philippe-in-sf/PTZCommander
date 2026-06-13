@@ -211,6 +211,39 @@ export default function Dashboard() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  function handleObsRecordingSuccess(action: string, suppressed?: boolean) {
+    queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+    if (suppressed) {
+      toast.info(`${action} suppressed by rehearsal mode`);
+    } else {
+      toast.success(action);
+    }
+  }
+
+  const startObsRecordingMutation = useMutation({
+    mutationFn: (id: number) => obsApi.startRecording(id),
+    onSuccess: (data) => handleObsRecordingSuccess("OBS recording started", data.suppressed),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const stopObsRecordingMutation = useMutation({
+    mutationFn: (id: number) => obsApi.stopRecording(id),
+    onSuccess: (data) => handleObsRecordingSuccess("OBS recording stopped", data.suppressed),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const pauseObsRecordingMutation = useMutation({
+    mutationFn: (id: number) => obsApi.pauseRecording(id),
+    onSuccess: (data) => handleObsRecordingSuccess("OBS recording paused", data.suppressed),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const resumeObsRecordingMutation = useMutation({
+    mutationFn: (id: number) => obsApi.resumeRecording(id),
+    onSuccess: (data) => handleObsRecordingSuccess("OBS recording resumed", data.suppressed),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const discoverCamerasMutation = useMutation({
     mutationFn: () => {
       const ports = parseDiscoveryPorts(discoveryPorts);
@@ -494,6 +527,16 @@ export default function Dashboard() {
             deleting={deleteObsMutation.isPending}
             onSwitchScene={() => obsConnection && obsSceneName && setObsSceneMutation.mutate({ id: obsConnection.id, sceneName: obsSceneName })}
             switching={setObsSceneMutation.isPending}
+            onStartRecording={() => obsConnection && startObsRecordingMutation.mutate(obsConnection.id)}
+            onStopRecording={() => obsConnection && stopObsRecordingMutation.mutate(obsConnection.id)}
+            onPauseRecording={() => obsConnection && pauseObsRecordingMutation.mutate(obsConnection.id)}
+            onResumeRecording={() => obsConnection && resumeObsRecordingMutation.mutate(obsConnection.id)}
+            recordingPending={
+              startObsRecordingMutation.isPending ||
+              stopObsRecordingMutation.isPending ||
+              pauseObsRecordingMutation.isPending ||
+              resumeObsRecordingMutation.isPending
+            }
             onRefreshScenes={() => {
               queryClient.invalidateQueries({ queryKey: ["obs-status"] });
               queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
