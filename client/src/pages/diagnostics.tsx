@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { Activity, AlertTriangle, CheckCircle2, Database, Gauge, Lightbulb, Monitor, RefreshCw, Server, Video, Volume2, Wifi } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Activity, AlertTriangle, CheckCircle2, Database, Download, Gauge, Lightbulb, Loader2, Monitor, RefreshCw, Server, ShieldAlert, Video, Volume2, Wifi } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/app-layout";
-import { healthApi } from "@/lib/api";
+import { diagnosticsApi, healthApi } from "@/lib/api";
+import { diagnosticsBundleFilename } from "@/lib/diagnostics-export";
 import { cn } from "@/lib/utils";
 
 type DeviceHealth = {
@@ -101,6 +103,7 @@ function formatPercent(value: number | undefined) {
 }
 
 export default function DiagnosticsPage() {
+  const [isExporting, setIsExporting] = useState(false);
   const healthQuery = useQuery<HealthResponse>({
     queryKey: ["health-devices"],
     queryFn: healthApi.getDevices,
@@ -126,6 +129,11 @@ export default function DiagnosticsPage() {
   const bridgeCount = hueQuery.data?.length || 0;
   const offlineBridgeCount = hueQuery.data?.filter((bridge) => bridge.status !== "online").length || 0;
   const offlineDeviceCount = devices.filter((device) => device.status !== "online").length;
+  const recentLogs = logsQuery.data || [];
+  const problemLogs = recentLogs.filter((log) => log.level === "warn" || log.level === "error");
+  const warningCount = recentLogs.filter((log) => log.level === "warn").length;
+  const errorCount = recentLogs.filter((log) => log.level === "error").length;
+  const lastProblem = problemLogs.length > 0 ? problemLogs[problemLogs.length - 1] : null;
 
   const refreshAll = () => {
     healthQuery.refetch();
@@ -134,23 +142,51 @@ export default function DiagnosticsPage() {
     systemQuery.refetch();
   };
 
+  const exportDiagnostics = async () => {
+    setIsExporting(true);
+    try {
+      const bundle = await diagnosticsApi.exportBundle();
+      const filename = diagnosticsBundleFilename(bundle.version || "unknown", bundle.generatedAt || new Date().toISOString());
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Diagnostics exported");
+    } catch {
+      toast.error("Failed to export diagnostics");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <AppLayout activePage="/diagnostics">
       <main className="flex-1 p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Activity className="w-5 h-5 text-cyan-500" /> Diagnostics
             </h2>
             <p className="text-sm text-slate-500 mt-1">Device health, Hue bridge status, and recent system events.</p>
           </div>
-          <Button variant="outline" onClick={refreshAll} disabled={healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching || systemQuery.isFetching}>
-            <RefreshCw className={cn("w-4 h-4 mr-2", (healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching || systemQuery.isFetching) && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
+            <Button variant="outline" onClick={exportDiagnostics} disabled={isExporting}>
+              {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              Export Diagnostics
+            </Button>
+            <Button variant="outline" onClick={refreshAll} disabled={healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching || systemQuery.isFetching}>
+              <RefreshCw className={cn("w-4 h-4 mr-2", (healthQuery.isFetching || hueQuery.isFetching || logsQuery.isFetching || systemQuery.isFetching) && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-5">
           <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4">
             <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400">Hardware Offline</p>
             <p className="text-3xl font-bold mt-2">{offlineDeviceCount}</p>
@@ -162,6 +198,16 @@ export default function DiagnosticsPage() {
           <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4">
             <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400">Hue Offline</p>
             <p className="text-3xl font-bold mt-2">{offlineBridgeCount}</p>
+          </div>
+          <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4">
+            <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400 flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5" /> Warnings / Errors</p>
+            <p className="text-3xl font-bold mt-2">{logsQuery.isError ? "--" : `${warningCount}/${errorCount}`}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">warn / error</p>
+          </div>
+          <div className="border border-slate-300 dark:border-slate-800 rounded-lg p-4 min-w-0">
+            <p className="text-xs uppercase font-mono text-slate-500 dark:text-slate-400">Last Problem</p>
+            <p className="text-sm font-semibold mt-2 truncate">{logsQuery.isError ? "--" : lastProblem?.message || "None"}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{lastProblem ? `${lastProblem.category || "system"} / ${lastProblem.level || "info"}` : "No warning or error events"}</p>
           </div>
         </div>
 
