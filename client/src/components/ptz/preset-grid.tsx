@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Save, Play } from "lucide-react";
+import { Save, Play, Settings } from "lucide-react";
 import type { Preset } from "@shared/schema";
 
 interface PresetGridProps {
   presets: Preset[];
   onRecall: (index: number) => void;
   onStore: (index: number) => void;
+  onManage?: (preset: Preset) => void;
 }
 
-export function PresetGrid({ presets, onRecall, onStore }: PresetGridProps) {
+export function PresetGrid({ presets, onRecall, onStore, onManage }: PresetGridProps) {
   const [mode, setMode] = useState<'recall' | 'store'>('recall');
 
   const handlePress = (index: number) => {
@@ -57,42 +58,54 @@ export function PresetGrid({ presets, onRecall, onStore }: PresetGridProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 flex-1">
+      <div className="grid grid-cols-4 grid-rows-4 gap-2 flex-1">
         {Array.from({ length: 16 }, (_, i) => {
           const hasData = hasPreset(i);
           const preset = presets.find(p => p.presetNumber === i);
           const thumbnail = preset?.thumbnail;
           
           return (
-            <button
-              key={i}
-              onClick={() => handlePress(i)}
-              className={cn(
-                "relative group rounded-md border text-sm font-mono font-bold transition-all duration-100 flex flex-col items-center justify-center overflow-hidden",
-                mode === 'store'
-                  ? "border-red-300 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 hover:border-red-400 dark:hover:border-red-500/50"
-                  : hasData
-                    ? "border-cyan-300 dark:border-cyan-900/30 bg-cyan-50/50 dark:bg-cyan-950/20 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:border-cyan-400 dark:hover:border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.05)]"
-                    : "border-slate-300 dark:border-slate-800 bg-slate-400/30 dark:bg-slate-900/30 text-slate-600 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-400"
+            <div key={i} className="relative group min-h-0">
+              <button
+                onClick={() => handlePress(i)}
+                className={cn(
+                  "relative h-full w-full rounded-md border text-sm font-mono font-bold transition-all duration-100 flex flex-col items-center justify-center overflow-hidden",
+                  mode === 'store'
+                    ? "border-red-300 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 hover:border-red-400 dark:hover:border-red-500/50"
+                    : hasData
+                      ? "border-cyan-300 dark:border-cyan-900/30 bg-cyan-50/50 dark:bg-cyan-950/20 text-cyan-500 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 hover:border-cyan-400 dark:hover:border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.05)]"
+                      : "border-slate-300 dark:border-slate-800 bg-slate-400/30 dark:bg-slate-900/30 text-slate-600 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-400"
+                )}
+                data-testid={`button-preset-${i}`}
+              >
+                {thumbnail && mode !== 'store' && (
+                  <div
+                    className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition-opacity"
+                    style={{ backgroundImage: `url(${thumbnail})` }}
+                  />
+                )}
+                <span className="text-lg relative z-10 drop-shadow-sm">{i + 1}</span>
+                {preset?.name && (
+                  <span className="text-[8px] text-slate-600 dark:text-slate-500 mt-0.5 truncate max-w-full px-1 relative z-10">
+                    {preset.name}
+                  </span>
+                )}
+                {hasData && !thumbnail && (
+                  <div className="absolute bottom-1 w-1 h-1 rounded-full bg-cyan-500" />
+                )}
+              </button>
+              {preset && mode !== 'store' && onManage && (
+                <button
+                  type="button"
+                  onClick={() => onManage(preset)}
+                  className="absolute right-1 top-1 z-20 flex h-6 w-6 items-center justify-center rounded bg-slate-950/70 text-slate-200 opacity-0 transition-opacity hover:bg-cyan-600 group-hover:opacity-100 focus:opacity-100"
+                  aria-label={`Manage preset ${i + 1}`}
+                  data-testid={`button-manage-preset-${i}`}
+                >
+                  <Settings className="h-3 w-3" />
+                </button>
               )}
-              data-testid={`button-preset-${i}`}
-            >
-              {thumbnail && mode !== 'store' && (
-                <div
-                  className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition-opacity"
-                  style={{ backgroundImage: `url(${thumbnail})` }}
-                />
-              )}
-              <span className="text-lg relative z-10 drop-shadow-sm">{i + 1}</span>
-              {preset?.name && (
-                <span className="text-[8px] text-slate-600 dark:text-slate-500 mt-0.5 truncate max-w-full px-1 relative z-10">
-                  {preset.name}
-                </span>
-              )}
-              {hasData && !thumbnail && (
-                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-cyan-500" />
-              )}
-            </button>
+            </div>
           );
         })}
       </div>

@@ -10,6 +10,7 @@ import { SkinProvider } from "@/lib/skin-context";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { useWsInvalidation } from "@/lib/ws-invalidation";
 import { rehearsalApi } from "@/lib/api";
+import { ControlSurfaceShortcuts } from "@/components/control-surface-shortcuts";
 import { ErrorBoundary } from "@/components/error-boundary";
 import Dashboard from "@/pages/dashboard";
 import MixerPage from "@/pages/mixer";
@@ -99,6 +100,7 @@ function Shell() {
 
   return (
     <WsSync>
+      <ControlSurfaceShortcuts />
       <RehearsalChrome />
       {showStartupSplash && (
         <div className="transition-opacity duration-500">

@@ -1,6 +1,6 @@
 # PTZ Command - Camera & Audio Control System
 
-Current version: **1.7.5**
+Current version: **1.7.7**
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, one Behringer X32 audio mixer via OSC, and one Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
@@ -37,7 +37,7 @@ Touch-optimized mobile web view with camera control, scene execution, and switch
 
 ### Camera Control
 - Virtual joystick for pan/tilt control
-- 16 presets per camera with recall/store modes
+- 16 presets per camera with recall/store modes, preset rename/delete, thumbnail refresh, and live-camera recall warnings
 - Zoom and focus control
 - Adjustable pan/tilt speed
 - Real-time WebSocket communication
@@ -258,7 +258,8 @@ If the camera requires RTSP authentication, save the camera username and passwor
 4. **Control Movement**: Use the virtual joystick to pan and tilt the selected camera
 5. **Set Presets**: Switch to "STORE" mode and click a preset slot to save the current position
 6. **Recall Presets**: In "RECALL" mode, click a preset to move the camera to that position
-7. **Edit Camera**: Hover over a camera card and click the gear icon to change settings
+7. **Manage Presets**: Use the manage action on a saved preset to rename it, refresh its thumbnail, delete it, or recall it with live-camera warning protection
+8. **Edit Camera**: Hover over a camera card and click the gear icon to change settings
 
 ### Audio Mixer (Full Page)
 1. Navigate to the **Audio Mixer** tab
@@ -276,6 +277,15 @@ If the camera requires RTSP authentication, save the camera username and passwor
 5. **Transitions**: Select transition style (Mix, Dip, Wipe, Stinger, DVE) and adjust rate
 6. **Keyers**: Control upstream and downstream keyers from their respective tabs
 7. **Macros**: Run, stop, or continue macros from the Macros tab
+
+### Control Surface Shortcuts
+
+PTZ Command includes fixed keyboard shortcuts for Stream Deck profiles and other physical control surfaces that can emit key combinations:
+
+- `Ctrl+Alt+1` through `Ctrl+Alt+9` execute scene buttons 1 through 9
+- `Ctrl+Alt+0` executes scene button 10
+
+On macOS, use Control+Option+number. Shortcuts only work after sign-in and are ignored while typing in fields or while a dialog is focused.
 
 ### Viewing Logs
 1. Click the "Logs" button in the header bar

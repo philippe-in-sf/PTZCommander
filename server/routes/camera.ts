@@ -13,6 +13,7 @@ import { Readable } from "stream";
 import { z } from "zod";
 import { isRedactedSecret, publicCamera } from "./public-dtos";
 import { registerApiAccessRule } from "../auth";
+import { refreshPresetThumbnail } from "../preset-thumbnails";
 
 const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
 const VISCA_VERSION_INQUIRY = Buffer.from([0x81, 0x09, 0x00, 0x02, 0xff]);
@@ -468,7 +469,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
   registerApiAccessRule(["POST"], /^\/api\/cameras\/\d+\/webrtc\/offer$/, "viewer");
   registerApiAccessRule(["POST"], /^\/api\/cameras\/\d+\/program$/, "operator");
   registerApiAccessRule(["POST"], /^\/api\/cameras\/\d+\/preview$/, "operator");
-  registerApiAccessRule(["PATCH", "POST", "DELETE"], /^\/api\/presets(?:\/\d+)?(?:\/recall)?$/, "operator");
+  registerApiAccessRule(["PATCH", "POST", "DELETE"], /^\/api\/presets(?:\/\d+)?(?:\/(?:recall|thumbnail))?$/, "operator");
 
   app.get("/api/cameras", async (_req, res) => {
     try {
@@ -1216,6 +1217,23 @@ export function registerCameraRoutes(ctx: RouteContext) {
       return res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to recall preset" });
+    }
+  });
+
+  app.post("/api/presets/:id/thumbnail", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const preset = await refreshPresetThumbnail(storage, id, captureSnapshot);
+      logger.info("preset", "Preset thumbnail refreshed", {
+        action: "preset_thumbnail_refresh",
+        details: { presetId: preset.id, cameraId: preset.cameraId, presetNumber: preset.presetNumber },
+      });
+      broadcast({ type: "invalidate", keys: ["presets"] });
+      res.json(preset);
+    } catch (error: any) {
+      const message = error?.message || "Failed to refresh preset thumbnail";
+      const status = message === "Preset not found" || message === "Camera not found" ? 404 : 400;
+      res.status(status).json({ message });
     }
   });
 

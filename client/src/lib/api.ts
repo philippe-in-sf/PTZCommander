@@ -404,6 +404,30 @@ export const presetApi = {
     }
   },
 
+  update: async (id: number, updates: Partial<Preset>): Promise<Preset> => {
+    const res = await fetch(`${API_BASE}/presets/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to update preset");
+    }
+    return res.json();
+  },
+
+  refreshThumbnail: async (id: number): Promise<Preset> => {
+    const res = await fetch(`${API_BASE}/presets/${id}/thumbnail`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(payload?.message || "Failed to refresh preset thumbnail");
+    }
+    return res.json();
+  },
+
   delete: async (id: number): Promise<void> => {
     const res = await fetch(`${API_BASE}/presets/${id}`, {
       method: "DELETE",
