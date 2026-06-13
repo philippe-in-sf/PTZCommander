@@ -2,6 +2,14 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.7] - 2026-06-13
+
+### Added
+- **Preset Management Upgrades** — added Dashboard preset rename, delete, thumbnail refresh, and program-camera recall warnings while removing duplicate recall sends.
+
+### Changed
+- **Version Display** — interface version labels now report v1.7.7
+
 ## [1.7.6] - 2026-06-13
 
 ### Added

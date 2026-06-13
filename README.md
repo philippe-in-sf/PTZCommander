@@ -1,6 +1,6 @@
 # PTZ Command - Camera & Audio Control System
 
-Current version: **1.7.6**
+Current version: **1.7.7**
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, one Behringer X32 audio mixer via OSC, and one Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
@@ -37,7 +37,7 @@ Touch-optimized mobile web view with camera control, scene execution, and switch
 
 ### Camera Control
 - Virtual joystick for pan/tilt control
-- 16 presets per camera with recall/store modes
+- 16 presets per camera with recall/store modes, preset rename/delete, thumbnail refresh, and live-camera recall warnings
 - Zoom and focus control
 - Adjustable pan/tilt speed
 - Real-time WebSocket communication
@@ -258,7 +258,8 @@ If the camera requires RTSP authentication, save the camera username and passwor
 4. **Control Movement**: Use the virtual joystick to pan and tilt the selected camera
 5. **Set Presets**: Switch to "STORE" mode and click a preset slot to save the current position
 6. **Recall Presets**: In "RECALL" mode, click a preset to move the camera to that position
-7. **Edit Camera**: Hover over a camera card and click the gear icon to change settings
+7. **Manage Presets**: Use the manage action on a saved preset to rename it, refresh its thumbnail, delete it, or recall it with live-camera warning protection
+8. **Edit Camera**: Hover over a camera card and click the gear icon to change settings
 
 ### Audio Mixer (Full Page)
 1. Navigate to the **Audio Mixer** tab
