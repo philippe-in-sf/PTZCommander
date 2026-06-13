@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Camera, ImagePlus, Play, Save, Trash2 } from "lucide-react";
+import { Camera, Play, RefreshCw, Save, Trash2 } from "lucide-react";
 import type { Preset } from "@shared/schema";
 import { normalizePresetName } from "@shared/preset-management";
 import { Button } from "@/components/ui/button";
@@ -117,7 +117,7 @@ export function PresetManagementDialog({
               disabled={busy}
               data-testid="button-refresh-preset-thumbnail"
             >
-              <ImagePlus className="h-4 w-4" /> Refresh Thumbnail
+              <RefreshCw className="h-4 w-4" /> Refresh Thumbnail
             </Button>
           </div>
 
