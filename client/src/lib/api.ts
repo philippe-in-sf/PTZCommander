@@ -1037,6 +1037,15 @@ export const healthApi = {
   },
 };
 
+export const diagnosticsApi = {
+  exportBundle: async (): Promise<any> => {
+    const res = await fetch(`${API_BASE}/diagnostics/bundle`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to export diagnostics");
+    return data;
+  },
+};
+
 export const layoutApi = {
   getAll: async (): Promise<Layout[]> => {
     const res = await fetch(`${API_BASE}/layouts`);

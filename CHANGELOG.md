@@ -2,6 +2,14 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.8] - 2026-06-13
+
+### Added
+- **Diagnostic Bundle Export** — added a redacted diagnostics JSON export plus Diagnostics page warning/error summary for faster troubleshooting.
+
+### Changed
+- **Version Display** — interface version labels now report v1.7.8
+
 ## [1.7.7] - 2026-06-13
 
 ### Added
