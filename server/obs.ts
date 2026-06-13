@@ -255,9 +255,10 @@ export class ObsClient {
   }
 
   async refreshState() {
-    const [sceneList, studioMode] = await Promise.all([
+    const [sceneList, studioMode, recordingStatus] = await Promise.all([
       this.request("GetSceneList"),
       this.request("GetStudioModeEnabled").catch(() => null),
+      this.request("GetRecordStatus").then(normalizeRecordingStatus).catch(() => null),
     ]);
     this.setState({
       connected: true,
@@ -265,6 +266,7 @@ export class ObsClient {
       currentProgramScene: sceneList.currentProgramSceneName ?? null,
       currentPreviewScene: sceneList.currentPreviewSceneName ?? null,
       studioMode: Boolean(studioMode?.studioModeEnabled),
+      ...(recordingStatus ?? {}),
       error: undefined,
     });
     return this.state;
@@ -278,6 +280,46 @@ export class ObsClient {
   async setCurrentPreviewScene(sceneName: string) {
     await this.request("SetCurrentPreviewScene", { sceneName });
     this.setState({ currentPreviewScene: sceneName });
+  }
+
+  async refreshRecordingStatus() {
+    const data = await this.request("GetRecordStatus");
+    this.setState(normalizeRecordingStatus(data));
+    return this.state;
+  }
+
+  async startRecording() {
+    await this.request("StartRecord");
+    return this.refreshRecordingStatus();
+  }
+
+  async stopRecording() {
+    const data = await this.request("StopRecord");
+    const outputPath = stringOrNull(data?.outputPath);
+    try {
+      await this.refreshRecordingStatus();
+    } catch {
+      this.setState({
+        recordingActive: false,
+        recordingPaused: false,
+        recordingTimecode: null,
+        recordingDurationMs: null,
+      });
+    }
+    if (outputPath) {
+      this.setState({ recordingOutputPath: outputPath });
+    }
+    return this.state;
+  }
+
+  async pauseRecording() {
+    await this.request("PauseRecord");
+    return this.refreshRecordingStatus();
+  }
+
+  async resumeRecording() {
+    await this.request("ResumeRecord");
+    return this.refreshRecordingStatus();
   }
 
   private async handleMessage(message: { op: number; d?: any }, settleConnect: (connected: boolean, error?: string) => void) {
@@ -336,6 +378,11 @@ export class ObsClient {
         await this.getScenes().catch(() => undefined);
       } else if (eventType === "StudioModeStateChanged") {
         this.setState({ studioMode: Boolean(eventData.studioModeEnabled) });
+      } else if (eventType === "RecordStateChanged") {
+        this.setState(normalizeRecordingEvent(eventData, this.state));
+        if (eventData.outputActive) {
+          await this.refreshRecordingStatus().catch(() => undefined);
+        }
       }
     }
   }
