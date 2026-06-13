@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraSelector } from "@/components/ptz/camera-selector";
 import { PresetGrid } from "@/components/ptz/preset-grid";
+import { PresetManagementDialog } from "@/components/ptz/preset-management-dialog";
 import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
@@ -24,12 +25,23 @@ import { cameraApi, obsApi, presetApi, undoApi, type DiscoveredCamera } from "@/
 import { useWebSocket } from "@/lib/websocket";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Camera, Preset } from "@shared/schema";
+import { normalizePresetName, requiresProgramRecallConfirmation } from "@shared/preset-management";
 
 const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
 type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser";
@@ -78,6 +90,8 @@ export default function Dashboard() {
   });
   const [panTiltSpeed, setPanTiltSpeed] = useState(0.5);
   const [suspendPreviewStreaming, setSuspendPreviewStreaming] = useState(false);
+  const [managingPreset, setManagingPreset] = useState<Preset | null>(null);
+  const [pendingProgramRecall, setPendingProgramRecall] = useState<Preset | null>(null);
 
   const ws = useWebSocket();
 
@@ -349,6 +363,55 @@ export default function Dashboard() {
     onSuccess: () => {
       toast.success("Preset recalled");
     },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const updatePresetMutation = useMutation({
+    mutationFn: ({ preset, name }: { preset: Preset; name: string | null }) =>
+      presetApi.update(preset.id, { name }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Preset[]>(["presets", updated.cameraId], (current = []) =>
+        current.map((preset) => preset.id === updated.id ? updated : preset)
+      );
+      queryClient.invalidateQueries({ queryKey: ["presets", updated.cameraId] });
+      setManagingPreset(updated);
+      toast.success("Preset name saved");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const refreshPresetThumbnailMutation = useMutation({
+    mutationFn: presetApi.refreshThumbnail,
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Preset[]>(["presets", updated.cameraId], (current = []) =>
+        current.map((preset) => preset.id === updated.id ? updated : preset)
+      );
+      queryClient.invalidateQueries({ queryKey: ["presets", updated.cameraId] });
+      setManagingPreset(updated);
+      toast.success("Preset thumbnail refreshed");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const deletePresetMutation = useMutation({
+    mutationFn: (preset: Preset) => presetApi.delete(preset.id).then(() => preset),
+    onSuccess: (deleted) => {
+      queryClient.setQueryData<Preset[]>(["presets", deleted.cameraId], (current = []) =>
+        current.filter((preset) => preset.id !== deleted.id)
+      );
+      queryClient.invalidateQueries({ queryKey: ["presets", deleted.cameraId] });
+      setManagingPreset(null);
+      toast.success("Preset deleted");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
   });
 
   useEffect(() => {
@@ -401,14 +464,21 @@ export default function Dashboard() {
     setSelectedId(id);
   };
 
+  const recallPreset = (preset: Preset) => {
+    recallPresetMutation.mutate(preset.id);
+  };
+
+  const requestPresetRecall = (preset: Preset) => {
+    if (requiresProgramRecallConfirmation(selectedCam)) {
+      setPendingProgramRecall(preset);
+      return;
+    }
+    recallPreset(preset);
+  };
+
   const handleRecallPreset = (index: number) => {
     const preset = presets.find(p => p.presetNumber === index);
-    if (preset) {
-      recallPresetMutation.mutate(preset.id);
-      if (selectedId && ws) {
-        ws.recallPreset(selectedId, index);
-      }
-    }
+    if (preset) requestPresetRecall(preset);
   };
 
   const handleStorePreset = (index: number) => {
@@ -897,11 +967,51 @@ export default function Dashboard() {
                 presets={presets}
                 onRecall={handleRecallPreset}
                 onStore={handleStorePreset}
+                onManage={setManagingPreset}
               />
             </div>
 
           </section>
         )}
+
+        <PresetManagementDialog
+          preset={managingPreset}
+          cameraName={selectedCam?.name}
+          open={!!managingPreset}
+          onOpenChange={(open) => !open && setManagingPreset(null)}
+          onSaveName={(preset, name) => updatePresetMutation.mutate({ preset, name: normalizePresetName(name || "") })}
+          onRefreshThumbnail={(preset) => refreshPresetThumbnailMutation.mutate(preset.id)}
+          onDelete={(preset) => deletePresetMutation.mutate(preset)}
+          onRecall={requestPresetRecall}
+          saving={updatePresetMutation.isPending}
+          refreshing={refreshPresetThumbnailMutation.isPending}
+          deleting={deletePresetMutation.isPending}
+          recalling={recallPresetMutation.isPending}
+        />
+
+        <AlertDialog open={!!pendingProgramRecall} onOpenChange={(open) => !open && setPendingProgramRecall(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Recall preset on program camera?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {selectedCam?.name || "This camera"} is currently marked as program. Recalling preset {pendingProgramRecall ? pendingProgramRecall.presetNumber + 1 : ""} will move the live camera.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (pendingProgramRecall) recallPreset(pendingProgramRecall);
+                  setPendingProgramRecall(null);
+                }}
+                className="bg-red-600 text-white hover:bg-red-700"
+                data-testid="button-confirm-program-preset-recall"
+              >
+                Recall Anyway
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
