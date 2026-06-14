@@ -5,6 +5,7 @@ import { Camera, Maximize2, MonitorUp, Radio, RefreshCw, Video, VideoOff } from 
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Camera as CameraType } from "@shared/schema";
+import { sortCamerasByAssignmentName } from "@shared/camera-import";
 
 interface CameraPreviewProps {
   cameras: CameraType[];
@@ -655,6 +656,8 @@ export function CameraPreview({
   persistActivatedPreview = true,
   suspendAllLivePreview = false,
 }: CameraPreviewProps) {
+  const sortedCameras = sortCamerasByAssignmentName(cameras);
+
   return (
     <div className="bg-slate-200/80 dark:bg-slate-900/30 border border-slate-400/50 dark:border-slate-800 rounded-xl p-4">
       <h3 className="text-xs font-mono uppercase text-slate-700 dark:text-slate-500 tracking-widest mb-3 flex items-center gap-2 font-bold">
@@ -662,9 +665,9 @@ export function CameraPreview({
       </h3>
       <div className={cn(
         "grid gap-3",
-        cameras.length <= 2 ? "grid-cols-2" : "grid-cols-2 lg:grid-cols-4"
+        sortedCameras.length <= 2 ? "grid-cols-2" : "grid-cols-2 lg:grid-cols-4"
       )}>
-        {cameras.map(camera => (
+        {sortedCameras.map(camera => (
           <CameraFeed
             key={camera.id}
             camera={camera}
@@ -673,7 +676,7 @@ export function CameraPreview({
             refreshInterval={refreshInterval}
             suppressLivePreview={suspendAllLivePreview || (suppressSelectedLivePreview && selectedId === camera.id)}
             persistActivatedPreview={persistActivatedPreview}
-            streamStartupDelayMs={(selectedId === camera.id ? 0 : 250) + (Math.max(0, cameras.findIndex((item) => item.id === camera.id)) * 180)}
+            streamStartupDelayMs={(selectedId === camera.id ? 0 : 250) + (Math.max(0, sortedCameras.findIndex((item) => item.id === camera.id)) * 180)}
           />
         ))}
       </div>
