@@ -33,6 +33,17 @@ export function getCameraAssignmentNumberFromName(name: string | null | undefine
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
+export function formatCameraAssignmentName(assignment: number) {
+  return `Camera ${assignment}`;
+}
+
+export function atemInputIdForCameraAssignment(
+  assignment: number | null,
+  manualAtemInputId: number | null,
+) {
+  return assignment ?? manualAtemInputId;
+}
+
 function compareCameraAssignmentNames(aName: string, bName: string) {
   const aAssignment = getCameraAssignmentNumberFromName(aName);
   const bAssignment = getCameraAssignmentNumberFromName(bName);
@@ -111,7 +122,7 @@ export function buildDiscoveredCameraImportPayload(
       return {
         camera,
         assignment,
-        name: assignment ? `Camera ${assignment}` : camera.name?.trim() || `Camera ${camera.ip}`,
+        name: assignment ? formatCameraAssignmentName(assignment) : camera.name?.trim() || `Camera ${camera.ip}`,
       };
     })
     .sort((a, b) => {
