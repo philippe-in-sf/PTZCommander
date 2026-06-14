@@ -5,6 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getCameraAssignmentNumberFromName } from "@shared/camera-import";
+
+const CUSTOM_CAMERA_ASSIGNMENT = "custom";
 
 export interface CameraData {
   id: number;
@@ -47,15 +50,29 @@ export function CameraSelector({
   onDeleteCamera 
 }: CameraSelectorProps) {
   const [editingCamera, setEditingCamera] = useState<CameraData | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', ip: '', port: 52381, username: '', password: '', streamUrl: '', previewType: 'none', previewRefreshMs: 2000, atemInputId: '' });
+  const [editForm, setEditForm] = useState({ assignment: CUSTOM_CAMERA_ASSIGNMENT, name: '', ip: '', port: 52381, username: '', password: '', streamUrl: '', previewType: 'none', previewRefreshMs: 2000, atemInputId: '' });
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDeviceError, setVideoDeviceError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const assignmentNumbers = cameras
+    .map((camera) => getCameraAssignmentNumberFromName(camera.name))
+    .filter((assignment): assignment is number => assignment !== null);
+  const maxAssignment = Math.max(4, cameras.length + 1, ...assignmentNumbers);
+  const assignmentOptions = Array.from({ length: maxAssignment }, (_, index) => index + 1);
+  const selectedAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT ? null : Number.parseInt(editForm.assignment, 10);
+  const currentAssignment = editingCamera ? getCameraAssignmentNumberFromName(editingCamera.name) : null;
+  const assignmentConflict = selectedAssignment
+    ? cameras.find((camera) => camera.id !== editingCamera?.id && getCameraAssignmentNumberFromName(camera.name) === selectedAssignment)
+    : null;
+  const willSwapAssignment = Boolean(assignmentConflict && currentAssignment && currentAssignment !== selectedAssignment);
+
   const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
     e.stopPropagation();
+    const assignment = getCameraAssignmentNumberFromName(cam.name);
     setEditingCamera(cam);
     setEditForm({ 
+      assignment: assignment ? String(assignment) : CUSTOM_CAMERA_ASSIGNMENT,
       name: cam.name, 
       ip: cam.ip, 
       port: cam.port || 52381,
@@ -70,9 +87,57 @@ export function CameraSelector({
     setConfirmDelete(false);
   };
 
+  const handleNameChange = (name: string) => {
+    const assignment = getCameraAssignmentNumberFromName(name);
+    setEditForm({
+      ...editForm,
+      name,
+      assignment: assignment ? String(assignment) : CUSTOM_CAMERA_ASSIGNMENT,
+    });
+  };
+
+  const handleAssignmentChange = (assignment: string) => {
+    setEditForm({
+      ...editForm,
+      assignment,
+      name: assignment === CUSTOM_CAMERA_ASSIGNMENT ? editForm.name : `Camera ${assignment}`,
+    });
+  };
+
+  const cameraUpdatePayload = (
+    camera: CameraData,
+    overrides: Partial<{
+      name: string;
+      ip: string;
+      port: number;
+      username: string | null;
+      password: string | null;
+      streamUrl: string | null;
+      previewType: string;
+      previewRefreshMs: number;
+      atemInputId: number | null;
+    }> = {},
+  ) => ({
+    name: overrides.name ?? camera.name,
+    ip: overrides.ip ?? camera.ip,
+    port: overrides.port ?? camera.port ?? 52381,
+    username: overrides.username ?? camera.username ?? null,
+    password: overrides.password ?? camera.password ?? null,
+    streamUrl: overrides.streamUrl ?? (camera.previewType === 'none' ? null : camera.streamUrl ?? null),
+    previewType: overrides.previewType ?? camera.previewType ?? (camera.streamUrl ? 'snapshot' : 'none'),
+    previewRefreshMs: overrides.previewRefreshMs ?? Math.max(250, camera.previewRefreshMs ?? 2000),
+    atemInputId: overrides.atemInputId ?? camera.atemInputId ?? null,
+  });
+
   const handleSave = () => {
     if (editingCamera && onUpdateCamera) {
-      onUpdateCamera(editingCamera.id, {
+      if (assignmentConflict && currentAssignment && currentAssignment !== selectedAssignment) {
+        onUpdateCamera(assignmentConflict.id, cameraUpdatePayload(assignmentConflict, {
+          name: `Camera ${currentAssignment}`,
+        }));
+      }
+
+      onUpdateCamera(editingCamera.id, cameraUpdatePayload(editingCamera, {
         name: editForm.name,
         ip: editForm.ip,
         port: editForm.port,
@@ -82,7 +147,7 @@ export function CameraSelector({
         previewType: editForm.previewType,
         previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
         atemInputId: editForm.atemInputId ? parseInt(editForm.atemInputId) : null,
-      });
+      }));
     }
     setEditingCamera(null);
   };
@@ -203,11 +268,40 @@ export function CameraSelector({
           {!confirmDelete ? (
             <div className="space-y-4">
               <div>
+                <Label htmlFor="edit-assignment">Camera Assignment</Label>
+                <select
+                  id="edit-assignment"
+                  value={editForm.assignment}
+                  onChange={(e) => handleAssignmentChange(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  data-testid="select-camera-assignment"
+                >
+                  <option value={CUSTOM_CAMERA_ASSIGNMENT}>Custom name</option>
+                  {assignmentOptions.map((assignment) => {
+                    const assignedCamera = cameras.find((camera) => camera.id !== editingCamera?.id && getCameraAssignmentNumberFromName(camera.name) === assignment);
+                    const canSwap = Boolean(assignedCamera && currentAssignment && currentAssignment !== assignment);
+                    const isUnavailable = Boolean(assignedCamera && !canSwap);
+                    return (
+                      <option key={assignment} value={assignment} disabled={isUnavailable}>
+                        Camera {assignment}{assignedCamera ? canSwap ? ` (swap with ${assignedCamera.name})` : ` (${assignedCamera.name})` : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                {assignmentConflict && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1" data-testid="camera-assignment-conflict">
+                    {willSwapAssignment
+                      ? `${assignmentConflict.name} will move to Camera ${currentAssignment}.`
+                      : `${assignmentConflict.name} already uses this assignment.`}
+                  </p>
+                )}
+              </div>
+              <div>
                 <Label htmlFor="edit-name">Camera Name</Label>
                 <Input
                   id="edit-name"
                   value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  onChange={(e) => handleNameChange(e.target.value)}
                   data-testid="input-camera-name"
                 />
               </div>
