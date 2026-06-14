@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { switcherApi } from "@/lib/api";
 import { useAtemControl, type AtemState } from "@/hooks/use-atem-control";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -41,6 +42,7 @@ const KEY_TYPES: Record<number, string> = {
 export default function SwitcherPage() {
   const queryClient = useQueryClient();
   const { atemState, switcher, switchers, send, cut, auto, setProgramInput, setPreviewInput, getInputLabel, displayInputs } = useAtemControl();
+  const { openDeviceSetup } = useDeviceSetup();
   const controlTimedOut = switcher?.status === "control-timeout";
   const [activeTab, setActiveTab] = useState<SwitcherTab>("me");
   const [addSwitcherOpen, setAddSwitcherOpen] = useState(false);
@@ -131,11 +133,9 @@ export default function SwitcherPage() {
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white">No Switcher Configured</h2>
             <p className="text-slate-500 dark:text-slate-400">Add your Blackmagic ATEM to get started</p>
             <Dialog open={addSwitcherOpen} onOpenChange={setAddSwitcherOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-switcher-full">
-                  <Plus className="h-4 w-4 mr-2" /> Add ATEM Switcher
-                </Button>
-              </DialogTrigger>
+              <Button onClick={() => openDeviceSetup({ type: "switcher" })} data-testid="button-add-switcher-full">
+                <Plus className="h-4 w-4 mr-2" /> Add ATEM Switcher
+              </Button>
               <DialogContent className="bg-slate-300 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                 <DialogHeader><DialogTitle>Add ATEM Switcher</DialogTitle></DialogHeader>
                 <div className="space-y-4">

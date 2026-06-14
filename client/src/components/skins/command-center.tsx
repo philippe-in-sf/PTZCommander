@@ -3,30 +3,26 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   Activity,
-  AudioLines,
-  Camera,
   Clock,
   Crosshair,
   Database,
-  ChevronDown,
   Maximize,
-  Radio,
+  Settings,
   Terminal,
   Wifi
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { DashboardSkinProps } from "./types";
-import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
+import { BrandWatermark } from "@/components/branding/brand";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraPreview } from "@/components/ptz/camera-preview";
-import { SkinSelector } from "@/components/skin-selector";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { RehearsalToggle } from "@/components/rehearsal-toggle";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { healthApi, mixerApi, type DeviceHealthResponse, type SystemHealthResponse } from "@/lib/api";
+import { AppHeader } from "@/components/app-header";
+import { healthApi, type DeviceHealthResponse, type SystemHealthResponse } from "@/lib/api";
 import { useAtemControl } from "@/hooks/use-atem-control";
 import { cn } from "@/lib/utils";
+import { useSkinMixerData, useSkinSceneButtons } from "./live-data";
+import { CONTROL_SURFACE_SCENE_SHORTCUTS } from "@shared/control-surface-shortcuts";
 
 type RecentLog = {
   timestamp?: string | number;
@@ -35,37 +31,10 @@ type RecentLog = {
   message?: string;
 };
 
-type MixerLiveChannel = {
-  channel: number;
-  section: string;
-  fader: number;
-  muted: boolean;
-  name: string;
-};
-
-type MixerStatusResponse = {
-  connected: boolean;
-  channels: MixerLiveChannel[];
-  sections?: Record<string, MixerLiveChannel[]>;
-};
-
-const SCENES = [
-  { id: 1, name: "PRE-SHOW", status: "ready" },
-  { id: 2, name: "WALK-IN", status: "ready" },
-  { id: 3, name: "MAIN EVENT", status: "active" },
-  { id: 4, name: "BAPTISM", status: "ready" },
-  { id: 5, name: "ALTAR CALL", status: "ready" },
-  { id: 6, name: "POST-SHOW", status: "ready" }
-];
-
 async function fetchRecentLogs(): Promise<RecentLog[]> {
   const res = await fetch("/api/logs/recent");
   if (!res.ok) throw new Error("Failed to fetch recent logs");
   return res.json();
-}
-
-function mixerChannelKey(section: string, channel: number) {
-  return `${section}:${channel}`;
 }
 
 export default function CommandCenter(props: DashboardSkinProps) {
@@ -85,6 +54,8 @@ export default function CommandCenter(props: DashboardSkinProps) {
   } = props;
 
   const { atemState, switcher, displayInputs, cut, auto, setProgramInput, setPreviewInput } = useAtemControl();
+  const { mixer, mixerStripData } = useSkinMixerData(ws, "command-center");
+  const { sceneButtons, activeSceneId, executeScene, sceneExecuting } = useSkinSceneButtons(6);
   const [currentTime, setCurrentTime] = useState(() => {
     return new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
@@ -97,7 +68,6 @@ export default function CommandCenter(props: DashboardSkinProps) {
   });
   const [isStoreMode, setIsStoreMode] = useState(false);
   const [wsConnected, setWsConnected] = useState(() => ws.isConnected());
-  const [mixerChannelsByKey, setMixerChannelsByKey] = useState<Map<string, MixerLiveChannel>>(new Map());
   const { data: recentLogs = [], isError: logsError } = useQuery<RecentLog[]>({
     queryKey: ["/api/logs/recent"],
     queryFn: fetchRecentLogs,
@@ -112,17 +82,6 @@ export default function CommandCenter(props: DashboardSkinProps) {
     queryKey: ["health-system"],
     queryFn: healthApi.getSystem,
     refetchInterval: 10000,
-  });
-  const { data: mixers = [] } = useQuery({
-    queryKey: ["mixers"],
-    queryFn: mixerApi.getAll,
-  });
-  const mixer = mixers[0] ?? null;
-  const { data: mixerStatus } = useQuery<MixerStatusResponse>({
-    queryKey: ["control-center-mixer-status", mixer?.id],
-    queryFn: () => mixerApi.getStatus(mixer!.id),
-    enabled: !!mixer,
-    refetchInterval: mixer?.status === "online" ? 5000 : false,
   });
   
   useEffect(() => {
@@ -150,6 +109,7 @@ export default function CommandCenter(props: DashboardSkinProps) {
     const preset = presets.find(p => p.presetNumber === i);
     return {
       index: i,
+      preset,
       name: preset ? (preset.name || `POS-${i.toString().padStart(2, '0')}`) : null,
       status: preset ? "saved" : "empty"
     };
@@ -167,75 +127,6 @@ export default function CommandCenter(props: DashboardSkinProps) {
     ...(deviceHealth?.switchers || []),
     ...(deviceHealth?.displays || []),
   ].filter((device) => device.status === "online").length;
-
-  useEffect(() => {
-    if (!mixer) {
-      setMixerChannelsByKey(new Map());
-    }
-  }, [mixer]);
-
-  useEffect(() => {
-    if (!mixerStatus) return;
-
-    setMixerChannelsByKey((prev) => {
-      const next = new Map(prev);
-
-      if (mixerStatus.sections) {
-        for (const [section, channels] of Object.entries(mixerStatus.sections)) {
-          channels.forEach((channel) => {
-            next.set(mixerChannelKey(section, channel.channel), { ...channel, section });
-          });
-        }
-      } else {
-        mixerStatus.channels.forEach((channel) => {
-          next.set(mixerChannelKey("ch", channel.channel), { ...channel, section: "ch" });
-        });
-      }
-
-      return next;
-    });
-  }, [mixerStatus]);
-
-  useEffect(() => {
-    const handleMixerState = (message: Record<string, unknown>) => {
-      if (
-        (message.type === "mixer_state" || message.type === "mixer_section_state") &&
-        Array.isArray(message.channels)
-      ) {
-        const section = typeof message.section === "string" ? message.section : "ch";
-        setMixerChannelsByKey((prev) => {
-          const next = new Map(prev);
-          (message.channels as MixerLiveChannel[]).forEach((channel) => {
-            next.set(mixerChannelKey(section, channel.channel), { ...channel, section });
-          });
-          return next;
-        });
-      }
-    };
-
-    ws.addMessageHandler(handleMixerState);
-    return () => ws.removeMessageHandler(handleMixerState);
-  }, [ws]);
-
-  useEffect(() => {
-    if (!mixer || mixer.status !== "online") return;
-    ws.send({ type: "mixer_query_section", section: "ch" });
-    ws.send({ type: "mixer_query_section", section: "main" });
-  }, [mixer, ws]);
-
-  const mixerStripData = [
-    mixerChannelsByKey.get("ch:1") ?? { channel: 1, section: "ch", fader: 0, muted: false, name: "Ch 1" },
-    mixerChannelsByKey.get("ch:2") ?? { channel: 2, section: "ch", fader: 0, muted: false, name: "Ch 2" },
-    mixerChannelsByKey.get("ch:3") ?? { channel: 3, section: "ch", fader: 0, muted: false, name: "Ch 3" },
-    mixerChannelsByKey.get("main:1") ?? { channel: 1, section: "main", fader: 0, muted: false, name: "Main LR" },
-  ].map((channel) => ({
-    ...channel,
-    id: channel.section === "main" ? "MAIN" : `CH${channel.channel}`,
-    isMain: channel.section === "main",
-    label: channel.section === "main" ? "MAIN" : `CH${channel.channel}`,
-    level: Math.max(0, Math.min(100, Math.round((channel.fader ?? 0) * 100))),
-    peak: !channel.muted && (channel.fader ?? 0) >= 0.9,
-  }));
 
   const formatLogTimestamp = (value?: string | number) => {
     if (!value) return "--:--:--";
@@ -279,103 +170,40 @@ export default function CommandCenter(props: DashboardSkinProps) {
            style={{ backgroundImage: `linear-gradient(#334155 1px, transparent 1px), linear-gradient(90deg, #334155 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
       <BrandWatermark className="bottom-5 right-5 opacity-[0.12]" />
 
-      {/* HEADER / TOP NAV */}
-      <header className="h-14 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur flex items-center justify-between px-4 z-50 shrink-0 relative">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <BrandLogo imageClassName="h-8 w-auto" />
-          </div>
-          
-          <nav className="hidden md:flex gap-1 bg-[#020617] p-1 rounded-full border border-slate-800">
-            <Link href="/" className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors bg-amber-500/20 text-amber-400">
-              DASHBOARD
-            </Link>
-            <Link href="/scenes" className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-              SCENES
-            </Link>
-            <Link href="/runsheet" className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
-              RUN
-            </Link>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 inline-flex items-center">
-                  PROD
-                  <ChevronDown className="w-3 h-3 ml-1" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="min-w-[12rem] border-slate-700 bg-[#0b1220] text-slate-100 shadow-2xl shadow-black/40"
-              >
-                <DropdownMenuItem asChild>
-                  <Link href="/switcher" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">VIDEO</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/mixer" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">AUDIO</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/lighting" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">LIGHTS</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/displays" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">DISPLAYS</Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="px-4 py-1.5 text-xs font-semibold rounded-full transition-colors text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 inline-flex items-center">
-                  TOOLS
-                  <ChevronDown className="w-3 h-3 ml-1" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="min-w-[12rem] border-slate-700 bg-[#0b1220] text-slate-100 shadow-2xl shadow-black/40"
-              >
-                <DropdownMenuItem asChild>
-                  <Link href="/macros" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">MACROS</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/diagnostics" className="cursor-pointer font-semibold tracking-wide text-slate-100 hover:text-amber-300">DIAG</Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-6 text-xs">
-          <RehearsalToggle />
-          <div className="hidden lg:flex items-center gap-4 text-slate-500">
-            <span className="flex items-center gap-1"><CpuIcon /> CPU: {cpuLabel}</span>
-            <span className="flex items-center gap-1"><Database className="w-3.5 h-3.5" /> MEM: {memoryLabel}</span>
-            <span className="flex items-center gap-1"><Wifi className="w-3.5 h-3.5" /> NET: {networkLabel}</span>
-          </div>
-          <div className="flex items-center gap-2 font-bold text-cyan-400 tracking-wider bg-cyan-950/30 px-3 py-1.5 rounded border border-cyan-900/50">
-            <Clock className="w-4 h-4" />
-            {currentTime}
-          </div>
-          <div className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded border",
-            wsConnected
-              ? "border-green-900/50 bg-green-950/30 text-green-400"
-              : "border-red-900/50 bg-red-950/30 text-red-400"
-          )}>
-            <span className="relative flex h-2 w-2">
-              <span className={cn(
-                "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-                wsConnected ? "bg-green-400" : "bg-red-400"
-              )}></span>
-              <span className={cn(
-                "relative inline-flex rounded-full h-2 w-2",
-                wsConnected ? "bg-green-500" : "bg-red-500"
-              )}></span>
-            </span>
-            {wsConnected ? "SYSTEM ONLINE" : "SYSTEM OFFLINE"}
-          </div>
-          <ThemeToggle />
-          <SkinSelector />
-        </div>
-      </header>
+      <AppHeader
+        activePage="/"
+        rightContent={
+          <>
+            <div className="hidden xl:flex items-center gap-4 text-slate-500">
+              <span className="flex items-center gap-1"><CpuIcon /> CPU: {cpuLabel}</span>
+              <span className="flex items-center gap-1"><Database className="w-3.5 h-3.5" /> MEM: {memoryLabel}</span>
+              <span className="flex items-center gap-1"><Wifi className="w-3.5 h-3.5" /> NET: {networkLabel}</span>
+            </div>
+            <div className="flex items-center gap-2 font-bold text-cyan-400 tracking-wider bg-cyan-950/30 px-3 py-1.5 rounded border border-cyan-900/50">
+              <Clock className="w-4 h-4" />
+              {currentTime}
+            </div>
+            <div className={cn(
+              "hidden lg:flex items-center gap-2 px-3 py-1.5 rounded border",
+              wsConnected
+                ? "border-green-900/50 bg-green-950/30 text-green-400"
+                : "border-red-900/50 bg-red-950/30 text-red-400"
+            )}>
+              <span className="relative flex h-2 w-2">
+                <span className={cn(
+                  "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                  wsConnected ? "bg-green-400" : "bg-red-400"
+                )}></span>
+                <span className={cn(
+                  "relative inline-flex rounded-full h-2 w-2",
+                  wsConnected ? "bg-green-500" : "bg-red-500"
+                )}></span>
+              </span>
+              {wsConnected ? "WS ONLINE" : "WS OFFLINE"}
+            </div>
+          </>
+        }
+      />
 
       {/* MAIN LAYOUT */}
       <main className="flex-1 p-4 grid grid-cols-12 gap-4 z-10 overflow-y-auto">
@@ -508,34 +336,49 @@ export default function CommandCenter(props: DashboardSkinProps) {
             </div>
             
             <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-              {PRESET_SLOTS.map(p => (
-                <button 
-                  key={p.index}
-                  onClick={() => {
-                    if (isStoreMode) {
-                      onStorePreset(p.index);
-                      setIsStoreMode(false);
-                    } else {
-                      onRecallPreset(p.index);
-                    }
-                  }}
-                  className={`
-                    relative h-12 flex flex-col items-center justify-center border rounded-sm transition-all
-                    ${isStoreMode 
-                      ? 'border-red-500/50 hover:bg-red-900/20 text-slate-300 hover:border-red-500'
-                      : p.status === 'saved' ? 'border-slate-600 bg-slate-800/40 text-slate-300 hover:border-amber-500 hover:text-amber-400' : 
-                      'border-slate-800 bg-[#020617]/50 text-slate-600 hover:border-slate-700'}
-                  `}
-                >
-                  <span className="text-sm font-bold">{p.index.toString().padStart(2, '0')}</span>
-                  {p.status !== 'empty' && (
-                    <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                  )}
-                  {p.status !== 'empty' && (
-                    <span className="text-[8px] absolute bottom-1 truncate w-full px-1 text-center opacity-70">{p.name}</span>
-                  )}
-                </button>
-              ))}
+              {PRESET_SLOTS.map(p => {
+                const preset = p.preset;
+                return (
+                  <div key={p.index} className="relative group">
+                    <button
+                      onClick={() => {
+                        if (isStoreMode) {
+                          onStorePreset(p.index);
+                          setIsStoreMode(false);
+                        } else {
+                          onRecallPreset(p.index);
+                        }
+                      }}
+                      className={`
+                        relative h-12 w-full flex flex-col items-center justify-center border rounded-sm transition-all
+                        ${isStoreMode
+                          ? 'border-red-500/50 hover:bg-red-900/20 text-slate-300 hover:border-red-500'
+                          : p.status === 'saved' ? 'border-slate-600 bg-slate-800/40 text-slate-300 hover:border-amber-500 hover:text-amber-400' :
+                          'border-slate-800 bg-[#020617]/50 text-slate-600 hover:border-slate-700'}
+                      `}
+                    >
+                      <span className="text-sm font-bold">{p.index.toString().padStart(2, '0')}</span>
+                      {p.status !== 'empty' && (
+                        <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
+                      )}
+                      {p.status !== 'empty' && (
+                        <span className="text-[8px] absolute bottom-1 truncate w-full px-1 text-center opacity-70">{p.name}</span>
+                      )}
+                    </button>
+                    {preset && !isStoreMode && (
+                      <button
+                        type="button"
+                        onClick={() => props.onManagePreset(preset)}
+                        className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded-sm border border-slate-700 bg-slate-950/85 text-slate-400 opacity-0 transition-opacity hover:border-amber-500 hover:text-amber-300 group-hover:opacity-100 focus:opacity-100"
+                        aria-label={`Manage preset ${p.index + 1}`}
+                        data-testid={`button-manage-preset-${p.index}`}
+                      >
+                        <Settings className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -548,20 +391,35 @@ export default function CommandCenter(props: DashboardSkinProps) {
           <div className="border border-slate-800 bg-[#0f172a]/50 p-3 rounded-sm relative">
             <div className="absolute top-0 left-0 px-2 py-0.5 bg-slate-800 text-[10px] text-slate-400">SEQ_EXEC</div>
             <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
-              {SCENES.map(scene => (
-                <button 
-                  key={scene.id}
-                  className={`
-                    h-10 text-xs font-bold tracking-wider rounded-sm border transition-all flex items-center justify-center gap-2
-                    ${scene.status === 'active' 
-                      ? 'border-red-500 bg-red-950/30 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
-                      : 'border-slate-700 bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:border-slate-500'}
-                  `}
+              {sceneButtons.length === 0 ? (
+                <Link
+                  href="/scenes"
+                  className="col-span-full h-10 text-xs font-bold tracking-wider rounded-sm border border-slate-700 bg-slate-800/50 text-slate-400 transition-all flex items-center justify-center hover:bg-slate-700 hover:text-slate-200"
                 >
-                  {scene.status === 'active' && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>}
-                  {scene.name}
-                </button>
-              ))}
+                  CONFIGURE SCENES
+                </Link>
+              ) : sceneButtons.map(scene => {
+                const isActive = activeSceneId === scene.id;
+                const shortcutLabel = CONTROL_SURFACE_SCENE_SHORTCUTS.find((shortcut) => shortcut.buttonNumber === scene.buttonNumber)?.label;
+                return (
+                  <button
+                    key={scene.id}
+                    onClick={() => executeScene(scene.id)}
+                    disabled={sceneExecuting}
+                    className={cn(
+                      "h-10 text-xs font-bold tracking-wider rounded-sm border transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-60",
+                      isActive
+                        ? "bg-red-950/30 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.2)]"
+                        : "bg-slate-800/50 text-slate-300 hover:bg-slate-700"
+                    )}
+                    style={{ borderColor: isActive ? scene.color : undefined }}
+                  >
+                    {isActive && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>}
+                    <span className="truncate">{scene.name}</span>
+                    {shortcutLabel && <span className="text-[9px] text-slate-500">{shortcutLabel}</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

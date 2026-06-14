@@ -45,6 +45,7 @@ export function OBSConnectionCard({
   onResumeRecording,
   recordingPending,
   onRefreshScenes,
+  onAddViaWizard,
 }: {
   connection: ObsConnection | null;
   status?: ObsState;
@@ -71,6 +72,7 @@ export function OBSConnectionCard({
   onResumeRecording: () => void;
   recordingPending: boolean;
   onRefreshScenes: () => void;
+  onAddViaWizard?: () => void;
 }) {
   const connected = Boolean(status?.connected || connection?.status === "online");
   const liveRecordingStatus = Boolean(status?.connected);
@@ -134,7 +136,11 @@ export function OBSConnectionCard({
           </div>
         </div>
 
-        {!connection ? (
+        {!connection && onAddViaWizard ? (
+          <Button className="w-full lg:w-auto lg:justify-self-end" onClick={onAddViaWizard} data-testid="button-add-obs">
+            <Plus className="h-4 w-4 mr-2" /> Add OBS
+          </Button>
+        ) : !connection ? (
           <Dialog open={addOpen} onOpenChange={onAddOpenChange}>
             <DialogTrigger asChild>
               <Button className="w-full lg:w-auto lg:justify-self-end" data-testid="button-add-obs">

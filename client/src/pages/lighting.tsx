@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/app-layout";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import { Plus, Trash2, Wifi, WifiOff, Lightbulb, Layers, Palette, RefreshCw, Power, PowerOff, LinkIcon } from "lucide-react";
 import type { HueBridge } from "@shared/schema";
 
@@ -419,6 +420,7 @@ function BridgeControlPanel({ bridge }: { bridge: HueBridge }) {
 }
 
 export default function LightingPage() {
+  const { openDeviceSetup } = useDeviceSetup();
   const { data: bridges = [], isLoading } = useQuery<HueBridge[]>({
     queryKey: ["/api/hue/bridges"],
   });
@@ -435,7 +437,7 @@ export default function LightingPage() {
             <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Lighting Control</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Philips Hue bridge management and light control</p>
           </div>
-          <Button data-testid="button-add-bridge-open" onClick={() => setShowAddDialog(true)}>
+          <Button data-testid="button-add-bridge-open" onClick={() => openDeviceSetup({ type: "hue" })}>
             <Plus className="w-4 h-4 mr-2" />Add Bridge
           </Button>
         </div>
@@ -451,7 +453,7 @@ export default function LightingPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto">
               Add your Philips Hue bridge to control lights from this interface. You'll need the bridge IP address.
             </p>
-            <Button onClick={() => setShowAddDialog(true)}>
+            <Button onClick={() => openDeviceSetup({ type: "hue" })}>
               <Plus className="w-4 h-4 mr-2" />Add Your First Bridge
             </Button>
           </div>

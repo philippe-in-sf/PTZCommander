@@ -8,6 +8,7 @@ export interface DashboardSkinProps {
   onSelectCamera: (id: number) => void;
   onRecallPreset: (index: number) => void;
   onStorePreset: (index: number) => void;
+  onManagePreset: (preset: Preset) => void;
   onJoystickMove: (x: number, y: number) => void;
   onJoystickStop: () => void;
   onZoom: (value: number) => void;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { displayApi, type DisplayCommandPayload, type HisenseDiscoveredDisplay, type SamsungDiscoveredDisplay, type SmartThingsDiscoveredDevice, type SmartThingsOAuthSession } from "@/lib/api";
 import { AppLayout } from "@/components/app-layout";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -207,6 +208,7 @@ function DisplayCard({ display }: { display: DisplayWithPairing }) {
 
 function LocalSamsungSetupPanel() {
   const queryClient = useQueryClient();
+  const { openDeviceSetup } = useDeviceSetup();
   const [manualName, setManualName] = useState("Samsung Frame");
   const [manualIp, setManualIp] = useState("");
   const [manualPort, setManualPort] = useState("8002");
@@ -291,7 +293,7 @@ function LocalSamsungSetupPanel() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_auto] gap-3 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_auto_auto] gap-3 items-end">
         <div className="space-y-1">
           <Label>Name</Label>
           <Input value={manualName} onChange={(event) => setManualName(event.target.value)} data-testid="input-display-name" />
@@ -304,8 +306,11 @@ function LocalSamsungSetupPanel() {
           <Label>Port</Label>
           <Input value={manualPort} onChange={(event) => setManualPort(event.target.value)} placeholder="8002" data-testid="input-display-port" />
         </div>
-        <Button onClick={addManual} disabled={createMutation.isPending} data-testid="button-add-display">
-          <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add"}
+        <Button onClick={() => openDeviceSetup({ type: "display" })} data-testid="button-add-display">
+          <Plus className="w-4 h-4 mr-2" /> Add
+        </Button>
+        <Button variant="outline" onClick={addManual} disabled={createMutation.isPending}>
+          {createMutation.isPending ? "Adding..." : "Quick Add"}
         </Button>
       </div>
       {createMutation.error && (
@@ -319,6 +324,7 @@ function LocalSamsungSetupPanel() {
 
 function LocalHisenseSetupPanel() {
   const queryClient = useQueryClient();
+  const { openDeviceSetup } = useDeviceSetup();
   const [manualName, setManualName] = useState("Hisense Canvas");
   const [manualIp, setManualIp] = useState("");
   const [manualPort, setManualPort] = useState("36669");
@@ -410,7 +416,7 @@ function LocalHisenseSetupPanel() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_140px_auto] gap-3 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_140px_auto_auto] gap-3 items-end">
         <div className="space-y-1">
           <Label>Name</Label>
           <Input value={manualName} onChange={(event) => setManualName(event.target.value)} data-testid="input-hisense-display-name" />
@@ -433,8 +439,11 @@ function LocalHisenseSetupPanel() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={addManual} disabled={createMutation.isPending} data-testid="button-add-hisense-display">
-          <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add"}
+        <Button onClick={() => openDeviceSetup({ type: "display" })} data-testid="button-add-hisense-display">
+          <Plus className="w-4 h-4 mr-2" /> Add
+        </Button>
+        <Button variant="outline" onClick={addManual} disabled={createMutation.isPending}>
+          {createMutation.isPending ? "Adding..." : "Quick Add"}
         </Button>
       </div>
       {createMutation.error && (
@@ -625,6 +634,7 @@ function AdvancedSmartThingsSetup() {
 }
 
 export default function DisplaysPage() {
+  const { openDeviceSetup } = useDeviceSetup();
   const { data: displays = [] } = useQuery<DisplayWithPairing[]>({
     queryKey: ["displays"],
     queryFn: displayApi.getAll,
@@ -634,13 +644,18 @@ export default function DisplaysPage() {
     <AppLayout activePage="/displays">
       <main className="flex-1 overflow-auto p-6">
         <div className="max-w-6xl mx-auto space-y-6">
-          <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Monitor className="w-5 h-5 text-cyan-500" /> Displays
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Control Samsung Frame TVs and other displays from the same app that runs cameras, lights, scenes, and macros.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Monitor className="w-5 h-5 text-cyan-500" /> Displays
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Control Samsung Frame TVs and other displays from the same app that runs cameras, lights, scenes, and macros.
+              </p>
+            </div>
+            <Button onClick={() => openDeviceSetup({ type: "display" })} data-testid="button-add-display-wizard">
+              <Plus className="w-4 h-4 mr-2" /> Add Display
+            </Button>
           </div>
 
           <LocalSamsungSetupPanel />

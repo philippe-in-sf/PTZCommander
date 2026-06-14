@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { switcherApi } from "@/lib/api";
 import { useAtemControl } from "@/hooks/use-atem-control";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MonitorPlay, Plus, Wifi, WifiOff, ArrowRightLeft, Zap } from "lucide-react";
@@ -17,6 +18,7 @@ interface AtemPanelProps {
 export function AtemPanel({ collapsed = false }: AtemPanelProps) {
   const queryClient = useQueryClient();
   const { atemState, switcher, cut, auto, setProgramInput, setPreviewInput } = useAtemControl();
+  const { openDeviceSetup } = useDeviceSetup();
   const [addSwitcherOpen, setAddSwitcherOpen] = useState(false);
   const [newSwitcher, setNewSwitcher] = useState({ name: "ATEM Extreme", ip: "", type: "atem" });
   const controlTimedOut = switcher?.status === "control-timeout";
@@ -89,12 +91,10 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
           </div>
         ) : (
           <Dialog open={addSwitcherOpen} onOpenChange={setAddSwitcherOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" data-testid="button-add-switcher">
-                <Plus className="h-4 w-4 mr-1" />
-                Add ATEM
-              </Button>
-            </DialogTrigger>
+            <Button variant="outline" size="sm" onClick={() => openDeviceSetup({ type: "switcher" })} data-testid="button-add-switcher">
+              <Plus className="h-4 w-4 mr-1" />
+              Add ATEM
+            </Button>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add ATEM Switcher</DialogTitle>
@@ -143,7 +143,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
             variant="outline"
             size="sm"
             className="mt-4"
-            onClick={() => setAddSwitcherOpen(true)}
+            onClick={() => openDeviceSetup({ type: "switcher" })}
             data-testid="button-add-switcher-empty"
           >
             <Plus className="h-4 w-4 mr-2" />

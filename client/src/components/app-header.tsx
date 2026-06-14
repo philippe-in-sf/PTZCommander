@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ChevronDown, Video, Radio, Lock, LogOut } from "lucide-react";
+import { ChevronDown, Video, Radio, Lock, LogOut, Plus } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { BrandLogo } from "@/components/branding/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -11,6 +11,7 @@ import { OperatorStatusStrip } from "@/components/operator-status-strip";
 import { Button } from "@/components/ui/button";
 import { useSkin } from "@/lib/skin-context";
 import { useAuth } from "@/lib/auth";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -161,6 +162,26 @@ function UserMenu() {
   );
 }
 
+function AddDeviceAction({ compact = false }: { compact?: boolean }) {
+  const { isAdmin } = useAuth();
+  const { openDeviceSetup } = useDeviceSetup();
+
+  if (!isAdmin) return null;
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-2"
+      onClick={() => openDeviceSetup()}
+      data-testid="button-global-add-device"
+    >
+      <Plus className="h-4 w-4" />
+      <span>{compact ? "Add" : "Add Device"}</span>
+    </Button>
+  );
+}
+
 function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
   const { isAdmin } = useAuth();
   const navClass = "px-3 py-1.5 rounded text-sm font-medium transition-colors inline-flex items-center";
@@ -190,7 +211,8 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
         </nav>
       </div>
 
-      <div className="flex w-full flex-wrap items-center justify-end gap-2 xl:w-auto xl:gap-3">
+      <div className="flex w-full flex-wrap items-center justify-end gap-2 2xl:w-auto xl:gap-3">
+        <AddDeviceAction />
         <RehearsalToggle />
         <OperatorStatusStrip />
         {rightContent}
@@ -211,8 +233,8 @@ function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
   const inactiveClass = "text-zinc-400 hover:text-zinc-100 hover:bg-[#1e1e2a]";
 
   return (
-    <header className="h-12 bg-[#16161e] border-b border-[#2a2a3a] flex items-center justify-between px-4 shrink-0 z-50 relative shadow-lg font-mono text-xs uppercase tracking-wider">
-      <div className="flex items-center space-x-4 min-w-0">
+    <header className="min-h-12 bg-[#16161e] border-b border-[#2a2a3a] flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 shrink-0 z-50 relative shadow-lg font-mono text-xs uppercase tracking-wider">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center space-x-2">
           <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
           <Link href="/">
@@ -231,12 +253,15 @@ function BroadcastHeader({ activePage, rightContent }: AppHeaderProps) {
           {isAdmin && <NavButton item={{ name: "Users", shortName: "Users", path: "/users", testId: "nav-users" }} activePage={activePage} className={navClass} activeClassName={activeClass} inactiveClassName={inactiveClass} label="Users" />}
         </nav>
       </div>
-      <div className="flex items-center space-x-4 text-[10px] text-zinc-400">
+      <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 text-[10px] text-zinc-400 2xl:w-auto">
+        <AddDeviceAction compact />
         <RehearsalToggle />
         <OperatorStatusStrip compact tone="broadcast" />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
+        <LayoutSelector />
+        <LogViewer />
         <UserMenu />
       </div>
     </header>
@@ -250,8 +275,8 @@ function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
   const inactiveClass = "text-slate-500 dark:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-slate-200";
 
   return (
-    <header className="h-14 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl border-b border-white/50 dark:border-slate-700/50 shadow-lg flex items-center justify-between px-6 z-50 relative">
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="min-h-14 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl border-b border-white/50 dark:border-slate-700/50 shadow-lg flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-2 z-50 relative">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
         <Link href="/">
           <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
             <BrandLogo imageClassName="h-10 w-auto" />
@@ -269,12 +294,15 @@ function GlassHeader({ activePage, rightContent }: AppHeaderProps) {
         </nav>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex w-full flex-wrap items-center justify-end gap-3 2xl:w-auto">
+        <AddDeviceAction />
         <RehearsalToggle />
         <OperatorStatusStrip compact tone="glass" />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
+        <LayoutSelector />
+        <LogViewer />
         <UserMenu />
       </div>
     </header>
@@ -288,8 +316,8 @@ function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
   const inactiveClass = "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50";
 
   return (
-    <header className="h-14 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur flex items-center justify-between px-4 z-50 shrink-0 relative">
-      <div className="flex items-center gap-6">
+    <header className="min-h-14 border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2 z-50 shrink-0 relative">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer hover:opacity-85 transition-opacity">
             <BrandLogo imageClassName="h-8 w-auto" />
@@ -307,12 +335,15 @@ function CommandHeader({ activePage, rightContent }: AppHeaderProps) {
         </nav>
       </div>
 
-      <div className="flex items-center gap-4 text-xs font-mono">
+      <div className="flex w-full flex-wrap items-center justify-end gap-4 text-xs font-mono 2xl:w-auto">
+        <AddDeviceAction compact />
         <RehearsalToggle />
         <OperatorStatusStrip compact tone="command" />
         {rightContent}
         <ThemeToggle />
         <SkinSelector />
+        <LayoutSelector />
+        <LogViewer />
         <UserMenu />
       </div>
     </header>

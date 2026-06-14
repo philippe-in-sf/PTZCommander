@@ -1,25 +1,30 @@
 import React, { useEffect, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { 
-  Camera, Settings, Video, Mic, Lightbulb, Activity, MonitorPlay, 
-  ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Maximize, 
-  Power, Volume2, Plus, GripHorizontal, LayoutGrid, CircleDot
+  Activity,
+  MonitorPlay,
+  Maximize,
+  Power,
+  Volume2,
+  Plus,
+  LayoutGrid,
+  Settings
 } from "lucide-react";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraPreview } from "@/components/ptz/camera-preview";
-import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
-import { SkinSelector } from "@/components/skin-selector";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { RehearsalToggle } from "@/components/rehearsal-toggle";
-import { OperatorStatusStrip } from "@/components/operator-status-strip";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { BrandWatermark } from "@/components/branding/brand";
+import { AppHeader } from "@/components/app-header";
+import { useAtemControl } from "@/hooks/use-atem-control";
+import { cn } from "@/lib/utils";
+import { useSkinMixerData, useSkinSceneButtons } from "./live-data";
+import { CONTROL_SURFACE_SCENE_SHORTCUTS } from "@shared/control-surface-shortcuts";
 
 export default function BroadcastConsole(props: DashboardSkinProps) {
-  const [location] = useLocation();
-  const [pgmInput, setPgmInput] = useState(1);
-  const [pvwInput, setPvwInput] = useState(2);
   const [storeMode, setStoreMode] = useState(false);
+  const { atemState, switcher, displayInputs, cut, auto, setProgramInput, setPreviewInput } = useAtemControl();
+  const { mixer, mixerStripData } = useSkinMixerData(props.ws, "broadcast-console");
+  const { sceneButtons, activeSceneId, executeScene, sceneExecuting } = useSkinSceneButtons(4);
   const [currentTime, setCurrentTime] = useState(() => new Intl.DateTimeFormat("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -39,31 +44,7 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
     return () => window.clearInterval(timer);
   }, []);
 
-  const tabs = [
-    { name: "Dashboard", path: "/" },
-    { name: "Scenes", path: "/scenes" },
-    { name: "Run", path: "/runsheet" },
-  ];
-  const tabGroups = [
-    {
-      name: "Prod",
-      paths: ["/switcher", "/mixer", "/lighting", "/displays"],
-      items: [
-        { name: "Switcher", path: "/switcher" },
-        { name: "Audio", path: "/mixer" },
-        { name: "Lighting", path: "/lighting" },
-        { name: "Displays", path: "/displays" },
-      ],
-    },
-    {
-      name: "Tools",
-      paths: ["/macros", "/diagnostics"],
-      items: [
-        { name: "Macros", path: "/macros" },
-        { name: "Diagnostics", path: "/diagnostics" },
-      ],
-    },
-  ];
+  const routedInputs = displayInputs.slice(0, 8);
 
   const handlePresetClick = (presetNumber: number) => {
     if (storeMode) {
@@ -81,54 +62,13 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
            backgroundSize: '20px 20px'
          }}>
       <BrandWatermark className="bottom-4 right-4 opacity-[0.12]" />
-      
-      <header className="h-12 bg-[#16161e] border-b border-[#2a2a3a] flex items-center justify-between px-4 shrink-0 z-50 relative shadow-lg">
-        <div className="flex items-center space-x-6">
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
-            <BrandLogo imageClassName="h-7 w-auto brightness-110" />
-          </div>
-          <nav className="flex space-x-1">
-            {tabs.map((tab) => {
-              const isActive = location === tab.path || (location === "/dashboard" && tab.path === "/");
-              return (
-                <Link key={tab.name} href={tab.path} className={`px-3 py-1.5 ${isActive ? 'bg-[#252535] text-cyan-400 border-t-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#1e1e2a]'} transition-colors block`}>
-                  {tab.name}
-                </Link>
-              );
-            })}
-            {tabGroups.map((group) => {
-              const isActive = group.paths.includes(location);
-              return (
-                <DropdownMenu key={group.name}>
-                  <DropdownMenuTrigger asChild>
-                    <button className={`px-3 py-1.5 ${isActive ? 'bg-[#252535] text-cyan-400 border-t-2 border-cyan-400' : 'text-zinc-400 hover:text-zinc-100 hover:bg-[#1e1e2a]'} transition-colors inline-flex items-center`}>
-                      {group.name}
-                      <ChevronDown className="w-3 h-3 ml-1" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {group.items.map((item) => (
-                      <DropdownMenuItem key={item.path} asChild>
-                        <Link href={item.path} className="cursor-pointer">{item.name}</Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              );
-            })}
-          </nav>
-        </div>
-        <div className="flex items-center space-x-4 text-[10px] text-zinc-400">
-          <RehearsalToggle />
-          <OperatorStatusStrip compact tone="broadcast" />
-          <span className="ml-4 tabular-nums text-zinc-300">{currentTime}</span>
-          <ThemeToggle />
-          <SkinSelector />
-        </div>
-      </header>
 
-      <main className="flex-1 p-3 grid grid-cols-12 gap-3 h-[calc(100vh-48px)]">
+      <AppHeader
+        activePage="/"
+        rightContent={<span className="tabular-nums text-zinc-300">{currentTime}</span>}
+      />
+
+      <main className="flex-1 min-h-0 p-3 grid grid-cols-12 gap-3">
         
         <div className="col-span-3 flex flex-col gap-3">
           <div className="bg-[#14141c] border border-[#2a2a3a] rounded-lg flex flex-col flex-1">
@@ -138,29 +78,41 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
             </div>
             <div className="p-3 flex-1 flex flex-col justify-between">
               <div>
-                <div className="text-[10px] text-red-400 mb-1.5 font-semibold">PROGRAM (LIVE)</div>
+                <div className="text-[10px] text-red-400 mb-1.5 font-semibold">
+                  PROGRAM {switcher ? `· ${switcher.name}` : "· NO SWITCHER"}
+                </div>
                 <div className="grid grid-cols-4 gap-1.5 mb-5">
-                  {[1, 2, 3, 4].map(i => (
-                    <button key={`pgm-${i}`} onClick={() => setPgmInput(i)}
-                      className={`h-12 border rounded ${pgmInput === i ? 'bg-red-900/80 border-red-500 text-white shadow-[inset_0_0_12px_rgba(239,68,68,0.3),0_0_8px_rgba(239,68,68,0.2)]' : 'bg-[#1a1a24] border-[#363645] hover:border-[#4a4a5a] hover:bg-[#222230] text-zinc-400'} flex items-center justify-center text-lg font-bold transition-all`}>
-                      {i}
+                  {routedInputs.map(input => (
+                    <button key={`pgm-${input.inputId}`} onClick={() => atemState.connected && setProgramInput(input.inputId)} disabled={!atemState.connected}
+                      className={cn(
+                        "h-12 border rounded flex items-center justify-center text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-45",
+                        atemState.programInput === input.inputId
+                          ? "bg-red-900/80 border-red-500 text-white shadow-[inset_0_0_12px_rgba(239,68,68,0.3),0_0_8px_rgba(239,68,68,0.2)]"
+                          : "bg-[#1a1a24] border-[#363645] hover:border-[#4a4a5a] hover:bg-[#222230] text-zinc-400"
+                      )}>
+                      {input.shortName || input.inputId}
                     </button>
                   ))}
                 </div>
                 <div className="text-[10px] text-green-400 mb-1.5 font-semibold">PREVIEW (NEXT)</div>
                 <div className="grid grid-cols-4 gap-1.5">
-                  {[1, 2, 3, 4].map(i => (
-                    <button key={`pvw-${i}`} onClick={() => setPvwInput(i)}
-                      className={`h-12 border rounded ${pvwInput === i ? 'bg-green-900/80 border-green-500 text-white shadow-[inset_0_0_12px_rgba(34,197,94,0.3),0_0_8px_rgba(34,197,94,0.2)]' : 'bg-[#1a1a24] border-[#363645] hover:border-[#4a4a5a] hover:bg-[#222230] text-zinc-400'} flex items-center justify-center text-lg font-bold transition-all`}>
-                      {i}
+                  {routedInputs.map(input => (
+                    <button key={`pvw-${input.inputId}`} onClick={() => atemState.connected && setPreviewInput(input.inputId)} disabled={!atemState.connected}
+                      className={cn(
+                        "h-12 border rounded flex items-center justify-center text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-45",
+                        atemState.previewInput === input.inputId
+                          ? "bg-green-900/80 border-green-500 text-white shadow-[inset_0_0_12px_rgba(34,197,94,0.3),0_0_8px_rgba(34,197,94,0.2)]"
+                          : "bg-[#1a1a24] border-[#363645] hover:border-[#4a4a5a] hover:bg-[#222230] text-zinc-400"
+                      )}>
+                      {input.shortName || input.inputId}
                     </button>
                   ))}
                 </div>
               </div>
               
               <div className="mt-4 flex gap-2">
-                <button className="flex-1 h-10 bg-[#252535] border border-[#454555] hover:bg-[#303045] text-zinc-200 text-xs rounded font-bold transition-colors">CUT</button>
-                <button className="flex-1 h-10 bg-red-900/60 border border-red-700 hover:bg-red-800/80 text-red-100 text-xs rounded font-bold transition-colors">AUTO</button>
+                <button onClick={cut} disabled={!atemState.connected} className="flex-1 h-10 bg-[#252535] border border-[#454555] hover:bg-[#303045] text-zinc-200 text-xs rounded font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45">CUT</button>
+                <button onClick={auto} disabled={!atemState.connected} className="flex-1 h-10 bg-red-900/60 border border-red-700 hover:bg-red-800/80 text-red-100 text-xs rounded font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45">AUTO</button>
               </div>
             </div>
           </div>
@@ -171,17 +123,23 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
               <Volume2 size={12} className="text-zinc-500" />
             </div>
             <div className="p-3 flex flex-1 gap-2">
-              {['MSTR', 'CAM1', 'CAM2', 'AUX'].map((ch, i) => (
-                <div key={ch} className="flex-1 flex flex-col items-center">
-                  <div className="text-[9px] text-zinc-400 mb-2 font-semibold">{ch}</div>
+              {mixerStripData.map((ch) => (
+                <div key={ch.id} className="flex-1 flex flex-col items-center">
+                  <div className="text-[9px] text-zinc-400 mb-2 font-semibold truncate w-full text-center">{ch.label}</div>
                   <div className="flex-1 w-8 bg-[#0e0e14] border border-[#2a2a3a] relative rounded-md flex justify-center py-2">
-                    <div className="absolute bottom-0 w-full h-[80%] bg-gradient-to-t from-green-500 via-yellow-500 to-red-500 opacity-15 rounded-b-md"></div>
-                    <div className="w-6 h-4 bg-[#404055] border-y-2 border-zinc-300 absolute rounded-sm shadow-md cursor-ns-resize hover:bg-[#505068] transition-colors" style={{ bottom: `${40 + (i * 10)}%` }}></div>
+                    <div className="absolute bottom-0 w-full bg-gradient-to-t from-green-500 via-yellow-500 to-red-500 opacity-20 rounded-b-md" style={{ height: `${ch.muted ? 0 : ch.level}%` }}></div>
+                    <div className="w-6 h-4 bg-[#404055] border-y-2 border-zinc-300 absolute rounded-sm shadow-md transition-colors" style={{ bottom: `${Math.max(0, Math.min(90, ch.level))}%` }}></div>
                     <div className="w-0.5 h-full bg-[#0a0a0f]"></div>
                   </div>
-                  <button className={`mt-2 w-8 h-4 rounded-sm text-[8px] font-bold ${i === 2 ? 'bg-red-800 text-red-100' : 'bg-[#252535] text-zinc-400 hover:bg-[#303040]'} transition-colors`}>ON</button>
+                  <div className={`mt-2 w-8 h-4 rounded-sm text-[8px] font-bold flex items-center justify-center ${ch.muted ? 'bg-red-800 text-red-100' : 'bg-[#252535] text-zinc-400'} transition-colors`}>
+                    {ch.muted ? "MUT" : "ON"}
+                  </div>
                 </div>
               ))}
+            </div>
+            <div className="px-3 pb-2 text-[9px] text-zinc-500 flex justify-between">
+              <span className="truncate">{mixer ? mixer.name : "No mixer configured"}</span>
+              <span>{mixer?.status === "online" ? "LIVE" : mixer ? mixer.status.toUpperCase() : "OFFLINE"}</span>
             </div>
           </div>
         </div>
@@ -265,21 +223,33 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
                 const preset = props.presets.find(p => p.presetNumber === presetSlot);
                 
                 return (
-                  <button 
-                    key={presetSlot}
-                    onClick={() => handlePresetClick(presetSlot)}
-                    className={`aspect-square relative rounded-md border flex items-center justify-center text-[10px] font-bold transition-all text-center px-1 overflow-hidden
-                      ${storeMode
-                        ? 'bg-amber-900/60 border-amber-500 text-amber-100 animate-pulse'
-                        : preset 
-                          ? 'bg-cyan-900/40 border-cyan-600 text-cyan-200 hover:border-cyan-400 hover:bg-cyan-800/50' 
-                          : 'bg-[#1a1a24] border-[#363645] text-zinc-500 hover:border-[#505060] hover:text-zinc-300 hover:bg-[#222230]'
-                      }
-                    `}
-                  >
-                    <span className="absolute top-1 left-1 text-[8px] opacity-60 font-normal">P{presetSlot + 1}</span>
-                    <span className="mt-2 w-full truncate">{preset?.name || ''}</span>
-                  </button>
+                  <div key={presetSlot} className="relative group min-h-0">
+                    <button
+                      onClick={() => handlePresetClick(presetSlot)}
+                      className={`aspect-square w-full relative rounded-md border flex items-center justify-center text-[10px] font-bold transition-all text-center px-1 overflow-hidden
+                        ${storeMode
+                          ? 'bg-amber-900/60 border-amber-500 text-amber-100 animate-pulse'
+                          : preset
+                            ? 'bg-cyan-900/40 border-cyan-600 text-cyan-200 hover:border-cyan-400 hover:bg-cyan-800/50'
+                            : 'bg-[#1a1a24] border-[#363645] text-zinc-500 hover:border-[#505060] hover:text-zinc-300 hover:bg-[#222230]'
+                        }
+                      `}
+                    >
+                      <span className="absolute top-1 left-1 text-[8px] opacity-60 font-normal">P{presetSlot + 1}</span>
+                      <span className="mt-2 w-full truncate">{preset?.name || ''}</span>
+                    </button>
+                    {preset && !storeMode && (
+                      <button
+                        type="button"
+                        onClick={() => props.onManagePreset(preset)}
+                        className="absolute right-1 top-1 z-10 flex h-5 w-5 items-center justify-center rounded border border-[#363645] bg-[#0c0c10]/85 text-zinc-400 opacity-0 transition-opacity hover:border-cyan-500 hover:text-cyan-200 group-hover:opacity-100 focus:opacity-100"
+                        aria-label={`Manage preset ${presetSlot + 1}`}
+                        data-testid={`button-manage-preset-${presetSlot}`}
+                      >
+                        <Settings className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -299,12 +269,29 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
               <Activity size={12} className="text-zinc-500" />
             </div>
             <div className="p-3 grid grid-cols-2 gap-2 flex-1">
-              {['WORSHIP', 'SERMON', 'BAPTISM', 'WALKIN'].map((macro) => (
-                <button key={macro} className="bg-[#1a1a24] border border-[#363645] rounded hover:border-[#505060] hover:bg-[#222230] text-[10px] text-zinc-300 flex items-center justify-start px-3 py-2 relative overflow-hidden transition-colors font-semibold">
-                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400/70 mr-2"></div>
-                  {macro}
-                </button>
-              ))}
+              {sceneButtons.length === 0 ? (
+                <Link href="/scenes" className="col-span-full bg-[#1a1a24] border border-[#363645] rounded hover:border-[#505060] hover:bg-[#222230] text-[10px] text-zinc-400 flex items-center justify-center px-3 py-2 relative overflow-hidden transition-colors font-semibold">
+                  CONFIGURE SCENES
+                </Link>
+              ) : sceneButtons.map((scene) => {
+                const isActive = activeSceneId === scene.id;
+                const shortcutLabel = CONTROL_SURFACE_SCENE_SHORTCUTS.find((shortcut) => shortcut.buttonNumber === scene.buttonNumber)?.label;
+                return (
+                  <button
+                    key={scene.id}
+                    onClick={() => executeScene(scene.id)}
+                    disabled={sceneExecuting}
+                    className={cn(
+                      "bg-[#1a1a24] border border-[#363645] rounded hover:border-[#505060] hover:bg-[#222230] text-[10px] text-zinc-300 flex items-center justify-start px-3 py-2 relative overflow-hidden transition-colors font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+                      isActive && "border-amber-400 text-amber-100"
+                    )}
+                  >
+                    <div className="w-1.5 h-1.5 rounded-full mr-2" style={{ backgroundColor: scene.color }}></div>
+                    <span className="truncate">{scene.name}</span>
+                    {shortcutLabel && <span className="ml-auto text-[8px] text-zinc-500">{shortcutLabel}</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
