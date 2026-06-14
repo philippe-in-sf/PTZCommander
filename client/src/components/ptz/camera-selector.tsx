@@ -5,9 +5,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getCameraAssignmentNumberFromName, sortCamerasByAssignmentName } from "@shared/camera-import";
+import {
+  atemInputIdForCameraAssignment,
+  formatCameraAssignmentName,
+  getCameraAssignmentNumberFromName,
+  sortCamerasByAssignmentName,
+} from "@shared/camera-import";
 
 const CUSTOM_CAMERA_ASSIGNMENT = "custom";
+const parseAtemInputId = (value: string) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
 
 export interface CameraData {
   id: number;
@@ -94,14 +103,18 @@ export function CameraSelector({
       ...editForm,
       name,
       assignment: assignment ? String(assignment) : CUSTOM_CAMERA_ASSIGNMENT,
+      atemInputId: assignment ? String(assignment) : editForm.atemInputId,
     });
   };
 
   const handleAssignmentChange = (assignment: string) => {
+    const nextAssignment = assignment === CUSTOM_CAMERA_ASSIGNMENT ? null : Number.parseInt(assignment, 10);
+
     setEditForm({
       ...editForm,
       assignment,
-      name: assignment === CUSTOM_CAMERA_ASSIGNMENT ? editForm.name : `Camera ${assignment}`,
+      name: nextAssignment ? formatCameraAssignmentName(nextAssignment) : editForm.name,
+      atemInputId: nextAssignment ? String(nextAssignment) : editForm.atemInputId,
     });
   };
 
@@ -127,14 +140,15 @@ export function CameraSelector({
     streamUrl: overrides.streamUrl ?? (camera.previewType === 'none' ? null : camera.streamUrl ?? null),
     previewType: overrides.previewType ?? camera.previewType ?? (camera.streamUrl ? 'snapshot' : 'none'),
     previewRefreshMs: overrides.previewRefreshMs ?? Math.max(250, camera.previewRefreshMs ?? 2000),
-    atemInputId: overrides.atemInputId ?? camera.atemInputId ?? null,
+    atemInputId: "atemInputId" in overrides ? overrides.atemInputId ?? null : camera.atemInputId ?? null,
   });
 
   const handleSave = () => {
     if (editingCamera && onUpdateCamera) {
       if (assignmentConflict && currentAssignment && currentAssignment !== selectedAssignment) {
         onUpdateCamera(assignmentConflict.id, cameraUpdatePayload(assignmentConflict, {
-          name: `Camera ${currentAssignment}`,
+          name: formatCameraAssignmentName(currentAssignment),
+          atemInputId: atemInputIdForCameraAssignment(currentAssignment, assignmentConflict.atemInputId ?? null),
         }));
       }
 
@@ -147,7 +161,7 @@ export function CameraSelector({
         streamUrl: editForm.previewType === 'none' ? null : editForm.streamUrl || null,
         previewType: editForm.previewType,
         previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
-        atemInputId: editForm.atemInputId ? parseInt(editForm.atemInputId) : null,
+        atemInputId: atemInputIdForCameraAssignment(selectedAssignment, parseAtemInputId(editForm.atemInputId)),
       }));
     }
     setEditingCamera(null);
