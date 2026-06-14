@@ -14,8 +14,8 @@ import {
 
 const CUSTOM_CAMERA_ASSIGNMENT = "custom";
 const parseAtemInputId = (value: string) => {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  if (!/^[1-9]\d*$/.test(value.trim())) return null;
+  return Number.parseInt(value, 10);
 };
 
 export interface CameraData {
@@ -71,11 +71,13 @@ export function CameraSelector({
   const maxAssignment = Math.max(4, cameras.length + 1, ...assignmentNumbers);
   const assignmentOptions = Array.from({ length: maxAssignment }, (_, index) => index + 1);
   const selectedAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT ? null : Number.parseInt(editForm.assignment, 10);
+  const effectiveAssignment = getCameraAssignmentNumberFromName(editForm.name);
   const currentAssignment = editingCamera ? getCameraAssignmentNumberFromName(editingCamera.name) : null;
-  const assignmentConflict = selectedAssignment
-    ? cameras.find((camera) => camera.id !== editingCamera?.id && getCameraAssignmentNumberFromName(camera.name) === selectedAssignment)
+  const assignmentConflict = effectiveAssignment
+    ? cameras.find((camera) => camera.id !== editingCamera?.id && getCameraAssignmentNumberFromName(camera.name) === effectiveAssignment)
     : null;
-  const willSwapAssignment = Boolean(assignmentConflict && currentAssignment && currentAssignment !== selectedAssignment);
+  const willSwapAssignment = Boolean(assignmentConflict && currentAssignment && currentAssignment !== effectiveAssignment);
+  const hasBlockingAssignmentConflict = Boolean(assignmentConflict && !willSwapAssignment);
 
   const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
     e.stopPropagation();
@@ -144,8 +146,10 @@ export function CameraSelector({
   });
 
   const handleSave = () => {
+    if (hasBlockingAssignmentConflict) return;
+
     if (editingCamera && onUpdateCamera) {
-      if (assignmentConflict && currentAssignment && currentAssignment !== selectedAssignment) {
+      if (assignmentConflict && currentAssignment && currentAssignment !== effectiveAssignment) {
         onUpdateCamera(assignmentConflict.id, cameraUpdatePayload(assignmentConflict, {
           name: formatCameraAssignmentName(currentAssignment),
           atemInputId: atemInputIdForCameraAssignment(currentAssignment, assignmentConflict.atemInputId ?? null),
@@ -161,7 +165,7 @@ export function CameraSelector({
         streamUrl: editForm.previewType === 'none' ? null : editForm.streamUrl || null,
         previewType: editForm.previewType,
         previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
-        atemInputId: atemInputIdForCameraAssignment(selectedAssignment, parseAtemInputId(editForm.atemInputId)),
+        atemInputId: atemInputIdForCameraAssignment(effectiveAssignment, parseAtemInputId(editForm.atemInputId)),
       }));
     }
     setEditingCamera(null);
@@ -461,7 +465,7 @@ export function CameraSelector({
               </div>
               
               <div className="flex gap-2">
-                <Button onClick={handleSave} className="flex-1" data-testid="button-save-camera">
+                <Button onClick={handleSave} disabled={hasBlockingAssignmentConflict} className="flex-1" data-testid="button-save-camera">
                   Save Changes
                 </Button>
                 <Button 

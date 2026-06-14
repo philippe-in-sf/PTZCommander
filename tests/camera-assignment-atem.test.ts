@@ -29,13 +29,18 @@ test("camera selector updates and saves ATEM inputs from numbered assignments", 
   assert.match(selector, /atemInputIdForCameraAssignment/);
   assert.match(selector, /formatCameraAssignmentName/);
   assert.match(selector, /const parseAtemInputId = \(value: string\) =>/);
+  assert.ok(selector.includes("if (!/^[1-9]\\d*$/.test(value.trim())) return null;"));
   assert.match(selector, /const nextAssignment = assignment === CUSTOM_CAMERA_ASSIGNMENT \? null : Number\.parseInt\(assignment, 10\);/);
+  assert.match(selector, /const effectiveAssignment = getCameraAssignmentNumberFromName\(editForm\.name\);/);
+  assert.match(selector, /const hasBlockingAssignmentConflict = Boolean\(assignmentConflict && !willSwapAssignment\);/);
   assert.match(selector, /name: nextAssignment \? formatCameraAssignmentName\(nextAssignment\) : editForm\.name,/);
   assert.match(selector, /atemInputId: nextAssignment \? String\(nextAssignment\) : editForm\.atemInputId,/);
   assert.match(selector, /atemInputId: "atemInputId" in overrides \? overrides\.atemInputId \?\? null : camera\.atemInputId \?\? null,/);
+  assert.match(selector, /if \(hasBlockingAssignmentConflict\) return;/);
   assert.match(selector, /name: formatCameraAssignmentName\(currentAssignment\),/);
   assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(currentAssignment, assignmentConflict\.atemInputId \?\? null\),/);
-  assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(selectedAssignment, parseAtemInputId\(editForm\.atemInputId\)\),/);
+  assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(effectiveAssignment, parseAtemInputId\(editForm\.atemInputId\)\),/);
+  assert.match(selector, /disabled=\{hasBlockingAssignmentConflict\}/);
 });
 
 test("camera route logs safe assignment and ATEM input updates", () => {
