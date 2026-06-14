@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   atemInputIdForCameraAssignment,
+  atemInputValueForAssignmentSelection,
+  cameraNameForAssignmentSelection,
   formatCameraAssignmentName,
 } from "@shared/camera-import";
 
@@ -23,6 +25,21 @@ test("custom camera assignments preserve manual ATEM inputs", () => {
   assert.equal(atemInputIdForCameraAssignment(null, null), null);
 });
 
+test("custom assignment selection clears stale numbered camera values", () => {
+  assert.equal(cameraNameForAssignmentSelection(null, "Camera 4"), "");
+  assert.equal(atemInputValueForAssignmentSelection(null, 4, "4"), "");
+});
+
+test("custom assignment selection preserves explicit custom values", () => {
+  assert.equal(cameraNameForAssignmentSelection(null, "Wide Shot"), "Wide Shot");
+  assert.equal(atemInputValueForAssignmentSelection(null, 4, "7"), "7");
+});
+
+test("numbered assignment selection derives matching display values", () => {
+  assert.equal(cameraNameForAssignmentSelection(2, "Wide Shot"), "Camera 2");
+  assert.equal(atemInputValueForAssignmentSelection(2, null, "7"), "2");
+});
+
 test("camera selector updates and saves ATEM inputs from numbered assignments", () => {
   const selector = source("client/src/components/ptz/camera-selector.tsx");
 
@@ -31,16 +48,19 @@ test("camera selector updates and saves ATEM inputs from numbered assignments", 
   assert.match(selector, /const parseAtemInputId = \(value: string\) =>/);
   assert.ok(selector.includes("if (!/^[1-9]\\d*$/.test(value.trim())) return null;"));
   assert.match(selector, /const nextAssignment = assignment === CUSTOM_CAMERA_ASSIGNMENT \? null : Number\.parseInt\(assignment, 10\);/);
-  assert.match(selector, /const effectiveAssignment = getCameraAssignmentNumberFromName\(editForm\.name\);/);
+  assert.match(selector, /const previousAssignment = editForm\.assignment === CUSTOM_CAMERA_ASSIGNMENT\s*\? null\s*: Number\.parseInt\(editForm\.assignment, 10\);/);
+  assert.match(selector, /const effectiveAssignment = editForm\.assignment === CUSTOM_CAMERA_ASSIGNMENT\s*\? null\s*: getCameraAssignmentNumberFromName\(editForm\.name\);/);
   assert.match(selector, /const hasBlockingAssignmentConflict = Boolean\(assignmentConflict && !willSwapAssignment\);/);
-  assert.match(selector, /name: nextAssignment \? formatCameraAssignmentName\(nextAssignment\) : editForm\.name,/);
-  assert.match(selector, /atemInputId: nextAssignment \? String\(nextAssignment\) : editForm\.atemInputId,/);
+  assert.match(selector, /const hasBlankCameraName = editForm\.name\.trim\(\)\.length === 0;/);
+  assert.match(selector, /name: cameraNameForAssignmentSelection\(nextAssignment, editForm\.name\),/);
+  assert.match(selector, /atemInputId: atemInputValueForAssignmentSelection\(nextAssignment, previousAssignment, editForm\.atemInputId\),/);
   assert.match(selector, /atemInputId: "atemInputId" in overrides \? overrides\.atemInputId \?\? null : camera\.atemInputId \?\? null,/);
+  assert.match(selector, /if \(hasBlankCameraName\) return;/);
   assert.match(selector, /if \(hasBlockingAssignmentConflict\) return;/);
   assert.match(selector, /name: formatCameraAssignmentName\(currentAssignment\),/);
   assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(currentAssignment, assignmentConflict\.atemInputId \?\? null\),/);
   assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(effectiveAssignment, parseAtemInputId\(editForm\.atemInputId\)\),/);
-  assert.match(selector, /disabled=\{hasBlockingAssignmentConflict\}/);
+  assert.match(selector, /disabled=\{hasBlockingAssignmentConflict \|\| hasBlankCameraName\}/);
 });
 
 test("camera route logs safe assignment and ATEM input updates", () => {
@@ -59,5 +79,7 @@ test("camera route logs safe assignment and ATEM input updates", () => {
   assert.match(logBlock, /previousAtemInputId/);
   assert.match(logBlock, /atemInputId/);
   assert.doesNotMatch(logBlock, /password/i);
+  assert.doesNotMatch(logBlock, /username/i);
   assert.doesNotMatch(logBlock, /streamUrl/);
+  assert.doesNotMatch(logBlock, /previewUrl/i);
 });

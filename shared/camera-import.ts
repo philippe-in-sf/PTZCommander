@@ -44,6 +44,21 @@ export function atemInputIdForCameraAssignment(
   return assignment ?? manualAtemInputId;
 }
 
+export function cameraNameForAssignmentSelection(assignment: number | null, currentName: string) {
+  if (assignment) return formatCameraAssignmentName(assignment);
+  return getCameraAssignmentNumberFromName(currentName) ? "" : currentName;
+}
+
+export function atemInputValueForAssignmentSelection(
+  assignment: number | null,
+  previousAssignment: number | null,
+  currentAtemInputValue: string,
+) {
+  if (assignment) return String(assignment);
+  if (previousAssignment && currentAtemInputValue.trim() === String(previousAssignment)) return "";
+  return currentAtemInputValue;
+}
+
 function compareCameraAssignmentNames(aName: string, bName: string) {
   const aAssignment = getCameraAssignmentNumberFromName(aName);
   const bAssignment = getCameraAssignmentNumberFromName(bName);

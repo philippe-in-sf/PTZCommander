@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   atemInputIdForCameraAssignment,
+  atemInputValueForAssignmentSelection,
+  cameraNameForAssignmentSelection,
   formatCameraAssignmentName,
   getCameraAssignmentNumberFromName,
   sortCamerasByAssignmentName,
@@ -70,13 +72,16 @@ export function CameraSelector({
     .filter((assignment): assignment is number => assignment !== null);
   const maxAssignment = Math.max(4, cameras.length + 1, ...assignmentNumbers);
   const assignmentOptions = Array.from({ length: maxAssignment }, (_, index) => index + 1);
-  const effectiveAssignment = getCameraAssignmentNumberFromName(editForm.name);
+  const effectiveAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT
+    ? null
+    : getCameraAssignmentNumberFromName(editForm.name);
   const currentAssignment = editingCamera ? getCameraAssignmentNumberFromName(editingCamera.name) : null;
   const assignmentConflict = effectiveAssignment
     ? cameras.find((camera) => camera.id !== editingCamera?.id && getCameraAssignmentNumberFromName(camera.name) === effectiveAssignment)
     : null;
   const willSwapAssignment = Boolean(assignmentConflict && currentAssignment && currentAssignment !== effectiveAssignment);
   const hasBlockingAssignmentConflict = Boolean(assignmentConflict && !willSwapAssignment);
+  const hasBlankCameraName = editForm.name.trim().length === 0;
 
   const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
     e.stopPropagation();
@@ -100,22 +105,28 @@ export function CameraSelector({
 
   const handleNameChange = (name: string) => {
     const assignment = getCameraAssignmentNumberFromName(name);
+    const previousAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT
+      ? null
+      : Number.parseInt(editForm.assignment, 10);
     setEditForm({
       ...editForm,
       name,
       assignment: assignment ? String(assignment) : CUSTOM_CAMERA_ASSIGNMENT,
-      atemInputId: assignment ? String(assignment) : editForm.atemInputId,
+      atemInputId: atemInputValueForAssignmentSelection(assignment, previousAssignment, editForm.atemInputId),
     });
   };
 
   const handleAssignmentChange = (assignment: string) => {
     const nextAssignment = assignment === CUSTOM_CAMERA_ASSIGNMENT ? null : Number.parseInt(assignment, 10);
+    const previousAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT
+      ? null
+      : Number.parseInt(editForm.assignment, 10);
 
     setEditForm({
       ...editForm,
       assignment,
-      name: nextAssignment ? formatCameraAssignmentName(nextAssignment) : editForm.name,
-      atemInputId: nextAssignment ? String(nextAssignment) : editForm.atemInputId,
+      name: cameraNameForAssignmentSelection(nextAssignment, editForm.name),
+      atemInputId: atemInputValueForAssignmentSelection(nextAssignment, previousAssignment, editForm.atemInputId),
     });
   };
 
@@ -145,6 +156,7 @@ export function CameraSelector({
   });
 
   const handleSave = () => {
+    if (hasBlankCameraName) return;
     if (hasBlockingAssignmentConflict) return;
 
     if (editingCamera && onUpdateCamera) {
@@ -322,6 +334,11 @@ export function CameraSelector({
                   onChange={(e) => handleNameChange(e.target.value)}
                   data-testid="input-camera-name"
                 />
+                {hasBlankCameraName && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Enter a custom camera name.
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="edit-ip">IP Address</Label>
@@ -464,7 +481,7 @@ export function CameraSelector({
               </div>
               
               <div className="flex gap-2">
-                <Button onClick={handleSave} disabled={hasBlockingAssignmentConflict} className="flex-1" data-testid="button-save-camera">
+                <Button onClick={handleSave} disabled={hasBlockingAssignmentConflict || hasBlankCameraName} className="flex-1" data-testid="button-save-camera">
                   Save Changes
                 </Button>
                 <Button 
