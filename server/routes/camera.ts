@@ -655,6 +655,21 @@ export function registerCameraRoutes(ctx: RouteContext) {
       if (!camera) {
         return res.status(404).json({ message: "Camera not found" });
       }
+      const assignmentChanged = previousCamera.name !== camera.name;
+      const atemInputChanged = previousCamera.atemInputId !== camera.atemInputId;
+
+      if (assignmentChanged || atemInputChanged) {
+        logger.info("camera", "Camera assignment or ATEM input changed", {
+          action: "camera:assignment_atem_update",
+          details: {
+            cameraId: camera.id,
+            previousName: previousCamera.name,
+            name: camera.name,
+            previousAtemInputId: previousCamera.atemInputId ?? null,
+            atemInputId: camera.atemInputId ?? null,
+          },
+        });
+      }
       if (
         result.data.ip !== undefined ||
         result.data.port !== undefined ||
