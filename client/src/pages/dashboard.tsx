@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraSelector } from "@/components/ptz/camera-selector";
@@ -19,6 +19,7 @@ import { useSkin } from "@/lib/skin-context";
 import BroadcastConsole from "@/components/skins/broadcast-console";
 import StudioGlass from "@/components/skins/studio-glass";
 import CommandCenter from "@/components/skins/command-center";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import { Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, obsApi, presetApi, undoApi, type DiscoveredCamera } from "@/lib/api";
@@ -41,14 +42,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Camera, Preset } from "@shared/schema";
+import {
+  buildDefaultCameraImportAssignments,
+  buildDiscoveredCameraImportPayload,
+  findDuplicateCameraImportAssignments,
+  getCameraAssignmentNumberFromName,
+  getDiscoveredCameraImportKey,
+  type CameraImportAssignments,
+} from "@shared/camera-import";
 import { normalizePresetName, requiresProgramRecallConfirmation } from "@shared/preset-management";
 
 const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
 type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser";
-
-function discoveredCameraKey(camera: Pick<DiscoveredCamera, "ip" | "port">) {
-  return `${camera.ip}:${camera.port}`;
-}
 
 function parseDiscoveryPorts(value: string) {
   const ports = value
@@ -67,12 +72,14 @@ function parseDiscoveryPorts(value: string) {
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const { skin } = useSkin();
+  const { openDeviceSetup } = useDeviceSetup();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [addCameraOpen, setAddCameraOpen] = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [discoverySubnet, setDiscoverySubnet] = useState("");
   const [discoveryPorts, setDiscoveryPorts] = useState("52381, 1259, 5678");
   const [selectedDiscovered, setSelectedDiscovered] = useState<Set<string>>(new Set());
+  const [cameraImportAssignments, setCameraImportAssignments] = useState<CameraImportAssignments>({});
   const [hasAutoPromptedDiscovery, setHasAutoPromptedDiscovery] = useState(() => {
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem(FIRST_RUN_DISCOVERY_KEY) === "true";
@@ -268,7 +275,8 @@ export default function Dashboard() {
     },
     onSuccess: (data) => {
       const selectable = data.cameras.filter((camera) => !camera.alreadyConfigured);
-      setSelectedDiscovered(new Set(selectable.map(discoveredCameraKey)));
+      setSelectedDiscovered(new Set(selectable.map(getDiscoveredCameraImportKey)));
+      setCameraImportAssignments(buildDefaultCameraImportAssignments(cameras, data.cameras));
       if (data.cameras.length === 0) {
         toast.info("No VISCA cameras found");
       } else {
@@ -283,18 +291,19 @@ export default function Dashboard() {
   const importDiscoveredMutation = useMutation({
     mutationFn: () => {
       const selected = discoverCamerasMutation.data?.cameras.filter((camera) =>
-        selectedDiscovered.has(discoveredCameraKey(camera)) && !camera.alreadyConfigured
+        selectedDiscovered.has(getDiscoveredCameraImportKey(camera)) && !camera.alreadyConfigured
       ) || [];
 
       if (selected.length === 0) {
         throw new Error("Select at least one discovered camera");
       }
 
-      return cameraApi.importDiscovered(selected.map((camera) => ({
-        ip: camera.ip,
-        port: camera.port,
-        name: camera.name,
-      })));
+      const duplicateAssignments = findDuplicateCameraImportAssignments(selected, cameraImportAssignments);
+      if (duplicateAssignments.length > 0) {
+        throw new Error(`Camera ${duplicateAssignments.join(", ")} assigned more than once`);
+      }
+
+      return cameraApi.importDiscovered(buildDiscoveredCameraImportPayload(selected, cameraImportAssignments));
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["cameras"] });
@@ -431,12 +440,30 @@ export default function Dashboard() {
 
   const selectedCam = cameras.find(c => c.id === selectedId);
   const discoveredCameras = discoverCamerasMutation.data?.cameras || [];
-  const selectedDiscoveredCount = discoveredCameras.filter((camera) =>
-    selectedDiscovered.has(discoveredCameraKey(camera)) && !camera.alreadyConfigured
-  ).length;
+  const selectedDiscoveredCameras = discoveredCameras.filter((camera) =>
+    selectedDiscovered.has(getDiscoveredCameraImportKey(camera)) && !camera.alreadyConfigured
+  );
+  const selectedDiscoveredCount = selectedDiscoveredCameras.length;
+  const duplicateImportAssignments = findDuplicateCameraImportAssignments(selectedDiscoveredCameras, cameraImportAssignments);
+  const configuredCameraAssignments = useMemo(() => {
+    const assignments = new Set<number>();
+    for (const camera of cameras) {
+      const assignment = getCameraAssignmentNumberFromName(camera.name);
+      if (assignment) assignments.add(assignment);
+    }
+    return assignments;
+  }, [cameras]);
+  const cameraImportAssignmentOptions = useMemo(() => {
+    const maxAssignment = Math.max(
+      8,
+      cameras.length + discoveredCameras.filter((camera) => !camera.alreadyConfigured).length,
+      ...Object.values(cameraImportAssignments),
+    );
+    return Array.from({ length: maxAssignment }, (_, index) => index + 1);
+  }, [cameraImportAssignments, cameras.length, discoveredCameras]);
 
   const toggleDiscoveredCamera = (camera: DiscoveredCamera, checked: boolean) => {
-    const key = discoveredCameraKey(camera);
+    const key = getDiscoveredCameraImportKey(camera);
     setSelectedDiscovered((current) => {
       const next = new Set(current);
       if (checked) {
@@ -446,6 +473,11 @@ export default function Dashboard() {
       }
       return next;
     });
+  };
+
+  const updateDiscoveredCameraAssignment = (camera: DiscoveredCamera, assignment: number) => {
+    const key = getDiscoveredCameraImportKey(camera);
+    setCameraImportAssignments((current) => ({ ...current, [key]: assignment }));
   };
 
   const handleJoystickMove = (x: number, y: number) => {
@@ -524,6 +556,7 @@ export default function Dashboard() {
     onSelectCamera: handleSelect,
     onRecallPreset: handleRecallPreset,
     onStorePreset: handleStorePreset,
+    onManagePreset: setManagingPreset,
     onJoystickMove: handleJoystickMove,
     onJoystickStop: handleJoystickStop,
     onZoom: (v: number) => ws?.zoom(selectedId!, v / 50 - 1, 0.5),
@@ -532,9 +565,58 @@ export default function Dashboard() {
     ws,
   };
 
+  const presetManagementDialogs = (
+    <>
+      <PresetManagementDialog
+        preset={managingPreset}
+        cameraName={selectedCam?.name}
+        open={!!managingPreset}
+        onOpenChange={(open) => !open && setManagingPreset(null)}
+        onSaveName={(preset, name) => updatePresetMutation.mutate({ preset, name: normalizePresetName(name || "") })}
+        onRefreshThumbnail={(preset) => refreshPresetThumbnailMutation.mutate(preset.id)}
+        onDelete={(preset) => deletePresetMutation.mutate(preset)}
+        onRecall={requestPresetRecall}
+        saving={updatePresetMutation.isPending}
+        refreshing={refreshPresetThumbnailMutation.isPending}
+        deleting={deletePresetMutation.isPending}
+        recalling={recallPresetMutation.isPending}
+      />
+
+      <AlertDialog open={!!pendingProgramRecall} onOpenChange={(open) => !open && setPendingProgramRecall(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Recall preset on program camera?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedCam?.name || "This camera"} is currently marked as program. Recalling preset {pendingProgramRecall ? pendingProgramRecall.presetNumber + 1 : ""} will move the live camera.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingProgramRecall) recallPreset(pendingProgramRecall);
+                setPendingProgramRecall(null);
+              }}
+              className="bg-red-600 text-white hover:bg-red-700"
+              data-testid="button-confirm-program-preset-recall"
+            >
+              Recall Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+
   if (skin !== "classic") {
     const SkinComponent = skin === "broadcast" ? BroadcastConsole : skin === "glass" ? StudioGlass : CommandCenter;
-    return <SkinComponent {...skinProps} />;
+    const skinDashboard = <SkinComponent {...skinProps} />;
+    return (
+      <>
+        {skinDashboard}
+        {presetManagementDialogs}
+      </>
+    );
   }
 
   return (
@@ -611,6 +693,7 @@ export default function Dashboard() {
               queryClient.invalidateQueries({ queryKey: ["obs-status"] });
               queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
             }}
+            onAddViaWizard={() => openDeviceSetup({ type: "obs" })}
           />
         </section>
 
@@ -707,17 +790,21 @@ export default function Dashboard() {
                         ) : (
                           <div className="max-h-72 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg divide-y divide-slate-200 dark:divide-slate-800">
                             {discoveredCameras.map((camera) => {
-                              const key = discoveredCameraKey(camera);
+                              const key = getDiscoveredCameraImportKey(camera);
+                              const assignment = cameraImportAssignments[key] ?? 1;
+                              const isSelectedForImport = selectedDiscovered.has(key) && !camera.alreadyConfigured;
+                              const hasDuplicateAssignment = isSelectedForImport && duplicateImportAssignments.includes(assignment);
                               return (
-                                <label
+                                <div
                                   key={key}
                                   className={cn(
                                     "flex items-center gap-3 p-3 text-sm",
-                                    camera.alreadyConfigured ? "opacity-60" : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60"
+                                    camera.alreadyConfigured ? "opacity-60" : "hover:bg-slate-100 dark:hover:bg-slate-900/60",
+                                    hasDuplicateAssignment && "bg-amber-50 dark:bg-amber-950/20"
                                   )}
                                 >
                                   <Checkbox
-                                    checked={selectedDiscovered.has(key)}
+                                    checked={isSelectedForImport}
                                     disabled={camera.alreadyConfigured}
                                     onCheckedChange={(checked) => toggleDiscoveredCamera(camera, checked === true)}
                                     data-testid={`checkbox-discovered-camera-${camera.ip}-${camera.port}`}
@@ -729,16 +816,50 @@ export default function Dashboard() {
                                   <Badge variant={camera.confidence === "confirmed" ? "default" : "outline"}>
                                     {camera.confidence === "confirmed" ? "VISCA confirmed" : "Port open"}
                                   </Badge>
+                                  <div className="w-32 shrink-0">
+                                    <Label
+                                      htmlFor={`assignment-${camera.ip}-${camera.port}`}
+                                      className="mb-1 block text-[10px] font-mono uppercase text-slate-500"
+                                    >
+                                      Assignment
+                                    </Label>
+                                    <select
+                                      id={`assignment-${camera.ip}-${camera.port}`}
+                                      value={assignment}
+                                      disabled={camera.alreadyConfigured}
+                                      onChange={(event) => updateDiscoveredCameraAssignment(camera, Number.parseInt(event.target.value, 10))}
+                                      className={cn(
+                                        "h-9 w-full rounded-md border border-input bg-background px-2 text-xs ring-offset-background",
+                                        hasDuplicateAssignment && "border-amber-500 text-amber-700 dark:text-amber-200"
+                                      )}
+                                      data-testid={`select-discovered-camera-assignment-${camera.ip}-${camera.port}`}
+                                    >
+                                      {cameraImportAssignmentOptions.map((option) => {
+                                        const isConfigured = configuredCameraAssignments.has(option);
+                                        return (
+                                          <option key={option} value={option} disabled={isConfigured && option !== assignment}>
+                                            Camera {option}{isConfigured && option !== assignment ? " (configured)" : ""}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  </div>
                                   {camera.alreadyConfigured && <Badge variant="secondary">Configured</Badge>}
-                                </label>
+                                </div>
                               );
                             })}
                           </div>
                         )}
 
+                        {duplicateImportAssignments.length > 0 && (
+                          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                            Camera {duplicateImportAssignments.join(", ")} assigned more than once.
+                          </div>
+                        )}
+
                         <Button
                           onClick={() => importDiscoveredMutation.mutate()}
-                          disabled={selectedDiscoveredCount === 0 || importDiscoveredMutation.isPending}
+                          disabled={selectedDiscoveredCount === 0 || duplicateImportAssignments.length > 0 || importDiscoveredMutation.isPending}
                           className="w-full"
                           data-testid="button-import-discovered-cameras"
                         >
@@ -751,11 +872,15 @@ export default function Dashboard() {
               </Dialog>
 
               <Dialog open={addCameraOpen} onOpenChange={setAddCameraOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="text-xs" data-testid="button-add-camera">
-                    <Plus className="w-3 h-3 mr-1" /> Add Camera
-                  </Button>
-                </DialogTrigger>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => openDeviceSetup({ type: "camera" })}
+                  data-testid="button-add-camera"
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Add Camera
+                </Button>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add PTZ Camera</DialogTitle>
@@ -887,7 +1012,7 @@ export default function Dashboard() {
                 <Button onClick={() => setDiscoverOpen(true)} data-testid="button-find-first-camera">
                   <Search className="w-4 h-4 mr-2" /> Find Cameras
                 </Button>
-                <Button variant="outline" onClick={() => setAddCameraOpen(true)} data-testid="button-add-first-camera">
+                <Button variant="outline" onClick={() => openDeviceSetup({ type: "camera" })} data-testid="button-add-first-camera">
                   <Plus className="w-4 h-4 mr-2" /> Add Manually
                 </Button>
               </div>
@@ -974,44 +1099,7 @@ export default function Dashboard() {
           </section>
         )}
 
-        <PresetManagementDialog
-          preset={managingPreset}
-          cameraName={selectedCam?.name}
-          open={!!managingPreset}
-          onOpenChange={(open) => !open && setManagingPreset(null)}
-          onSaveName={(preset, name) => updatePresetMutation.mutate({ preset, name: normalizePresetName(name || "") })}
-          onRefreshThumbnail={(preset) => refreshPresetThumbnailMutation.mutate(preset.id)}
-          onDelete={(preset) => deletePresetMutation.mutate(preset)}
-          onRecall={requestPresetRecall}
-          saving={updatePresetMutation.isPending}
-          refreshing={refreshPresetThumbnailMutation.isPending}
-          deleting={deletePresetMutation.isPending}
-          recalling={recallPresetMutation.isPending}
-        />
-
-        <AlertDialog open={!!pendingProgramRecall} onOpenChange={(open) => !open && setPendingProgramRecall(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Recall preset on program camera?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {selectedCam?.name || "This camera"} is currently marked as program. Recalling preset {pendingProgramRecall ? pendingProgramRecall.presetNumber + 1 : ""} will move the live camera.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (pendingProgramRecall) recallPreset(pendingProgramRecall);
-                  setPendingProgramRecall(null);
-                }}
-                className="bg-red-600 text-white hover:bg-red-700"
-                data-testid="button-confirm-program-preset-recall"
-              >
-                Recall Anyway
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {presetManagementDialogs}
       </main>
     </div>
   );

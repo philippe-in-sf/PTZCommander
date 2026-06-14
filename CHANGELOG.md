@@ -2,6 +2,23 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.9] - 2026-06-13
+
+### Added
+- **Device Setup Wizard** — added an admin-only Add Device wizard for cameras, mixers, ATEM switchers, OBS, Hue bridges, and displays, with supported discovery and create/test finish summaries.
+
+### Changed
+- **Setup Entry Points** — Dashboard, Mixer, Switcher, Lighting, and Displays add actions now open the consolidated wizard with the relevant device type preselected.
+- **Version Display** — interface version labels now report v1.7.9
+
+## [1.7.8] - 2026-06-13
+
+### Added
+- **Diagnostic Bundle Export** — added a redacted diagnostics JSON export plus Diagnostics page warning/error summary for faster troubleshooting.
+
+### Changed
+- **Version Display** — interface version labels now report v1.7.8
+
 ## [1.7.7] - 2026-06-13
 
 ### Added

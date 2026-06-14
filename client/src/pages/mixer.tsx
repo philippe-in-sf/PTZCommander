@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { mixerApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -44,6 +45,7 @@ const SECTION_LABELS: Record<MixerSection, string> = {
 export default function MixerPage() {
   const queryClient = useQueryClient();
   const ws = useWebSocket();
+  const { openDeviceSetup } = useDeviceSetup();
   const [activeSection, setActiveSection] = useState<MixerSection>("ch");
   const [addMixerOpen, setAddMixerOpen] = useState(false);
   const [editMixerOpen, setEditMixerOpen] = useState(false);
@@ -251,11 +253,9 @@ export default function MixerPage() {
             <h2 className="text-xl font-semibold text-slate-900 dark:text-white">No Mixer Configured</h2>
             <p className="text-slate-500 dark:text-slate-400">Add your Behringer X32/M32 to get started</p>
             <Dialog open={addMixerOpen} onOpenChange={setAddMixerOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-mixer-full">
-                  <Plus className="h-4 w-4 mr-2" /> Add Mixer
-                </Button>
-              </DialogTrigger>
+              <Button onClick={() => openDeviceSetup({ type: "mixer" })} data-testid="button-add-mixer-full">
+                <Plus className="h-4 w-4 mr-2" /> Add Mixer
+              </Button>
               <DialogContent className="bg-slate-300 dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                 <DialogHeader><DialogTitle>Add X32 Mixer</DialogTitle></DialogHeader>
                 <div className="space-y-4">

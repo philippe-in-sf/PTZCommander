@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { mixerApi } from "@/lib/api";
 import { useWebSocket, type MixerChannelState } from "@/lib/websocket";
+import { useDeviceSetup } from "@/hooks/use-device-setup";
 import { ChannelStrip } from "./channel-strip";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -42,6 +43,7 @@ interface MixerPanelProps {
 export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   const queryClient = useQueryClient();
   const ws = useWebSocket();
+  const { openDeviceSetup } = useDeviceSetup();
   const [activeSection, setActiveSection] = useState<MixerSection>("ch");
   const [addMixerOpen, setAddMixerOpen] = useState(false);
   const [editMixerOpen, setEditMixerOpen] = useState(false);
@@ -319,12 +321,10 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
           </div>
         ) : (
           <Dialog open={addMixerOpen} onOpenChange={setAddMixerOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" data-testid="button-add-mixer">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Mixer
-              </Button>
-            </DialogTrigger>
+            <Button variant="outline" size="sm" onClick={() => openDeviceSetup({ type: "mixer" })} data-testid="button-add-mixer">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Mixer
+            </Button>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add X32 Mixer</DialogTitle>

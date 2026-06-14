@@ -1,4 +1,4 @@
-import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, ObsConnection, InsertObsConnection, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice, UserRole } from "@shared/schema";
+import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, ObsConnection, InsertObsConnection, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice, HueBridge, InsertHueBridge, UserRole } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -700,6 +700,32 @@ export const obsApi = {
   },
 };
 
+export const hueApi = {
+  getAll: async (): Promise<HueBridge[]> => {
+    const res = await fetch(`${API_BASE}/hue/bridges`);
+    if (!res.ok) throw new Error("Failed to fetch Hue bridges");
+    return res.json();
+  },
+
+  create: async (bridge: InsertHueBridge): Promise<HueBridge> => {
+    const res = await fetch(`${API_BASE}/hue/bridges`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bridge),
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(payload?.error || payload?.message || "Failed to create Hue bridge");
+    return payload;
+  },
+
+  pair: async (id: number): Promise<{ success: boolean; bridge: HueBridge }> => {
+    const res = await fetch(`${API_BASE}/hue/bridges/${id}/pair`, { method: "POST" });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(payload?.error || payload?.message || "Failed to pair Hue bridge");
+    return payload;
+  },
+};
+
 export const sceneButtonApi = {
   getAll: async (): Promise<SceneButton[]> => {
     const res = await fetch(`${API_BASE}/scene-buttons`);
@@ -1034,6 +1060,15 @@ export const healthApi = {
     const res = await fetch(`${API_BASE}/health/system`);
     if (!res.ok) throw new Error("Failed to get system health");
     return res.json();
+  },
+};
+
+export const diagnosticsApi = {
+  exportBundle: async (): Promise<any> => {
+    const res = await fetch(`${API_BASE}/diagnostics/bundle`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to export diagnostics");
+    return data;
   },
 };
 

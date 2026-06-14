@@ -1,59 +1,25 @@
 import React, { useState } from "react";
 import { 
-  Camera, 
-  Video, 
-  Mic, 
-  Lightbulb, 
-  LayoutDashboard, 
   Settings2, 
-  Layers,
-  ListChecks,
-  Power,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Maximize,
   Focus,
-  Activity,
   MonitorPlay,
-  Play,
-  Radio,
-  SlidersHorizontal,
-  CircleDot
+  SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraPreview } from "@/components/ptz/camera-preview";
-import { BrandLogo, BrandWatermark } from "@/components/branding/brand";
-import { SkinSelector } from "@/components/skin-selector";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { RehearsalToggle } from "@/components/rehearsal-toggle";
-import { OperatorStatusStrip } from "@/components/operator-status-strip";
-
-const scenes = ["Pre-Service", "Worship", "Sermon", "Altar Call", "Post-Service", "Emergency"];
-const atemInputs = [
-  { id: 1, name: "Cam 1", status: "program" },
-  { id: 2, name: "Cam 2", status: "preview" },
-  { id: 3, name: "Cam 3", status: "none" },
-  { id: 4, name: "Cam 4", status: "none" },
-  { id: 5, name: "ProPresenter", status: "none" },
-  { id: 6, name: "Media", status: "none" },
-];
-
-const audioChannels = [
-  { id: 1, name: "Vox 1", level: 75, mute: false },
-  { id: 2, name: "Vox 2", level: 65, mute: false },
-  { id: 3, name: "Keys", level: 80, mute: false },
-  { id: 4, name: "Drums", level: 90, mute: true },
-  { id: 5, name: "Track", level: 85, mute: false },
-];
+import { BrandWatermark } from "@/components/branding/brand";
+import { AppHeader } from "@/components/app-header";
+import { useAtemControl } from "@/hooks/use-atem-control";
+import { cn } from "@/lib/utils";
+import { useSkinMixerData, useSkinSceneButtons } from "./live-data";
+import { CONTROL_SURFACE_SCENE_SHORTCUTS } from "@shared/control-surface-shortcuts";
 
 const GlassPanel = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => (
   <div className={`bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-xl rounded-3xl ${className}`}>
@@ -63,110 +29,22 @@ const GlassPanel = ({ children, className = "" }: { children: React.ReactNode, c
 
 export default function StudioGlass(props: DashboardSkinProps) {
   const [zoomValue, setZoomValue] = useState([50]);
-  const [location] = useLocation();
-  const [openNavSections, setOpenNavSections] = useState<Record<string, boolean>>({});
   const [isStoreMode, setIsStoreMode] = useState(false);
+  const { atemState, displayInputs } = useAtemControl();
+  const { mixerStripData } = useSkinMixerData(props.ws, "studio-glass");
+  const { sceneButtons, activeSceneId, executeScene, sceneExecuting } = useSkinSceneButtons(6);
+  const routedInputs = displayInputs.slice(0, 4);
 
   const handleZoomChange = (val: number[]) => {
     setZoomValue(val);
     props.onZoom(val[0]);
   };
 
-  const navSections = [
-    {
-      items: [
-        { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-        { icon: Layers, label: "Scenes", href: "/scenes" },
-        { icon: ListChecks, label: "Runsheet", href: "/runsheet" },
-      ],
-    },
-    {
-      label: "Production",
-      items: [
-        { icon: Video, label: "Switcher", href: "/switcher" },
-        { icon: Mic, label: "Audio", href: "/mixer" },
-        { icon: Lightbulb, label: "Lighting", href: "/lighting" },
-        { icon: MonitorPlay, label: "Displays", href: "/displays" },
-      ],
-    },
-    {
-      label: "Tools",
-      items: [
-        { icon: Settings2, label: "Macros", href: "/macros" },
-        { icon: SlidersHorizontal, label: "Diagnostics", href: "/diagnostics" },
-      ],
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 font-sans flex">
-      <aside className="w-64 h-screen fixed left-0 top-0 p-6 flex flex-col gap-8 z-10">
-        <div className="flex items-center gap-3 px-2">
-          <div className="flex-1">
-            <BrandLogo imageClassName="h-12 w-auto" />
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">System Online</span>
-            </div>
-          </div>
-          <RehearsalToggle className="h-7 px-2 text-[10px]" />
-          <ThemeToggle />
-          <SkinSelector />
-        </div>
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 font-sans flex flex-col">
+      <AppHeader activePage="/" />
 
-        <nav className="flex-1 space-y-3">
-          {navSections.map((section, sectionIndex) => {
-            const sectionActive = section.items.some((item) => location === item.href);
-            const sectionOpen = !section.label || openNavSections[section.label] || sectionActive;
-
-            return (
-              <div key={section.label || `primary-${sectionIndex}`} className="space-y-2">
-                {section.label && (
-                  <button
-                    type="button"
-                    onClick={() => setOpenNavSections((current) => ({ ...current, [section.label!]: !sectionOpen }))}
-                    className={`w-full flex items-center justify-between px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wide transition-colors ${
-                      sectionActive
-                        ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
-                        : "text-slate-400 dark:text-slate-500 hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
-                    }`}
-                  >
-                    {section.label}
-                    <ChevronDown className={`w-4 h-4 transition-transform ${sectionOpen ? "rotate-180" : ""}`} />
-                  </button>
-                )}
-                {sectionOpen && section.items.map((item, i) => {
-                  const active = location === item.href;
-                  return (
-                    <Link key={`${section.label || "primary"}-${i}`} href={item.href} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-200 font-medium ${
-                      active 
-                        ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 shadow-sm" 
-                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-800/50 hover:text-slate-800 dark:hover:text-slate-200"
-                    }`}>
-                      <item.icon className={`w-5 h-5 ${active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-slate-500"}`} />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto">
-          <GlassPanel className="p-4 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-              <Activity className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">System Health</p>
-              <OperatorStatusStrip compact tone="glass" className="mt-2" />
-            </div>
-          </GlassPanel>
-        </div>
-      </aside>
-
-      <main className="flex-1 ml-64 p-6 lg:p-10 space-y-8 h-screen overflow-y-auto">
+      <main className="flex-1 min-h-0 p-6 lg:p-10 space-y-8 overflow-y-auto">
         <BrandWatermark className="fixed bottom-6 right-6 opacity-[0.12]" />
         
         <section>
@@ -179,18 +57,34 @@ export default function StudioGlass(props: DashboardSkinProps) {
             </Link>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-2 -mx-2 px-2 snap-x">
-            {scenes.map((scene, i) => (
-              <button 
-                key={i} 
-                className={`snap-start whitespace-nowrap px-6 py-3.5 rounded-full font-medium transition-all shadow-sm border ${
-                  i === 0 
-                    ? "bg-slate-800 dark:bg-indigo-600 text-white border-slate-800 dark:border-indigo-600 hover:bg-slate-900 dark:hover:bg-indigo-700 shadow-slate-900/20" 
-                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-white/50 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
-                }`}
+            {sceneButtons.length === 0 ? (
+              <Link
+                href="/scenes"
+                className="snap-start whitespace-nowrap px-6 py-3.5 rounded-full font-medium transition-all shadow-sm border bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-white/50 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
               >
-                {scene}
-              </button>
-            ))}
+                Configure Scenes
+              </Link>
+            ) : sceneButtons.map((scene) => {
+              const isActive = activeSceneId === scene.id;
+              const shortcutLabel = CONTROL_SURFACE_SCENE_SHORTCUTS.find((shortcut) => shortcut.buttonNumber === scene.buttonNumber)?.label;
+              return (
+                <button
+                  key={scene.id}
+                  onClick={() => executeScene(scene.id)}
+                  disabled={sceneExecuting}
+                  className={cn(
+                    "snap-start whitespace-nowrap px-6 py-3.5 rounded-full font-medium transition-all shadow-sm border disabled:cursor-not-allowed disabled:opacity-60",
+                    isActive
+                      ? "bg-slate-800 dark:bg-indigo-600 text-white border-slate-800 dark:border-indigo-600 shadow-slate-900/20"
+                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-white/50 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
+                  )}
+                  style={{ borderColor: isActive ? scene.color : undefined }}
+                >
+                  <span>{scene.name}</span>
+                  {shortcutLabel && <span className="ml-3 text-[10px] text-slate-400 dark:text-slate-500">{shortcutLabel}</span>}
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -278,26 +172,38 @@ export default function StudioGlass(props: DashboardSkinProps) {
                 {Array.from({ length: 16 }).map((_, i) => {
                   const preset = props.presets.find(p => p.presetNumber === i);
                   return (
-                    <button 
-                      key={i}
-                      onClick={() => {
-                        if (isStoreMode) {
-                          props.onStorePreset(i);
-                          setIsStoreMode(false);
-                        } else {
-                          props.onRecallPreset(i);
-                        }
-                      }}
-                      className={`h-16 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 group relative ${
-                        isStoreMode
-                          ? "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/50 hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-600 dark:text-rose-300"
-                          : "bg-slate-50 dark:bg-slate-700/50 border-slate-100 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-600 hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-500/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400"
-                      }`}
-                      title={isStoreMode ? "Click to store this preset" : "Click to recall this preset"}
-                    >
-                      <span className="text-xs font-bold text-slate-400 dark:text-slate-500 group-hover:text-indigo-300 transition-colors">{(i + 1).toString().padStart(2, '0')}</span>
-                      <span className="text-sm font-medium">{preset?.name || `Preset ${i + 1}`}</span>
-                    </button>
+                    <div key={i} className="relative group">
+                      <button
+                        onClick={() => {
+                          if (isStoreMode) {
+                            props.onStorePreset(i);
+                            setIsStoreMode(false);
+                          } else {
+                            props.onRecallPreset(i);
+                          }
+                        }}
+                        className={`h-16 w-full rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 relative ${
+                          isStoreMode
+                            ? "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/50 hover:bg-rose-100 dark:hover:bg-rose-900/30 text-rose-600 dark:text-rose-300"
+                            : "bg-slate-50 dark:bg-slate-700/50 border-slate-100 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-600 hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-500/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+                        }`}
+                        title={isStoreMode ? "Click to store this preset" : "Click to recall this preset"}
+                      >
+                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 group-hover:text-indigo-300 transition-colors">{(i + 1).toString().padStart(2, '0')}</span>
+                        <span className="max-w-full px-2 text-sm font-medium truncate">{preset?.name || `Preset ${i + 1}`}</span>
+                      </button>
+                      {preset && !isStoreMode && (
+                        <button
+                          type="button"
+                          onClick={() => props.onManagePreset(preset)}
+                          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-white/70 bg-white/85 text-slate-500 opacity-0 shadow-sm transition-opacity hover:text-indigo-600 dark:border-slate-600 dark:bg-slate-900/85 dark:text-slate-400 dark:hover:text-indigo-300 group-hover:opacity-100 focus:opacity-100"
+                          aria-label={`Manage preset ${i + 1}`}
+                          data-testid={`button-manage-preset-${i}`}
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -313,15 +219,20 @@ export default function StudioGlass(props: DashboardSkinProps) {
                 </div>
                 
                 <div className="space-y-3 flex-1">
-                  {atemInputs.slice(0, 4).map(input => (
-                    <div key={input.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50/50 dark:bg-slate-700/30 hover:bg-white dark:hover:bg-slate-700/60 transition-colors">
-                      <span className="font-medium text-slate-700 dark:text-slate-300 text-sm">{input.name}</span>
+                  {routedInputs.map(input => (
+                    <div key={input.inputId} className="flex items-center justify-between p-3 rounded-xl bg-slate-50/50 dark:bg-slate-700/30 hover:bg-white dark:hover:bg-slate-700/60 transition-colors">
+                      <span className="font-medium text-slate-700 dark:text-slate-300 text-sm">{input.longName || input.shortName || `Input ${input.inputId}`}</span>
                       <div className="flex gap-2">
-                        <Badge className={`w-10 flex justify-center py-1 ${input.status === 'program' ? 'bg-rose-500 hover:bg-rose-600' : 'bg-slate-200 dark:bg-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-500'}`}>PGM</Badge>
-                        <Badge className={`w-10 flex justify-center py-1 ${input.status === 'preview' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 dark:bg-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-500'}`}>PVW</Badge>
+                        <Badge className={`w-10 flex justify-center py-1 ${atemState.programInput === input.inputId ? 'bg-rose-500 hover:bg-rose-600 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-500'}`}>PGM</Badge>
+                        <Badge className={`w-10 flex justify-center py-1 ${atemState.previewInput === input.inputId ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-500'}`}>PVW</Badge>
                       </div>
                     </div>
                   ))}
+                  {routedInputs.length === 0 && (
+                    <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-700/30 text-sm text-slate-500 dark:text-slate-400">
+                      No ATEM inputs reported.
+                    </div>
+                  )}
                 </div>
                 <Link href="/switcher" className="mt-4 block w-full">
                   <Button variant="outline" className="w-full rounded-xl border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">View Full Switcher</Button>
@@ -337,16 +248,16 @@ export default function StudioGlass(props: DashboardSkinProps) {
                 </div>
                 
                 <div className="space-y-4 flex-1 mt-2">
-                  {audioChannels.slice(0, 4).map(channel => (
+                  {mixerStripData.map(channel => (
                     <div key={channel.id} className="flex items-center gap-4 group">
-                      <span className="w-12 text-sm font-medium text-slate-600 dark:text-slate-400 truncate">{channel.name}</span>
+                      <span className="w-12 text-sm font-medium text-slate-600 dark:text-slate-400 truncate">{channel.label}</span>
                       <div className="flex-1 relative h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                         <div 
-                          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ${channel.mute ? 'bg-slate-300 dark:bg-slate-600' : channel.level > 85 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-300 ${channel.muted ? 'bg-slate-300 dark:bg-slate-600' : channel.level > 85 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                           style={{ width: `${channel.level}%` }}
                         ></div>
                       </div>
-                      <button className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${channel.mute ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400' : 'bg-slate-50 dark:bg-slate-700 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>
+                      <button className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${channel.muted ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400' : 'bg-slate-50 dark:bg-slate-700 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>
                         M
                       </button>
                     </div>

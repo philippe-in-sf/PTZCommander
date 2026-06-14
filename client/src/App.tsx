@@ -12,6 +12,7 @@ import { useWsInvalidation } from "@/lib/ws-invalidation";
 import { rehearsalApi } from "@/lib/api";
 import { ControlSurfaceShortcuts } from "@/components/control-surface-shortcuts";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { DeviceSetupProvider } from "@/components/setup/device-setup-provider";
 import Dashboard from "@/pages/dashboard";
 import MixerPage from "@/pages/mixer";
 import SwitcherPage from "@/pages/switcher";
@@ -125,7 +126,9 @@ function App() {
               <TooltipProvider>
                 <Toaster />
                 <SonnerToaster />
-                <Shell />
+                <DeviceSetupProvider>
+                  <Shell />
+                </DeviceSetupProvider>
               </TooltipProvider>
             </AuthProvider>
           </QueryClientProvider>
