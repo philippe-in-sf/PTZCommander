@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -169,7 +169,7 @@ function createDefaultForm(type: DeviceSetupType | null): DeviceSetupFormState {
 
 function emptyProgress(): SetupProgressItem[] {
   return [
-    { id: "created", label: "Created", status: "pending" },
+    { id: "created", label: "Saved", status: "pending" },
     { id: "connected", label: "Connected or Paired", status: "pending" },
     { id: "verified", label: "Status Verified", status: "pending" },
   ];
@@ -326,6 +326,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [progress, setProgress] = useState<SetupProgressItem[]>(emptyProgress);
   const [finish, setFinish] = useState<DeviceSetupFinish | null>(null);
+  const [existingSingleton, setExistingSingleton] = useState<{ type: "mixer" | "switcher"; name: string; ip: string; port?: number | null } | null>(null);
 
   const config = selectedType ? getDeviceSetupConfig(selectedType) : null;
   const title = config ? `Add ${config.label}` : "Add Device";
@@ -334,6 +335,42 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
     () => selectedType ? getDeviceSetupConfig(selectedType).discoveryOptions : [],
     [selectedType],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadExistingSingleton() {
+      if (!open || step !== "details" || (selectedType !== "mixer" && selectedType !== "switcher")) {
+        setExistingSingleton(null);
+        return;
+      }
+
+      try {
+        if (selectedType === "mixer") {
+          const existingMixers = await mixerApi.getAll();
+          const mixer = existingMixers[0];
+          if (!cancelled) {
+            setExistingSingleton(mixer ? { type: "mixer", name: mixer.name, ip: mixer.ip, port: mixer.port } : null);
+          }
+          return;
+        }
+
+        const existingSwitchers = await switcherApi.getAll();
+        const switcher = existingSwitchers[0];
+        if (!cancelled) {
+          setExistingSingleton(switcher ? { type: "switcher", name: switcher.name, ip: switcher.ip } : null);
+        }
+      } catch {
+        if (!cancelled) setExistingSingleton(null);
+      }
+    }
+
+    void loadExistingSingleton();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedType, step]);
 
   function updateForm(updates: Partial<DeviceSetupFormState>) {
     setForm((current) => ({ ...current, ...updates }));
@@ -354,6 +391,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
     setSelectedCameraDiscovery(null);
     setSelectedDisplayDiscovery(null);
     setDiscoveryError(null);
+    setExistingSingleton(null);
     setFinish(null);
     setProgress(emptyProgress());
     setStep(deviceSetupSupportsDiscovery(type) ? "mode" : "details");
@@ -465,8 +503,8 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
   function invalidateSetupQueries(type: DeviceSetupType, id?: number) {
     const commonKeys: Record<DeviceSetupType, unknown[][]> = {
       camera: [["cameras"], ["health-devices"]],
-      mixer: [["mixers"]],
-      switcher: [["switchers"]],
+      mixer: [["mixers"], ["health-devices"]],
+      switcher: [["switchers"], ["health-devices"]],
       obs: [["obs"], ["obs-status"], ["obs-scenes"]],
       hue: [["/api/hue/bridges"]],
       display: [["displays"], ["health-devices"]],
@@ -516,12 +554,15 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
     return { ok: true, message: `Health reports ${match.status}.` };
   }
 
-  async function createMixer() {
-    return mixerApi.create({
+  async function saveMixer() {
+    const payload = {
       name: form.name.trim(),
       ip: form.ip.trim(),
       port: parsePort(form.port, 10023),
-    });
+    };
+    const existingMixers = await mixerApi.getAll();
+    if (existingMixers[0]) return mixerApi.update(existingMixers[0].id, payload);
+    return mixerApi.create(payload);
   }
 
   async function verifyMixer(mixer: Mixer) {
@@ -533,12 +574,15 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
     return { ok: true, message: "Mixer connected and returned status." };
   }
 
-  async function createSwitcher() {
-    return switcherApi.create({
+  async function saveSwitcher() {
+    const payload = {
       name: form.name.trim(),
       ip: form.ip.trim(),
       type: form.switcherType || "atem",
-    });
+    };
+    const existingSwitchers = await switcherApi.getAll();
+    if (existingSwitchers[0]) return switcherApi.update(existingSwitchers[0].id, payload);
+    return switcherApi.create(payload);
   }
 
   async function verifySwitcher(switcher: Switcher) {
@@ -672,20 +716,20 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
     let testResult = { ok: true, message: "Verification complete." };
 
     try {
-      setProgressItem("created", "running", "Creating device record...");
+      setProgressItem("created", "running", "Saving device record...");
       if (selectedType === "camera") createdDevice = await createCamera();
-      if (selectedType === "mixer") createdDevice = await createMixer();
-      if (selectedType === "switcher") createdDevice = await createSwitcher();
+      if (selectedType === "mixer") createdDevice = await saveMixer();
+      if (selectedType === "switcher") createdDevice = await saveSwitcher();
       if (selectedType === "obs") createdDevice = await createObsConnection();
       if (selectedType === "hue") createdDevice = await createHueBridge();
       if (selectedType === "display") createdDevice = await createDisplay();
 
-      setProgressItem("created", "success", `${getDeviceSetupConfig(selectedType).label} record created.`);
+      setProgressItem("created", "success", `${getDeviceSetupConfig(selectedType).label} record saved.`);
     } catch (error) {
-      const message = errorMessage(error, "Device creation failed.");
+      const message = errorMessage(error, "Device save failed.");
       setProgressItem("created", "failed", message);
-      setProgressItem("connected", "failed", "Skipped because creation failed.");
-      setProgressItem("verified", "failed", "Skipped because creation failed.");
+      setProgressItem("connected", "failed", "Skipped because save failed.");
+      setProgressItem("verified", "failed", "Skipped because save failed.");
       setFinish(buildSetupFinish({
         type: selectedType,
         name: form.name.trim(),
@@ -720,7 +764,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
       type: selectedType,
       name: "name" in createdDevice! ? createdDevice!.name : form.name.trim(),
       created: true,
-      createdMessage: `${getDeviceSetupConfig(selectedType).label} created.`,
+      createdMessage: `${getDeviceSetupConfig(selectedType).label} saved.`,
       testOk: testResult.ok,
       testMessage: testResult.message,
       details: { ...form },
@@ -956,6 +1000,15 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
   function renderMixerFields() {
     return (
       <>
+        {existingSingleton?.type === "mixer" && (
+          <Alert className="sm:col-span-2" data-testid="alert-device-setup-existing-mixer">
+            <SlidersHorizontal className="h-4 w-4" />
+            <AlertTitle>Existing mixer detected</AlertTitle>
+            <AlertDescription>
+              {existingSingleton.name} at {existingSingleton.ip}:{existingSingleton.port || 10023} will be updated.
+            </AlertDescription>
+          </Alert>
+        )}
         <Field label="Mixer Name" error={errors.name}>
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
@@ -972,6 +1025,15 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
   function renderSwitcherFields() {
     return (
       <>
+        {existingSingleton?.type === "switcher" && (
+          <Alert className="sm:col-span-2" data-testid="alert-device-setup-existing-switcher">
+            <MonitorPlay className="h-4 w-4" />
+            <AlertTitle>Existing switcher detected</AlertTitle>
+            <AlertDescription>
+              {existingSingleton.name} at {existingSingleton.ip} will be updated.
+            </AlertDescription>
+          </Alert>
+        )}
         <Field label="Switcher Name" error={errors.name}>
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
@@ -1150,7 +1212,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
         <div className="rounded-md border border-border bg-muted/20 p-4">
           <div className={cn("flex items-center gap-2 text-sm font-semibold", tone)}>
             {finish.status === "success" ? <CheckCircle2 className="h-4 w-4" /> : finish.status === "warning" ? <AlertTriangle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-            {finish.status === "success" ? "Setup complete" : finish.status === "warning" ? "Created with warning" : "Setup failed"}
+            {finish.status === "success" ? "Setup complete" : finish.status === "warning" ? "Saved with warning" : "Setup failed"}
           </div>
           <div className="mt-3 grid gap-2 text-sm">
             <div className="flex justify-between gap-4">
@@ -1162,7 +1224,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
               <span className="font-medium">{config.label}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">Created</span>
+              <span className="text-muted-foreground">Saved</span>
               <span className="min-w-0 text-right font-medium">{finish.summary.created}</span>
             </div>
             <div className="flex justify-between gap-4">

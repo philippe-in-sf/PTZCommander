@@ -124,7 +124,7 @@ export function redactSensitiveSetupFields(value: unknown): unknown {
 export function buildSetupFinish(input: BuildSetupFinishInput): DeviceSetupFinish {
   const testMessage = input.testMessage?.trim() || null;
   const createdMessage = input.createdMessage?.trim() || null;
-  const warning = input.created && input.testOk === false ? testMessage || "Device was created, but the verification step failed." : null;
+  const warning = input.created && input.testOk === false ? testMessage || "Device was saved, but the verification step failed." : null;
   const status: DeviceSetupFinishStatus = input.created
     ? warning ? "warning" : "success"
     : "failed";
@@ -137,7 +137,7 @@ export function buildSetupFinish(input: BuildSetupFinishInput): DeviceSetupFinis
     warning,
     summary: {
       device: input.name,
-      created: input.created ? createdMessage || "Device created" : createdMessage || "Device was not created",
+      created: input.created ? createdMessage || "Device saved" : createdMessage || "Device was not saved",
       connection: input.testOk === false ? testMessage || "Verification failed" : testMessage || "Verification complete",
     },
     details: redactSensitiveSetupFields(input.details ?? {}) as Record<string, unknown>,

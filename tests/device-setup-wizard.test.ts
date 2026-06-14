@@ -131,11 +131,35 @@ test("global and device-specific add actions open the setup wizard preselected",
   assert.match(displays, /openDeviceSetup\(\{ type: "display" \}\)/);
 });
 
+test("singleton setup paths update existing mixer and switcher records", () => {
+  const wizard = source("client/src/components/setup/device-setup-wizard.tsx");
+
+  assert.match(wizard, /async function saveMixer\(\)/);
+  assert.match(wizard, /const existingMixers = await mixerApi\.getAll\(\)/);
+  assert.match(wizard, /if \(existingMixers\[0\]\) return mixerApi\.update\(existingMixers\[0\]\.id, payload\)/);
+  assert.match(wizard, /alert-device-setup-existing-mixer/);
+
+  assert.match(wizard, /async function saveSwitcher\(\)/);
+  assert.match(wizard, /const existingSwitchers = await switcherApi\.getAll\(\)/);
+  assert.match(wizard, /if \(existingSwitchers\[0\]\) return switcherApi\.update\(existingSwitchers\[0\]\.id, payload\)/);
+  assert.match(wizard, /alert-device-setup-existing-switcher/);
+});
+
 test("camera discovery import review exposes assignment controls", () => {
   const dashboard = source("client/src/pages/dashboard.tsx");
 
   assert.match(dashboard, /buildDiscoveredCameraImportPayload/);
   assert.match(dashboard, /select-discovered-camera-assignment/);
+});
+
+test("camera settings expose post-import assignment controls", () => {
+  const selector = source("client/src/components/ptz/camera-selector.tsx");
+
+  assert.match(selector, /getCameraAssignmentNumberFromName/);
+  assert.match(selector, /select-camera-assignment/);
+  assert.match(selector, /Camera Assignment/);
+  assert.match(selector, /camera-assignment-conflict/);
+  assert.match(selector, /will move to Camera/);
 });
 
 test("camera import assignments default to the next free camera slots", () => {
