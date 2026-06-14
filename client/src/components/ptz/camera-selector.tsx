@@ -70,7 +70,6 @@ export function CameraSelector({
     .filter((assignment): assignment is number => assignment !== null);
   const maxAssignment = Math.max(4, cameras.length + 1, ...assignmentNumbers);
   const assignmentOptions = Array.from({ length: maxAssignment }, (_, index) => index + 1);
-  const selectedAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT ? null : Number.parseInt(editForm.assignment, 10);
   const effectiveAssignment = getCameraAssignmentNumberFromName(editForm.name);
   const currentAssignment = editingCamera ? getCameraAssignmentNumberFromName(editingCamera.name) : null;
   const assignmentConflict = effectiveAssignment
