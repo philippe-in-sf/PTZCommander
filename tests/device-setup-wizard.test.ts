@@ -7,6 +7,7 @@ import {
   buildDiscoveredCameraImportPayload,
   findDuplicateCameraImportAssignments,
   getDiscoveredCameraImportKey,
+  sortCamerasByAssignmentName,
 } from "@shared/camera-import";
 import {
   DEVICE_SETUP_TYPES,
@@ -206,4 +207,18 @@ test("camera import assignments report duplicate selected slots", () => {
   };
 
   assert.deepEqual(findDuplicateCameraImportAssignments(discovered, assignments), [1]);
+});
+
+test("numbered camera assignments sort in dashboard order", () => {
+  const cameras = [
+    { id: 4, name: "Camera 4" },
+    { id: 2, name: "Camera 2" },
+    { id: 3, name: "Camera 3" },
+    { id: 1, name: "Camera 1" },
+  ];
+
+  const sorted = sortCamerasByAssignmentName(cameras);
+
+  assert.deepEqual(sorted.map((camera) => camera.name), ["Camera 1", "Camera 2", "Camera 3", "Camera 4"]);
+  assert.deepEqual(cameras.map((camera) => camera.name), ["Camera 4", "Camera 2", "Camera 3", "Camera 1"]);
 });
