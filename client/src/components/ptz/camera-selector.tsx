@@ -5,9 +5,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getCameraAssignmentNumberFromName, sortCamerasByAssignmentName } from "@shared/camera-import";
+import {
+  atemInputIdForCameraAssignment,
+  atemInputValueForAssignmentSelection,
+  cameraNameForAssignmentSelection,
+  formatCameraAssignmentName,
+  getCameraAssignmentNumberFromName,
+  sortCamerasByAssignmentName,
+} from "@shared/camera-import";
 
 const CUSTOM_CAMERA_ASSIGNMENT = "custom";
+const parseAtemInputId = (value: string) => {
+  if (!/^[1-9]\d*$/.test(value.trim())) return null;
+  return Number.parseInt(value, 10);
+};
 
 export interface CameraData {
   id: number;
@@ -61,12 +72,16 @@ export function CameraSelector({
     .filter((assignment): assignment is number => assignment !== null);
   const maxAssignment = Math.max(4, cameras.length + 1, ...assignmentNumbers);
   const assignmentOptions = Array.from({ length: maxAssignment }, (_, index) => index + 1);
-  const selectedAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT ? null : Number.parseInt(editForm.assignment, 10);
+  const effectiveAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT
+    ? null
+    : getCameraAssignmentNumberFromName(editForm.name);
   const currentAssignment = editingCamera ? getCameraAssignmentNumberFromName(editingCamera.name) : null;
-  const assignmentConflict = selectedAssignment
-    ? cameras.find((camera) => camera.id !== editingCamera?.id && getCameraAssignmentNumberFromName(camera.name) === selectedAssignment)
+  const assignmentConflict = effectiveAssignment
+    ? cameras.find((camera) => camera.id !== editingCamera?.id && getCameraAssignmentNumberFromName(camera.name) === effectiveAssignment)
     : null;
-  const willSwapAssignment = Boolean(assignmentConflict && currentAssignment && currentAssignment !== selectedAssignment);
+  const willSwapAssignment = Boolean(assignmentConflict && currentAssignment && currentAssignment !== effectiveAssignment);
+  const hasBlockingAssignmentConflict = Boolean(assignmentConflict && !willSwapAssignment);
+  const hasBlankCameraName = editForm.name.trim().length === 0;
 
   const handleEditClick = (e: React.MouseEvent, cam: CameraData) => {
     e.stopPropagation();
@@ -90,18 +105,28 @@ export function CameraSelector({
 
   const handleNameChange = (name: string) => {
     const assignment = getCameraAssignmentNumberFromName(name);
+    const previousAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT
+      ? null
+      : Number.parseInt(editForm.assignment, 10);
     setEditForm({
       ...editForm,
       name,
       assignment: assignment ? String(assignment) : CUSTOM_CAMERA_ASSIGNMENT,
+      atemInputId: atemInputValueForAssignmentSelection(assignment, previousAssignment, editForm.atemInputId),
     });
   };
 
   const handleAssignmentChange = (assignment: string) => {
+    const nextAssignment = assignment === CUSTOM_CAMERA_ASSIGNMENT ? null : Number.parseInt(assignment, 10);
+    const previousAssignment = editForm.assignment === CUSTOM_CAMERA_ASSIGNMENT
+      ? null
+      : Number.parseInt(editForm.assignment, 10);
+
     setEditForm({
       ...editForm,
       assignment,
-      name: assignment === CUSTOM_CAMERA_ASSIGNMENT ? editForm.name : `Camera ${assignment}`,
+      name: cameraNameForAssignmentSelection(nextAssignment, editForm.name),
+      atemInputId: atemInputValueForAssignmentSelection(nextAssignment, previousAssignment, editForm.atemInputId),
     });
   };
 
@@ -127,14 +152,18 @@ export function CameraSelector({
     streamUrl: overrides.streamUrl ?? (camera.previewType === 'none' ? null : camera.streamUrl ?? null),
     previewType: overrides.previewType ?? camera.previewType ?? (camera.streamUrl ? 'snapshot' : 'none'),
     previewRefreshMs: overrides.previewRefreshMs ?? Math.max(250, camera.previewRefreshMs ?? 2000),
-    atemInputId: overrides.atemInputId ?? camera.atemInputId ?? null,
+    atemInputId: "atemInputId" in overrides ? overrides.atemInputId ?? null : camera.atemInputId ?? null,
   });
 
   const handleSave = () => {
+    if (hasBlankCameraName) return;
+    if (hasBlockingAssignmentConflict) return;
+
     if (editingCamera && onUpdateCamera) {
-      if (assignmentConflict && currentAssignment && currentAssignment !== selectedAssignment) {
+      if (assignmentConflict && currentAssignment && currentAssignment !== effectiveAssignment) {
         onUpdateCamera(assignmentConflict.id, cameraUpdatePayload(assignmentConflict, {
-          name: `Camera ${currentAssignment}`,
+          name: formatCameraAssignmentName(currentAssignment),
+          atemInputId: atemInputIdForCameraAssignment(currentAssignment, assignmentConflict.atemInputId ?? null),
         }));
       }
 
@@ -147,7 +176,7 @@ export function CameraSelector({
         streamUrl: editForm.previewType === 'none' ? null : editForm.streamUrl || null,
         previewType: editForm.previewType,
         previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
-        atemInputId: editForm.atemInputId ? parseInt(editForm.atemInputId) : null,
+        atemInputId: atemInputIdForCameraAssignment(effectiveAssignment, parseAtemInputId(editForm.atemInputId)),
       }));
     }
     setEditingCamera(null);
@@ -305,6 +334,11 @@ export function CameraSelector({
                   onChange={(e) => handleNameChange(e.target.value)}
                   data-testid="input-camera-name"
                 />
+                {hasBlankCameraName && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Enter a custom camera name.
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="edit-ip">IP Address</Label>
@@ -447,7 +481,7 @@ export function CameraSelector({
               </div>
               
               <div className="flex gap-2">
-                <Button onClick={handleSave} className="flex-1" data-testid="button-save-camera">
+                <Button onClick={handleSave} disabled={hasBlockingAssignmentConflict || hasBlankCameraName} className="flex-1" data-testid="button-save-camera">
                   Save Changes
                 </Button>
                 <Button 
