@@ -222,3 +222,11 @@ test("numbered camera assignments sort in dashboard order", () => {
   assert.deepEqual(sorted.map((camera) => camera.name), ["Camera 1", "Camera 2", "Camera 3", "Camera 4"]);
   assert.deepEqual(cameras.map((camera) => camera.name), ["Camera 4", "Camera 2", "Camera 3", "Camera 1"]);
 });
+
+test("camera preview renders cameras in assignment order", () => {
+  const preview = source("client/src/components/ptz/camera-preview.tsx");
+
+  assert.match(preview, /sortCamerasByAssignmentName/);
+  assert.match(preview, /sortedCameras\.map/);
+  assert.match(preview, /sortedCameras\.findIndex/);
+});
