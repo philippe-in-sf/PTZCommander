@@ -33,6 +33,21 @@ export function getCameraAssignmentNumberFromName(name: string | null | undefine
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
+function compareCameraAssignmentNames(aName: string, bName: string) {
+  const aAssignment = getCameraAssignmentNumberFromName(aName);
+  const bAssignment = getCameraAssignmentNumberFromName(bName);
+
+  if (aAssignment && bAssignment && aAssignment !== bAssignment) return aAssignment - bAssignment;
+  if (aAssignment && !bAssignment) return -1;
+  if (!aAssignment && bAssignment) return 1;
+
+  return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: "base" });
+}
+
+export function sortCamerasByAssignmentName<T extends { name: string }>(cameras: readonly T[]) {
+  return [...cameras].sort((a, b) => compareCameraAssignmentNames(a.name, b.name));
+}
+
 function nextAvailableCameraAssignment(usedAssignments: Set<number>) {
   let assignment = 1;
   while (usedAssignments.has(assignment)) assignment += 1;

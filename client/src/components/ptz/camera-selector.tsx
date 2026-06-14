@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getCameraAssignmentNumberFromName } from "@shared/camera-import";
+import { getCameraAssignmentNumberFromName, sortCamerasByAssignmentName } from "@shared/camera-import";
 
 const CUSTOM_CAMERA_ASSIGNMENT = "custom";
 
@@ -54,6 +54,7 @@ export function CameraSelector({
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDeviceError, setVideoDeviceError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const sortedCameras = sortCamerasByAssignmentName(cameras);
 
   const assignmentNumbers = cameras
     .map((camera) => getCameraAssignmentNumberFromName(camera.name))
@@ -178,7 +179,7 @@ export function CameraSelector({
   return (
     <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-        {cameras.map((cam) => {
+        {sortedCameras.map((cam) => {
           const isSelected = selectedId === cam.id;
           const isOnline = cam.status !== 'offline';
 
