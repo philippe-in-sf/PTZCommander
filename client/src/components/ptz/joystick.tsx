@@ -49,15 +49,15 @@ export function Joystick({ onMove, onStop, className }: JoystickProps) {
   return (
     <div 
       className={cn(
-        "relative flex items-center justify-center w-64 h-64 rounded-full bg-slate-200 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-800 shadow-[inset_0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_4px_10px_rgba(0,0,0,0.5)]",
+        "relative flex items-center justify-center w-64 h-64 rounded-full bg-slate-100 dark:bg-slate-900 border-2 border-slate-500/70 dark:border-slate-800 shadow-[inset_0_4px_16px_rgba(15,23,42,0.18)] dark:shadow-[inset_0_4px_10px_rgba(0,0,0,0.5)]",
         className
       )}
       ref={containerRef}
     >
-      <div className="absolute inset-0 rounded-full opacity-20 pointer-events-none">
-        <div className="absolute top-1/2 left-0 right-0 h-px bg-cyan-500" />
-        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-cyan-500" />
-        <div className="absolute inset-[25%] border border-cyan-500 rounded-full opacity-50" />
+      <div className="absolute inset-0 rounded-full opacity-45 dark:opacity-20 pointer-events-none">
+        <div className="absolute top-1/2 left-0 right-0 h-px bg-cyan-600 dark:bg-cyan-500" />
+        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-cyan-600 dark:bg-cyan-500" />
+        <div className="absolute inset-[25%] border border-cyan-600 dark:border-cyan-500 rounded-full opacity-70 dark:opacity-50" />
       </div>
 
       <motion.div
@@ -74,10 +74,10 @@ export function Joystick({ onMove, onStop, className }: JoystickProps) {
         animate={controls}
         style={{ x, y }}
         className={cn(
-          "w-24 h-24 rounded-full shadow-2xl z-10 cursor-grab active:cursor-grabbing flex items-center justify-center transition-colors",
+          "w-24 h-24 rounded-full shadow-[0_12px_30px_rgba(15,23,42,0.28)] dark:shadow-2xl z-10 cursor-grab active:cursor-grabbing flex items-center justify-center transition-colors",
           active 
-            ? "bg-cyan-500 shadow-[0_0_30px_rgba(6,182,212,0.6)]" 
-            : "bg-slate-300 dark:bg-slate-700 border-t border-slate-200 dark:border-slate-600"
+            ? "bg-cyan-500 border-2 border-cyan-700/40 dark:border-cyan-300/40 shadow-[0_0_30px_rgba(6,182,212,0.6)]" 
+            : "bg-white dark:bg-slate-700 border-2 border-slate-500/70 dark:border-slate-600"
         )}
       >
         <div className={cn(
