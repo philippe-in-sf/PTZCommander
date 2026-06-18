@@ -34,16 +34,16 @@ export function ChannelStrip({
   return (
     <div 
       className={cn(
-        "flex flex-col items-center gap-2 p-2 rounded-lg bg-slate-300/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700",
+        "flex h-64 w-20 shrink-0 flex-col items-center gap-2 rounded-lg border border-slate-300 bg-slate-300/50 p-2 dark:border-slate-700 dark:bg-slate-800/50",
         muted && "opacity-60"
       )}
       data-testid={`channel-strip-${channel}`}
     >
-      <span className="text-[10px] text-slate-700 dark:text-slate-400 font-mono truncate w-full text-center">
+      <span className="block h-4 w-full truncate text-center font-mono text-[10px] leading-4 text-slate-700 dark:text-slate-400" title={name}>
         {name}
       </span>
       
-      <div className="h-32 flex items-center justify-center">
+      <div className="flex h-32 w-full items-center justify-center">
         <Slider
           orientation="vertical"
           value={[localFader]}
@@ -56,21 +56,21 @@ export function ChannelStrip({
         />
       </div>
 
-      <span className="text-[10px] text-slate-600 dark:text-slate-500 font-mono">
+      <span className="h-4 font-mono text-[10px] leading-4 text-slate-600 dark:text-slate-500">
         {dbValue}
       </span>
 
       <Button
         variant={muted ? "destructive" : "outline"}
         size="sm"
-        className="w-full h-7 text-[10px]"
+        className="h-7 w-full text-[10px]"
         onClick={() => onMuteToggle(channel, !muted)}
         data-testid={`mute-${channel}`}
       >
         {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
       </Button>
 
-      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
+      <span className="mt-auto flex h-4 items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
     </div>
   );
 }
