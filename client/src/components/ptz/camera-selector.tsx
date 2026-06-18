@@ -35,21 +35,97 @@ export interface CameraData {
   status: 'online' | 'offline' | 'tally';
 }
 
+export interface CameraEditFormState {
+  assignment: string;
+  name: string;
+  ip: string;
+  port: number;
+  username: string;
+  password: string;
+  streamUrl: string;
+  previewType: string;
+  previewRefreshMs: number;
+  atemInputId: string;
+}
+
+export interface CameraUpdatePayload {
+  name: string;
+  ip: string;
+  port: number;
+  username: string | null;
+  password: string | null;
+  streamUrl: string | null;
+  previewType: string;
+  previewRefreshMs: number;
+  atemInputId: number | null;
+}
+
+type CameraUpdateOverrides = Partial<{
+  name: string;
+  ip: string;
+  port: number;
+  username: string | null;
+  password: string | null;
+  streamUrl: string | null;
+  previewType: string | null;
+  previewRefreshMs: number;
+  atemInputId: number | null;
+}>;
+
+function hasCameraUpdateOverride(overrides: CameraUpdateOverrides, key: keyof CameraUpdateOverrides) {
+  return Object.prototype.hasOwnProperty.call(overrides, key);
+}
+
+export function buildCameraUpdatePayload(
+  camera: CameraData,
+  overrides: CameraUpdateOverrides = {},
+): CameraUpdatePayload {
+  return {
+    name: overrides.name ?? camera.name,
+    ip: overrides.ip ?? camera.ip,
+    port: overrides.port ?? camera.port ?? 52381,
+    username: hasCameraUpdateOverride(overrides, "username") ? overrides.username ?? null : camera.username ?? null,
+    password: hasCameraUpdateOverride(overrides, "password") ? overrides.password ?? null : camera.password ?? null,
+    streamUrl: hasCameraUpdateOverride(overrides, "streamUrl") ? overrides.streamUrl ?? null : (camera.previewType === 'none' ? null : camera.streamUrl ?? null),
+    previewType: hasCameraUpdateOverride(overrides, "previewType") ? overrides.previewType ?? "none" : camera.previewType ?? (camera.streamUrl ? 'snapshot' : 'none'),
+    previewRefreshMs: overrides.previewRefreshMs ?? Math.max(250, camera.previewRefreshMs ?? 2000),
+    atemInputId: hasCameraUpdateOverride(overrides, "atemInputId") ? overrides.atemInputId ?? null : camera.atemInputId ?? null,
+  };
+}
+
+export function buildCameraEditUpdatePayload(
+  camera: CameraData,
+  editForm: CameraEditFormState,
+  effectiveAssignment: number | null,
+): CameraUpdatePayload {
+  return buildCameraUpdatePayload(camera, {
+    name: editForm.name,
+    ip: editForm.ip,
+    port: editForm.port,
+    username: editForm.username || null,
+    password: editForm.password || null,
+    streamUrl: editForm.previewType === 'none' ? null : editForm.streamUrl || null,
+    previewType: editForm.previewType || "none",
+    previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
+    atemInputId: atemInputIdForCameraAssignment(effectiveAssignment, parseAtemInputId(editForm.atemInputId)),
+  });
+}
+
+export function buildCameraAssignmentSwapUpdatePayload(
+  camera: CameraData,
+  currentAssignment: number,
+): CameraUpdatePayload {
+  return buildCameraUpdatePayload(camera, {
+    name: formatCameraAssignmentName(currentAssignment),
+    atemInputId: atemInputIdForCameraAssignment(currentAssignment, camera.atemInputId ?? null),
+  });
+}
+
 interface CameraSelectorProps {
   cameras: CameraData[];
   selectedId: number;
   onSelect: (id: number) => void;
-  onUpdateCamera?: (id: number, updates: {
-    name: string;
-    ip: string;
-    port: number;
-    username?: string | null;
-    password?: string | null;
-    streamUrl?: string | null;
-    previewType?: string;
-    previewRefreshMs?: number;
-    atemInputId?: number | null;
-  }) => void;
+  onUpdateCamera?: (id: number, updates: CameraUpdatePayload) => void;
   onDeleteCamera?: (id: number) => void;
 }
 
@@ -61,7 +137,7 @@ export function CameraSelector({
   onDeleteCamera 
 }: CameraSelectorProps) {
   const [editingCamera, setEditingCamera] = useState<CameraData | null>(null);
-  const [editForm, setEditForm] = useState({ assignment: CUSTOM_CAMERA_ASSIGNMENT, name: '', ip: '', port: 52381, username: '', password: '', streamUrl: '', previewType: 'none', previewRefreshMs: 2000, atemInputId: '' });
+  const [editForm, setEditForm] = useState<CameraEditFormState>({ assignment: CUSTOM_CAMERA_ASSIGNMENT, name: '', ip: '', port: 52381, username: '', password: '', streamUrl: '', previewType: 'none', previewRefreshMs: 2000, atemInputId: '' });
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoDeviceError, setVideoDeviceError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -130,54 +206,16 @@ export function CameraSelector({
     });
   };
 
-  const cameraUpdatePayload = (
-    camera: CameraData,
-    overrides: Partial<{
-      name: string;
-      ip: string;
-      port: number;
-      username: string | null;
-      password: string | null;
-      streamUrl: string | null;
-      previewType: string;
-      previewRefreshMs: number;
-      atemInputId: number | null;
-    }> = {},
-  ) => ({
-    name: overrides.name ?? camera.name,
-    ip: overrides.ip ?? camera.ip,
-    port: overrides.port ?? camera.port ?? 52381,
-    username: "username" in overrides ? overrides.username ?? null : camera.username ?? null,
-    password: "password" in overrides ? overrides.password ?? null : camera.password ?? null,
-    streamUrl: "streamUrl" in overrides ? overrides.streamUrl ?? null : (camera.previewType === 'none' ? null : camera.streamUrl ?? null),
-    previewType: overrides.previewType ?? camera.previewType ?? (camera.streamUrl ? 'snapshot' : 'none'),
-    previewRefreshMs: overrides.previewRefreshMs ?? Math.max(250, camera.previewRefreshMs ?? 2000),
-    atemInputId: "atemInputId" in overrides ? overrides.atemInputId ?? null : camera.atemInputId ?? null,
-  });
-
   const handleSave = () => {
     if (hasBlankCameraName) return;
     if (hasBlockingAssignmentConflict) return;
 
     if (editingCamera && onUpdateCamera) {
       if (assignmentConflict && currentAssignment && currentAssignment !== effectiveAssignment) {
-        onUpdateCamera(assignmentConflict.id, cameraUpdatePayload(assignmentConflict, {
-          name: formatCameraAssignmentName(currentAssignment),
-          atemInputId: atemInputIdForCameraAssignment(currentAssignment, assignmentConflict.atemInputId ?? null),
-        }));
+        onUpdateCamera(assignmentConflict.id, buildCameraAssignmentSwapUpdatePayload(assignmentConflict, currentAssignment));
       }
 
-      onUpdateCamera(editingCamera.id, cameraUpdatePayload(editingCamera, {
-        name: editForm.name,
-        ip: editForm.ip,
-        port: editForm.port,
-        username: editForm.username || null,
-        password: editForm.password || null,
-        streamUrl: editForm.previewType === 'none' ? null : editForm.streamUrl || null,
-        previewType: editForm.previewType,
-        previewRefreshMs: Math.max(250, editForm.previewRefreshMs || 2000),
-        atemInputId: atemInputIdForCameraAssignment(effectiveAssignment, parseAtemInputId(editForm.atemInputId)),
-      }));
+      onUpdateCamera(editingCamera.id, buildCameraEditUpdatePayload(editingCamera, editForm, effectiveAssignment));
     }
     setEditingCamera(null);
   };
