@@ -63,6 +63,15 @@ test("camera selector updates and saves ATEM inputs from numbered assignments", 
   assert.match(selector, /disabled=\{hasBlockingAssignmentConflict \|\| hasBlankCameraName\}/);
 });
 
+test("camera selector saves explicit cleared camera settings", () => {
+  const selector = source("client/src/components/ptz/camera-selector.tsx");
+
+  assert.match(selector, /username: "username" in overrides \? overrides\.username \?\? null : camera\.username \?\? null,/);
+  assert.match(selector, /password: "password" in overrides \? overrides\.password \?\? null : camera\.password \?\? null,/);
+  assert.match(selector, /streamUrl: "streamUrl" in overrides \? overrides\.streamUrl \?\? null : \(camera\.previewType === 'none' \? null : camera\.streamUrl \?\? null\),/);
+  assert.match(selector, /atemInputId: "atemInputId" in overrides \? overrides\.atemInputId \?\? null : camera\.atemInputId \?\? null,/);
+});
+
 test("camera route logs safe assignment and ATEM input updates", () => {
   const route = source("server/routes/camera.ts");
   const actionIndex = route.indexOf('action: "camera:assignment_atem_update"');
