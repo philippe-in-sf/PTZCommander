@@ -364,7 +364,8 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       });
       res.redirect(`/displays?smartthingsAuth=${encodeURIComponent(state)}`);
     } catch (error: any) {
-      res.status(500).send(error.message || "SmartThings authorization failed.");
+      logger.error({ error }, "SmartThings OAuth callback failed");
+      res.status(500).send("SmartThings authorization failed.");
     }
   });
 
