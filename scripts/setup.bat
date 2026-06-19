@@ -17,13 +17,16 @@ REM Check for Node.js
 where node >nul 2>nul
 if %ERRORLEVEL% neq 0 (
     echo Error: Node.js is not installed.
-    echo Please install Node.js 20+ from https://nodejs.org/
+    echo Please install Node.js 24.x from https://nodejs.org/
     pause
     exit /b 1
 )
 
-echo Node.js version: 
-node -v
+node script\check-node-version.mjs
+if %ERRORLEVEL% neq 0 (
+    pause
+    exit /b 1
+)
 
 REM Install dependencies
 echo.

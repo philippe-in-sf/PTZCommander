@@ -3,14 +3,26 @@
   "version": "1.7.9",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
+    "check:node": "node script/check-node-version.mjs",
+    "predev:client": "npm run check:node",
     "dev:client": "vite dev --port 5000",
+    "predev": "npm run check:node",
     "dev": "NODE_ENV=development tsx server/index.ts",
+    "prebuild": "npm run check:node",
     "build": "tsx script/build.ts",
+    "prestart": "npm run check:node",
     "start": "NODE_ENV=production node dist/index.cjs",
+    "precheck": "npm run check:node",
     "check": "tsc",
+    "prelint": "npm run check:node",
     "lint": "tsx script/lint.ts",
+    "pretest": "npm run check:node",
     "test": "tsx --test tests/*.test.ts",
+    "predb:push": "npm run check:node",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
