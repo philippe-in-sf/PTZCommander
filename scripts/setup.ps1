@@ -14,11 +14,15 @@ Write-Host ""
 # Check for Node.js
 try {
     $nodeVersion = node -v
-    Write-Host "Node.js version: $nodeVersion" -ForegroundColor Green
 } catch {
     Write-Host "Error: Node.js is not installed." -ForegroundColor Red
-    Write-Host "Please install Node.js 20+ from https://nodejs.org/" -ForegroundColor Yellow
+    Write-Host "Please install Node.js 24.x from https://nodejs.org/" -ForegroundColor Yellow
     exit 1
+}
+
+node script/check-node-version.mjs
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
 }
 
 # Install dependencies

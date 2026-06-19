@@ -35,7 +35,7 @@ wait_for_version_metadata() {
 
   while [ "$(date +%s)" -le "$deadline" ]; do
     if metadata=$(curl --fail --silent --show-error --max-time 2 "$VERSION_URL" 2>/dev/null); then
-      if printf '%s' "$metadata" | node -e 'const fs = require("fs"); JSON.parse(fs.readFileSync(0, "utf8"));' >/dev/null 2>&1; then
+      if printf '%s' "$metadata" | "$NODE_BIN" -e 'const fs = require("fs"); JSON.parse(fs.readFileSync(0, "utf8"));' >/dev/null 2>&1; then
         printf '%s' "$metadata"
         return 0
       fi
@@ -55,10 +55,11 @@ validate_self_check() {
   metadata_json="$1"
   launchd_pid="$2"
 
-  SELF_CHECK_JSON="$metadata_json" node - "$ROOT_DIR" "$EXPECTED_VERSION" "$launchd_pid" <<'NODE'
+  SELF_CHECK_JSON="$metadata_json" "$NODE_BIN" - "$ROOT_DIR" "$EXPECTED_VERSION" "$launchd_pid" <<'NODE'
 const expectedRoot = process.argv[2];
 const expectedVersion = process.argv[3];
 const launchdPid = process.argv[4];
+const requiredNodeMajor = 24;
 let metadata;
 
 try {
@@ -96,6 +97,11 @@ if (!workingDirectory) {
 
 if (!nodeVersion) {
   problems.push("/api/version did not report a Node version. The running app is probably old code.");
+} else {
+  const major = Number.parseInt(nodeVersion.replace(/^v/, "").split(".")[0] || "", 10);
+  if (major !== requiredNodeMajor) {
+    problems.push(`live Node version ${nodeVersion} is not Node ${requiredNodeMajor}.x.`);
+  }
 }
 
 if (!pid) {
@@ -117,6 +123,66 @@ if (problems.length > 0) {
 NODE
 }
 
+node_major() {
+  "$1" -e 'process.stdout.write(String(Number.parseInt(process.versions.node.split(".")[0] || "", 10)))'
+}
+
+validate_node24_bin() {
+  candidate="$1"
+
+  if [ ! -x "$candidate" ]; then
+    return 1
+  fi
+
+  major=$(node_major "$candidate" 2>/dev/null || true)
+  [ "$major" = "24" ]
+}
+
+resolve_node_bin() {
+  if [ "${PTZCOMMAND_NODE_BIN:-}" ]; then
+    case "$PTZCOMMAND_NODE_BIN" in
+      /*)
+        ;;
+      *)
+        fail "PTZCOMMAND_NODE_BIN must be an absolute path."
+        ;;
+    esac
+
+    if validate_node24_bin "$PTZCOMMAND_NODE_BIN"; then
+      printf '%s\n' "$PTZCOMMAND_NODE_BIN"
+      return 0
+    fi
+
+    fail "PTZCOMMAND_NODE_BIN must point to a Node 24.x executable; got $PTZCOMMAND_NODE_BIN."
+  fi
+
+  for candidate in \
+    /opt/homebrew/opt/node@24/bin/node \
+    /usr/local/opt/node@24/bin/node \
+    /opt/homebrew/bin/node \
+    /usr/local/bin/node
+  do
+    if validate_node24_bin "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  if command -v node >/dev/null 2>&1; then
+    candidate=$(command -v node)
+    case "$candidate" in
+      /*)
+        if validate_node24_bin "$candidate"; then
+          printf '%s\n' "$candidate"
+          return 0
+        fi
+        ;;
+    esac
+  fi
+
+  fail "Could not find a Node 24.x binary. Install Node 24 or set PTZCOMMAND_NODE_BIN to an absolute Node 24 executable path."
+}
+
 if [ ! -f "$PLIST_TEMPLATE" ]; then
   fail "Missing plist template: $PLIST_TEMPLATE"
 fi
@@ -130,15 +196,11 @@ if [ "$SELF_CHECK_TIMEOUT" -lt 1 ]; then
   fail "PTZCOMMAND_SELF_CHECK_TIMEOUT must be a positive integer."
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-  fail "Node.js is not installed or not in PATH."
-fi
-
 if ! command -v curl >/dev/null 2>&1; then
   fail "curl is not installed or not in PATH."
 fi
 
-NODE_BIN=$(command -v node)
+NODE_BIN=$(resolve_node_bin)
 case "$NODE_BIN" in
   /*)
     ;;
@@ -147,7 +209,7 @@ case "$NODE_BIN" in
     ;;
 esac
 
-EXPECTED_VERSION=$(node -e 'const fs = require("fs"); const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (typeof pkg.version !== "string" || !pkg.version) process.exit(1); process.stdout.write(pkg.version);' "$ROOT_DIR/package.json") || fail "Could not read package.json version."
+EXPECTED_VERSION=$("$NODE_BIN" -e 'const fs = require("fs"); const pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (typeof pkg.version !== "string" || !pkg.version) process.exit(1); process.stdout.write(pkg.version);' "$ROOT_DIR/package.json") || fail "Could not read package.json version."
 
 if [ ! -f "$ROOT_DIR/dist/index.cjs" ]; then
   fail "Missing production build at $ROOT_DIR/dist/index.cjs. Run npm run build before installing the launchd agent."
