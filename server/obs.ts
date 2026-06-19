@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "crypto";
+import { createHash, pbkdf2Sync, randomUUID } from "crypto";
 import { WebSocket } from "ws";
 import { logger } from "./logger";
 
@@ -53,7 +53,7 @@ function obsUrl(host: string, port: number) {
 }
 
 function obsAuth(password: string, salt: string, challenge: string) {
-  const secret = createHash("sha256").update(password + salt).digest("base64");
+  const secret = pbkdf2Sync(password, salt, 100000, 32, "sha256").toString("base64");
   return createHash("sha256").update(secret + challenge).digest("base64");
 }
 
