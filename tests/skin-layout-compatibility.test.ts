@@ -28,3 +28,14 @@ test("alternate dashboard skins render shared control-surface shortcut labels", 
     assert.match(skinSource, /buttonNumber === scene\.buttonNumber/);
   }
 });
+
+test("skin selector stays open while moving over menu options", () => {
+  const skinSelector = source("client/src/components/skin-selector.tsx");
+
+  assert.doesNotMatch(skinSelector, /onMouseLeave=\{\(\) => setOpen\(false\)\}/);
+  assert.match(skinSelector, /useRef<HTMLDivElement>/);
+  assert.match(skinSelector, /document\.addEventListener\("pointerdown", closeOnOutsidePointer\)/);
+  assert.match(skinSelector, /document\.addEventListener\("keydown", closeOnEscape\)/);
+  assert.match(skinSelector, /role="menu"/);
+  assert.match(skinSelector, /role="menuitem"/);
+});
