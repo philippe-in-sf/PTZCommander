@@ -219,3 +219,27 @@ body {
     0 2px 4px rgba(0, 0, 0, 0.75),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
+
+.mixer-console-slider[data-orientation="vertical"] [role="slider"] {
+  width: 28px !important;
+  height: 13px !important;
+  border-radius: 2px !important;
+  border-color: #8a9298 !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.08) 48%, rgba(0, 0, 0, 0.25) 50%),
+    linear-gradient(90deg, #a8afb3, #d7dadd 50%, #7c858b) !important;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  outline: none !important;
+  --tw-ring-color: transparent !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+
+.mixer-console-slider[data-orientation="vertical"] [role="slider"]:focus-visible {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(230, 238, 244, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
