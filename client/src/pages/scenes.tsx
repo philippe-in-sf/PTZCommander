@@ -1452,23 +1452,25 @@ export default function ScenesPage() {
                     </div>
                   ) : (
                     <div>
-                      <Label>Merge Target</Label>
-                      <Select
+                      <Label htmlFor="capture-merge-target">Merge Target</Label>
+                      <select
+                        id="capture-merge-target"
+                        className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         value={captureDraft.targetSceneId ? String(captureDraft.targetSceneId) : "none"}
-                        onValueChange={(value) => updateCaptureDraft({ targetSceneId: value === "none" ? null : Number.parseInt(value, 10) })}
+                        onChange={(event) =>
+                          updateCaptureDraft({
+                            targetSceneId: event.target.value === "none" ? null : Number.parseInt(event.target.value, 10),
+                          })
+                        }
+                        data-testid="select-capture-merge-target"
                       >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select scene" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Select scene</SelectItem>
-                          {sceneButtons.map((scene) => (
-                            <SelectItem key={scene.id} value={String(scene.id)}>
-                              {scene.buttonNumber}. {scene.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="none">Select scene</option>
+                        {sceneButtons.map((scene) => (
+                          <option key={scene.id} value={String(scene.id)}>
+                            {scene.buttonNumber}. {scene.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   )}
                 </div>
