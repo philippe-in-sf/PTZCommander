@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
@@ -39,6 +39,15 @@ const SECTION_LABELS: Record<MixerSection, string> = {
   auxin: "Aux",
   fxrtn: "FX",
   mtx: "Mtx",
+  dca: "DCA",
+};
+
+const sectionCode: Record<MixerSection, string> = {
+  ch: "CH",
+  bus: "BUS",
+  auxin: "AUX",
+  fxrtn: "FX",
+  mtx: "MTX",
   dca: "DCA",
 };
 
@@ -280,70 +289,84 @@ export default function MixerPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Section Tabs */}
-          <div className="border-b border-slate-200 dark:border-slate-800 bg-slate-400/30 dark:bg-slate-950/30 px-6">
-            <div className="flex gap-1 py-2">
-              {SECTION_TABS.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveSection(tab.key)}
-                  className={cn(
-                    "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                    activeSection === tab.key
-                      ? "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/50 dark:hover:bg-slate-800"
-                  )}
-                  data-testid={`tab-section-${tab.key}`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Fader Section */}
-          <div className="flex-1 overflow-auto p-6">
-            <div className="flex gap-2 flex-wrap justify-center">
-              {channels.map((ch) => (
-                <MixerChannelStrip
-                  key={`${activeSection}-${ch.channel}`}
-                  channel={ch.channel}
-                  name={ch.name}
-                  fader={ch.fader}
-                  muted={ch.muted}
-                  onFaderChange={(val) => handleFaderChange(activeSection, ch.channel, val)}
-                  onMuteToggle={(muted) => handleMuteToggle(activeSection, ch.channel, muted)}
-                />
-              ))}
-            </div>
-
-            {/* Main Fader */}
-            <div className="mt-6 max-w-2xl mx-auto">
-              <div className="flex items-center gap-4 p-4 bg-slate-300/50 dark:bg-slate-800/50 rounded-lg border border-slate-300 dark:border-slate-600">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-cyan-600 dark:text-cyan-400">MAIN LR</span>
-                  <Button
-                    variant={mainMuted ? "destructive" : "outline"}
-                    size="sm"
-                    onClick={handleMainMuteToggle}
-                    data-testid="mute-main-full"
-                  >
-                    {mainMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                  </Button>
+        <div className="flex-1 overflow-hidden bg-[#07090c] p-3 text-zinc-100 sm:p-5">
+          <div className="mx-auto flex h-full min-h-0 max-w-[1540px] flex-col overflow-hidden rounded-md border border-black bg-[#12161a] shadow-[0_18px_50px_rgba(0,0,0,0.55)]">
+            <div className="flex min-h-12 items-center justify-between border-b border-black bg-[linear-gradient(#24282c,#0d0f11)] px-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <SlidersHorizontal className="h-4 w-4 text-sky-300" />
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold text-zinc-100">Audio Mixer</h2>
+                  <p className="truncate text-xs text-zinc-500">{mixer.name}</p>
                 </div>
-                <Slider
-                  value={[mainFader]}
-                  onValueChange={handleMainFaderChange}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  className="flex-1"
-                  data-testid="fader-main-full"
-                />
-                <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-16 text-right">
-                  {faderToDb(mainFader)}
-                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                {mixer.status === "online" ? (
+                  <Wifi className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => connectMixerMutation.mutate(mixer.id)}
+                    className="h-7 border border-zinc-700 bg-[#171a1d] px-2 text-xs text-zinc-200"
+                    data-testid="button-connect-mixer-console"
+                  >
+                    <WifiOff className="h-3.5 w-3.5" /> Connect
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleEditClick}
+                  className="h-7 w-7 border border-zinc-700 bg-[#171a1d] text-zinc-300"
+                  data-testid="button-edit-mixer-console"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-b border-black bg-[#161a1e] px-2">
+              <div className="flex gap-px overflow-x-auto py-2">
+                {SECTION_TABS.map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveSection(tab.key)}
+                    className={cn(
+                      "h-8 min-w-32 whitespace-nowrap border px-4 text-sm transition-colors",
+                      activeSection === tab.key
+                        ? "border-sky-400/50 bg-[linear-gradient(#3b86bd,#215a86)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
+                        : "border-black bg-[linear-gradient(#2a2e32,#14171a)] text-zinc-300 hover:bg-[#242a30] hover:text-white"
+                    )}
+                    data-testid={`tab-section-${tab.key}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-hidden p-2">
+              <div className="mixer-console-frame h-full overflow-x-auto overflow-y-hidden rounded-md border border-black bg-[#0a0c0e] p-1.5">
+                <div className="flex h-full min-h-[420px] items-stretch gap-[3px]">
+                  {channels.map((ch) => (
+                    <MixerChannelStrip
+                      key={`${activeSection}-${ch.channel}`}
+                      section={activeSection}
+                      channel={ch.channel}
+                      name={ch.name}
+                      fader={ch.fader}
+                      muted={ch.muted}
+                      onFaderChange={(val) => handleFaderChange(activeSection, ch.channel, val)}
+                      onMuteToggle={(muted) => handleMuteToggle(activeSection, ch.channel, muted)}
+                    />
+                  ))}
+                  <MainOutputStrip
+                    fader={mainFader}
+                    muted={mainMuted}
+                    onFaderChange={handleMainFaderChange}
+                    onMuteToggle={handleMainMuteToggle}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -401,6 +424,7 @@ export default function MixerPage() {
 }
 
 interface MixerChannelStripProps {
+  section: MixerSection;
   channel: number;
   name: string;
   fader: number;
@@ -409,7 +433,7 @@ interface MixerChannelStripProps {
   onMuteToggle: (muted: boolean) => void;
 }
 
-function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteToggle }: MixerChannelStripProps) {
+function MixerChannelStrip({ section, channel, name, fader, muted, onFaderChange, onMuteToggle }: MixerChannelStripProps) {
   const [localFader, setLocalFader] = useState(fader);
 
   useEffect(() => {
@@ -422,55 +446,197 @@ function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteT
     onFaderChange(newValue);
   };
 
+  const dbValue = faderToDb(localFader);
+  const displayName = name || `${SECTION_LABELS[section]} ${channel}`;
+
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-300/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700 w-[72px]",
-        muted && "opacity-60"
+        "mixer-console-strip flex h-full min-w-[52px] flex-col items-center border border-black bg-[linear-gradient(90deg,#171b1f,#22272b_48%,#15191d)] px-1 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.04),inset_-1px_0_0_rgba(0,0,0,0.75)]",
+        stripToneClass(section, channel),
+        muted && "opacity-70"
       )}
       data-testid={`mixer-strip-${channel}`}
     >
-      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate w-full text-center" title={name}>
-        {name}
-      </span>
-
-      <div className="h-40 flex items-center justify-center">
-        <Slider
-          orientation="vertical"
-          value={[localFader]}
-          onValueChange={handleFaderChange}
-          min={0}
-          max={1}
-          step={0.01}
-          className="h-36"
-        />
+      <div className="grid w-full gap-1">
+        <div className="h-5 truncate rounded-sm border border-black/70 bg-[#23282c] px-1 text-center font-mono text-[10px] leading-5 text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" title={displayName}>
+          {displayName}
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          <span className="rounded-sm border border-black/70 bg-[#30363a] text-center font-mono text-[9px] leading-4 text-zinc-400">
+            {sectionCode[section]}
+          </span>
+          <span className="rounded-sm border border-black/70 bg-[#30363a] text-center font-mono text-[9px] leading-4 text-zinc-400">
+            {channel}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          <span className="rounded-sm border border-black/70 bg-[#202529] text-center font-mono text-[9px] leading-4 text-zinc-500">
+            EQ
+          </span>
+          <span className="rounded-sm border border-black/70 bg-[#202529] text-center font-mono text-[9px] leading-4 text-zinc-500">
+            DYN
+          </span>
+        </div>
       </div>
 
-      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-        {faderToDb(localFader)}
+      <div className="mt-2 flex items-center justify-center">
+        <div className="mixer-fader-well relative flex h-[220px] w-9 items-center justify-center rounded-sm border border-black bg-[#101316] shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
+          <div className="absolute inset-y-3 left-1 w-px bg-zinc-500/30" />
+          <div className="absolute inset-y-3 right-1 w-px bg-zinc-500/30" />
+          <div className="absolute left-1.5 right-1.5 top-1/2 h-px bg-sky-300/35" />
+          <Slider
+            orientation="vertical"
+            value={[localFader]}
+            onValueChange={handleFaderChange}
+            min={0}
+            max={1}
+            step={0.01}
+            className="mixer-console-slider h-[196px] w-7"
+            data-testid={`fader-${channel}`}
+          />
+        </div>
+      </div>
+
+      <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-zinc-400">
+        {dbValue}
       </span>
 
       <Button
-        variant={muted ? "destructive" : "outline"}
+        variant="ghost"
         size="sm"
-        className="w-full h-7 text-[10px]"
+        className={cn(
+          "mt-1 h-6 min-h-0 w-full rounded-sm border px-1 font-mono text-[9px]",
+          muted
+            ? "border-red-500/80 bg-red-600 text-white"
+            : "border-black bg-[#2d3337] text-zinc-200"
+        )}
         onClick={() => onMuteToggle(!muted)}
+        data-testid={`mute-${channel}`}
       >
-        {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+        MUTE
       </Button>
 
-      <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
+      <div className="mt-1 h-6 w-full truncate rounded-sm border border-black bg-[#1b2227] px-1 text-center font-mono text-[10px] leading-6 text-zinc-300" title={displayName}>
+        {shortStripName(displayName, channel)}
+      </div>
     </div>
   );
 }
 
+interface MainOutputStripProps {
+  fader: number;
+  muted: boolean;
+  onFaderChange: (value: number[]) => void;
+  onMuteToggle: () => void;
+}
+
+function MainOutputStrip({ fader, muted, onFaderChange, onMuteToggle }: MainOutputStripProps) {
+  return (
+    <div
+      className={cn(
+        "mixer-console-strip flex h-full min-w-[72px] flex-col items-center border border-black bg-[linear-gradient(90deg,#252b2e,#323a3d_52%,#1b2023)] px-2 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06),inset_-1px_0_0_rgba(0,0,0,0.8)]",
+        muted && "opacity-70"
+      )}
+      data-testid="mixer-main-strip"
+    >
+      <div className="grid w-full gap-1">
+        <div className="h-5 rounded-sm border border-black/70 bg-[#252b2f] text-center font-mono text-[10px] leading-5 text-zinc-200">
+          MAIN
+        </div>
+        <div className="rounded-sm border border-black bg-[#16191c] text-center font-mono text-[9px] leading-4 text-zinc-500">
+          LR
+        </div>
+        <div className="h-6 rounded-sm border border-black bg-[#121518] text-center font-mono text-[9px] leading-6 text-zinc-500">
+          LAVE
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-center">
+        <div className="mixer-fader-well relative flex h-[220px] w-11 items-center justify-center rounded-sm border border-black bg-[#0f1214] shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
+          <div className="absolute inset-y-3 left-2 w-px bg-zinc-500/30" />
+          <div className="absolute inset-y-3 right-2 w-px bg-zinc-500/30" />
+          <div className="absolute left-2 right-2 top-1/2 h-px bg-sky-300/35" />
+          <Slider
+            orientation="vertical"
+            value={[fader]}
+            onValueChange={onFaderChange}
+            min={0}
+            max={1}
+            step={0.01}
+            className="mixer-console-slider h-[196px] w-8"
+            data-testid="fader-main-full"
+          />
+        </div>
+      </div>
+
+      <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-zinc-400">{faderToDb(fader)}</span>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "mt-1 h-6 min-h-0 w-full rounded-sm border px-1 font-mono text-[9px]",
+          muted
+            ? "border-red-500/80 bg-red-600 text-white"
+            : "border-black bg-[#2d3337] text-zinc-200"
+        )}
+        onClick={onMuteToggle}
+        data-testid="mute-main-full"
+      >
+        MUTE
+      </Button>
+
+      <div className="mt-1 h-6 w-full rounded-sm border border-black bg-[#1b2227] text-center font-mono text-[10px] leading-6 text-zinc-300">
+        LR
+      </div>
+    </div>
+  );
+}
+
+function stripToneClass(section: MixerSection, channel: number): string {
+  if (section === "bus" || section === "auxin") {
+    return channel % 4 === 0
+      ? "bg-[linear-gradient(90deg,rgba(19,62,57,0.95),rgba(27,92,76,0.95)_52%,rgba(16,48,47,0.95))]"
+      : "bg-[linear-gradient(90deg,rgba(23,45,43,0.95),rgba(32,67,60,0.95)_52%,rgba(18,39,38,0.95))]";
+  }
+
+  if (section === "dca" || section === "mtx") {
+    return "bg-[linear-gradient(90deg,rgba(33,39,42,0.98),rgba(48,57,60,0.98)_52%,rgba(26,31,34,0.98))]";
+  }
+
+  if (section === "fxrtn") {
+    return "bg-[linear-gradient(90deg,rgba(47,39,34,0.98),rgba(62,50,41,0.98)_52%,rgba(35,30,27,0.98))]";
+  }
+
+  if (channel % 8 === 0 || channel % 8 === 7) {
+    return "bg-[linear-gradient(90deg,rgba(18,58,53,0.95),rgba(27,89,73,0.95)_52%,rgba(17,46,44,0.95))]";
+  }
+
+  if (channel % 4 === 0) {
+    return "bg-[linear-gradient(90deg,rgba(42,36,34,0.98),rgba(56,45,39,0.98)_52%,rgba(30,27,26,0.98))]";
+  }
+
+  return "";
+}
+
+function shortStripName(name: string, channel: number): string {
+  const trimmed = name.trim();
+  if (!trimmed) return String(channel);
+  const compact = trimmed
+    .replace(/channel/i, "CH")
+    .replace(/\s+/g, " ")
+    .trim();
+  return compact.length <= 5 ? compact : compact.slice(0, 5).toUpperCase();
+}
+
 function faderToDb(value: number): string {
   if (value <= 0) return "-inf";
-  if (value >= 1) return "+10 dB";
+  if (value >= 1) return "+10";
   if (value >= 0.75) {
     const db = ((value - 0.75) / 0.25) * 10;
-    return db >= 0 ? `+${db.toFixed(0)} dB` : `${db.toFixed(0)} dB`;
+    return db >= 0 ? `+${db.toFixed(0)}` : `${db.toFixed(0)}`;
   }
   const db = -60 + (value / 0.75) * 60;
-  return `${db.toFixed(0)} dB`;
+  return `${db.toFixed(0)}`;
 }
