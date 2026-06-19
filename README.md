@@ -89,7 +89,7 @@ Touch-optimized mobile web view with camera control, scene execution, and switch
 
 ## Prerequisites
 
-- **Node.js 18+** (https://nodejs.org/)
+- **Node.js 24.x** (https://nodejs.org/) is required. Node 26 is not supported because the local SQLite path uses the native `better-sqlite3` binding.
 - PTZ cameras with VISCA over IP support (optional)
 - Behringer X32/M32 mixer (optional)
 - Blackmagic ATEM switcher (optional)
@@ -188,6 +188,8 @@ npm run build
 That installs a `launchd` agent, keeps PTZ Command running after login, and writes logs to `~/Library/Logs/PTZCommand`.
 
 The installer launches the built `dist/index.cjs` file with the detected Node binary, then checks `http://127.0.0.1:$PORT/api/version` before declaring victory. The self-check prints the live app version, working directory, Node version, runtime PID, and launchd PID. It exits nonzero if the build is stale, the running service is missing runtime metadata, reports a different app version, points at a different checkout, or if another process is still answering on the port. Use `PTZCOMMAND_SELF_CHECK_TIMEOUT=60 ./deploy/install-launchd.sh` if the Mac needs more startup time.
+
+The launchd installer requires a Node 24 binary. It checks `PTZCOMMAND_NODE_BIN` first, then common Homebrew Node 24 paths, then the `node` on `PATH`; anything outside Node 24 fails before the plist is installed.
 
 ## Camera Setup
 

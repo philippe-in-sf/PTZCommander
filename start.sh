@@ -6,9 +6,11 @@ echo ""
 
 if ! command -v node &> /dev/null; then
     echo "ERROR: Node.js is not installed or not in PATH."
-    echo "Please install Node.js from https://nodejs.org"
+    echo "Please install Node.js 24.x from https://nodejs.org"
     exit 1
 fi
+
+node script/check-node-version.mjs || exit 1
 
 echo "Checking for updates..."
 npm install

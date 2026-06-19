@@ -8,8 +8,14 @@ echo.
 where node >nul 2>nul
 if %errorlevel% neq 0 (
     echo ERROR: Node.js is not installed or not in PATH.
-    echo Please install Node.js from https://nodejs.org
+    echo Please install Node.js 24.x from https://nodejs.org
     echo.
+    pause
+    exit /b 1
+)
+
+node script\check-node-version.mjs
+if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
