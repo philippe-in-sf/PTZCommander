@@ -304,7 +304,7 @@ export default function MixerPage() {
 
           {/* Fader Section */}
           <div className="flex-1 overflow-auto p-6">
-            <div className="flex gap-2 flex-wrap justify-center">
+            <div className="flex flex-wrap items-end justify-center gap-2">
               {channels.map((ch) => (
                 <MixerChannelStrip
                   key={`${activeSection}-${ch.channel}`}
