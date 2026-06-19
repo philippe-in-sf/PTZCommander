@@ -425,13 +425,13 @@ function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteT
   return (
     <div
       className={cn(
-        "flex h-80 w-[72px] shrink-0 flex-col items-center gap-2 rounded-lg border border-slate-300 bg-slate-300/50 p-3 dark:border-slate-700 dark:bg-slate-800/50",
+        "grid w-[72px] grid-rows-[24px_160px_14px_28px_16px] items-center gap-2 p-3 rounded-lg bg-slate-300/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700",
         muted && "opacity-60"
       )}
       data-testid={`mixer-strip-${channel}`}
     >
-      <span className="block h-4 w-full truncate text-center font-mono text-[10px] leading-4 text-slate-500 dark:text-slate-400" title={name}>
-        {name}
+      <span className="flex h-6 w-full items-center justify-center overflow-hidden text-center text-[10px] leading-3 text-slate-500 dark:text-slate-400 font-mono" title={name}>
+        <span className="line-clamp-2 break-words">{name}</span>
       </span>
 
       <div className="flex h-40 w-full items-center justify-center">
@@ -446,20 +446,20 @@ function MixerChannelStrip({ channel, name, fader, muted, onFaderChange, onMuteT
         />
       </div>
 
-      <span className="h-4 font-mono text-[10px] leading-4 text-slate-400 dark:text-slate-500">
+      <span className="flex h-3 w-full items-center justify-center text-[10px] leading-none text-slate-400 dark:text-slate-500 font-mono">
         {faderToDb(localFader)}
       </span>
 
       <Button
         variant={muted ? "destructive" : "outline"}
         size="sm"
-        className="h-7 w-full text-[10px]"
+        className="h-7 w-full p-0 min-h-0 text-[10px]"
         onClick={() => onMuteToggle(!muted)}
       >
         {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
       </Button>
 
-      <span className="mt-auto flex h-4 items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
+      <span className="flex h-4 items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
     </div>
   );
 }

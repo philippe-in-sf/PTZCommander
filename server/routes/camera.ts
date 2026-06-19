@@ -1,5 +1,6 @@
 import type { RouteContext } from "./types";
 import { insertCameraSchema, insertPresetSchema, patchCameraSchema, patchPresetSchema } from "@shared/schema";
+import type { Camera } from "@shared/schema";
 import { errorDetails, logger } from "../logger";
 import { fromError } from "zod-validation-error";
 import { createHash } from "crypto";
@@ -304,6 +305,119 @@ async function getFfmpegFrame(
       return { entry: stale, stale: true, error };
     }
     throw error;
+  }
+}
+
+class CameraPreviewCaptureError extends Error {
+  constructor(message: string, readonly statusCode = 502) {
+    super(message);
+    this.name = "CameraPreviewCaptureError";
+  }
+}
+
+interface SnapshotPreviewFrame {
+  buffer: Buffer;
+  contentType: string;
+}
+
+type FfmpegFrameCapture = (camera: Camera, protocol: FfmpegPreviewProtocol) => Promise<Buffer>;
+
+interface PreviewThumbnailCaptureDeps {
+  fetchImpl?: typeof fetch;
+  captureFfmpegFrame?: FfmpegFrameCapture;
+}
+
+function imageDataUri(buffer: Buffer, contentType = "image/jpeg") {
+  return `data:${contentType};base64,${buffer.toString("base64")}`;
+}
+
+async function captureSnapshotPreviewFrame(
+  camera: Camera,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SnapshotPreviewFrame> {
+  if (!camera.streamUrl) {
+    throw new CameraPreviewCaptureError("No stream URL configured", 404);
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetchImpl(camera.streamUrl, {
+      signal: controller.signal,
+      headers: cameraAuthHeaders(camera) as Record<string, string>,
+    });
+
+    if (!response.ok) {
+      throw new CameraPreviewCaptureError(`Camera returned ${response.status}`, 502);
+    }
+
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type") || "image/jpeg",
+    };
+  } catch (error) {
+    if (error instanceof CameraPreviewCaptureError) {
+      throw error;
+    }
+
+    const errorName = error instanceof Error ? error.name : "";
+    if (errorName === "AbortError") {
+      throw new CameraPreviewCaptureError("Camera snapshot timed out", 504);
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    throw new CameraPreviewCaptureError(`Failed to reach camera: ${message}`, 502);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function captureFfmpegFrameForCameraResult(camera: Camera, protocol: FfmpegPreviewProtocol) {
+  if (!camera.streamUrl) {
+    throw new CameraPreviewCaptureError(`No ${protocol.toUpperCase()} URL configured`, 404);
+  }
+
+  const normalizedUrl = normalizeFfmpegPreviewUrl(camera.streamUrl, protocol);
+  if (!normalizedUrl) {
+    const allowed = protocol === "rtsp" ? "rtsp:// or rtsps://" : "rtp://";
+    throw new CameraPreviewCaptureError(`${protocol.toUpperCase()} frame URLs must start with ${allowed}`, 400);
+  }
+
+  const inputUrl = applyCameraCredentialsToPreviewUrl(normalizedUrl, camera);
+  return getFfmpegFrame(getFfmpegPath(), protocol, camera.id, normalizedUrl, inputUrl, camera);
+}
+
+async function captureFfmpegFrameForCamera(camera: Camera, protocol: FfmpegPreviewProtocol) {
+  const result = await captureFfmpegFrameForCameraResult(camera, protocol);
+  return result.entry.buffer;
+}
+
+export async function captureConfiguredPreviewThumbnail(
+  camera: Camera,
+  deps: PreviewThumbnailCaptureDeps = {},
+) {
+  if (!camera.streamUrl) {
+    return null;
+  }
+
+  const previewType = camera.previewType || (camera.streamUrl ? "snapshot" : "none");
+
+  try {
+    if (previewType === "snapshot") {
+      const frame = await captureSnapshotPreviewFrame(camera, deps.fetchImpl);
+      return imageDataUri(frame.buffer, frame.contentType);
+    }
+
+    if (previewType === "rtsp" || previewType === "rtp") {
+      const captureFrame = deps.captureFfmpegFrame || captureFfmpegFrameForCamera;
+      const frame = await captureFrame(camera, previewType);
+      return imageDataUri(frame);
+    }
+
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -760,36 +874,15 @@ export function registerCameraRoutes(ctx: RouteContext) {
       const id = parseInt(req.params.id);
       const camera = await storage.getCamera(id);
       if (!camera) return res.status(404).json({ message: "Camera not found" });
-      if (!camera.streamUrl) return res.status(404).json({ message: "No stream URL configured" });
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-
-      try {
-        const response = await fetch(camera.streamUrl, {
-          signal: controller.signal,
-          headers: cameraAuthHeaders(camera) as Record<string, string>,
-        });
-        clearTimeout(timeout);
-
-        if (!response.ok) {
-          return res.status(502).json({ message: `Camera returned ${response.status}` });
-        }
-
-        const contentType = response.headers.get('content-type') || 'image/jpeg';
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-
-        const buffer = Buffer.from(await response.arrayBuffer());
-        res.send(buffer);
-      } catch (fetchError: any) {
-        clearTimeout(timeout);
-        if (fetchError.name === 'AbortError') {
-          return res.status(504).json({ message: "Camera snapshot timed out" });
-        }
-        return res.status(502).json({ message: `Failed to reach camera: ${fetchError.message}` });
-      }
+      const frame = await captureSnapshotPreviewFrame(camera);
+      res.setHeader("Content-Type", frame.contentType);
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.send(frame.buffer);
     } catch (error: any) {
+      if (error instanceof CameraPreviewCaptureError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       res.status(500).json({ message: error.message || "Failed to get snapshot" });
     }
   });
@@ -844,16 +937,8 @@ export function registerCameraRoutes(ctx: RouteContext) {
         const id = parseInt(String(req.params.id));
         const camera = await storage.getCamera(id);
         if (!camera) return res.status(404).json({ message: "Camera not found" });
-        if (!camera.streamUrl) return res.status(404).json({ message: `No ${label} URL configured` });
 
-        const normalizedUrl = normalizeFfmpegPreviewUrl(camera.streamUrl, protocol);
-        if (!normalizedUrl) {
-          const allowed = protocol === "rtsp" ? "rtsp:// or rtsps://" : "rtp://";
-          return res.status(400).json({ message: `${label} frame URLs must start with ${allowed}` });
-        }
-
-        const inputUrl = applyCameraCredentialsToPreviewUrl(normalizedUrl, camera);
-        const result = await getFfmpegFrame(getFfmpegPath(), protocol, camera.id, normalizedUrl, inputUrl, camera);
+        const result = await captureFfmpegFrameForCameraResult(camera, protocol);
         const error = "error" in result ? result.error : undefined;
 
         res.setHeader("Content-Type", "image/jpeg");
@@ -867,6 +952,9 @@ export function registerCameraRoutes(ctx: RouteContext) {
         }
         res.send(result.entry.buffer);
       } catch (error: any) {
+        if (error instanceof CameraPreviewCaptureError) {
+          return res.status(error.statusCode).json({ message: error.message });
+        }
         logger.warn("camera", `${label} frame capture failed`, {
           action: `camera:${protocol}_frame_failed`,
           details: {
@@ -1238,7 +1326,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
   app.post("/api/presets/:id/thumbnail", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const preset = await refreshPresetThumbnail(storage, id, captureSnapshot);
+      const preset = await refreshPresetThumbnail(storage, id, captureConfiguredPreviewThumbnail);
       logger.info("preset", "Preset thumbnail refreshed", {
         action: "preset_thumbnail_refresh",
         details: { presetId: preset.id, cameraId: preset.cameraId, presetNumber: preset.presetNumber },

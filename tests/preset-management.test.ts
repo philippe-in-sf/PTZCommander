@@ -5,6 +5,7 @@ import {
   requiresProgramRecallConfirmation,
 } from "@shared/preset-management";
 import { refreshPresetThumbnail } from "../server/preset-thumbnails";
+import { captureConfiguredPreviewThumbnail } from "../server/routes/camera";
 
 test("requiresProgramRecallConfirmation is true for program tally", () => {
   assert.equal(requiresProgramRecallConfirmation({ tallyState: "program" }), true);
@@ -91,17 +92,115 @@ function thumbnailStorage(overrides: {
   };
 }
 
-test("refreshPresetThumbnail stores a freshly captured thumbnail", async () => {
+test("refreshPresetThumbnail captures plain snapshot thumbnails with the full camera config", async () => {
   const { state, storage } = thumbnailStorage();
 
-  const updated = await refreshPresetThumbnail(storage, 10, async (url) => {
-    assert.equal(url, "http://camera/snapshot.jpg");
+  const updated = await refreshPresetThumbnail(storage, 10, async (camera: any) => {
+    assert.equal(camera.previewType, "snapshot");
+    assert.equal(camera.streamUrl, "http://camera/snapshot.jpg");
     return "new-thumbnail";
   });
 
   assert.equal(state.saved?.thumbnail, "new-thumbnail");
   assert.equal(updated.thumbnail, "new-thumbnail");
   assert.equal(updated.name, "Center");
+});
+
+test("refreshPresetThumbnail captures RTSP and RTP thumbnails with the configured preview type", async () => {
+  for (const previewType of ["rtsp", "rtp"] as const) {
+    const streamUrl = `${previewType}://camera/live`;
+    const { state, storage } = thumbnailStorage({
+      camera: { ...baseCamera, previewType, streamUrl },
+    });
+
+    const updated = await refreshPresetThumbnail(storage, 10, async (camera: any) => {
+      assert.equal(camera.previewType, previewType);
+      assert.equal(camera.streamUrl, streamUrl);
+      return `${previewType}-thumbnail`;
+    });
+
+    assert.equal(state.saved?.thumbnail, `${previewType}-thumbnail`);
+    assert.equal(updated.thumbnail, `${previewType}-thumbnail`);
+  }
+});
+
+test("refreshPresetThumbnail keeps authenticated snapshot credentials available to capture", async () => {
+  const { state, storage } = thumbnailStorage({
+    camera: {
+      ...baseCamera,
+      username: "viewer",
+      password: "camera-secret",
+      streamUrl: "http://camera.local/snapshot.jpg",
+      previewType: "snapshot",
+    },
+  });
+
+  const updated = await refreshPresetThumbnail(storage, 10, async (camera: any) => {
+    assert.equal(camera.previewType, "snapshot");
+    assert.equal(camera.streamUrl, "http://camera.local/snapshot.jpg");
+    assert.equal(camera.username, "viewer");
+    assert.equal(camera.password, "camera-secret");
+    return "auth-thumbnail";
+  });
+
+  assert.equal(state.saved?.thumbnail, "auth-thumbnail");
+  assert.equal(updated.thumbnail, "auth-thumbnail");
+});
+
+test("captureConfiguredPreviewThumbnail captures a plain snapshot preview", async () => {
+  const frame = Buffer.from("plain-snapshot");
+  const thumbnail = await captureConfiguredPreviewThumbnail(baseCamera, {
+    fetchImpl: async (url, init) => {
+      assert.equal(url, "http://camera/snapshot.jpg");
+      assert.deepEqual(init?.headers, {});
+      return new Response(frame, { headers: { "content-type": "image/jpeg" } });
+    },
+  });
+
+  assert.equal(thumbnail, `data:image/jpeg;base64,${frame.toString("base64")}`);
+});
+
+test("captureConfiguredPreviewThumbnail captures RTSP and RTP preview frames", async () => {
+  for (const previewType of ["rtsp", "rtp"] as const) {
+    const streamUrl = `${previewType}://camera/live`;
+    const frame = Buffer.from(`${previewType}-frame`);
+    const thumbnail = await captureConfiguredPreviewThumbnail(
+      { ...baseCamera, previewType, streamUrl },
+      {
+        captureFfmpegFrame: async (camera, protocol) => {
+          assert.equal(protocol, previewType);
+          assert.equal(camera.streamUrl, streamUrl);
+          return frame;
+        },
+      },
+    );
+
+    assert.equal(thumbnail, `data:image/jpeg;base64,${frame.toString("base64")}`);
+  }
+});
+
+test("captureConfiguredPreviewThumbnail sends basic auth for authenticated snapshot previews", async () => {
+  const frame = Buffer.from("auth-snapshot");
+  const thumbnail = await captureConfiguredPreviewThumbnail(
+    {
+      ...baseCamera,
+      username: "viewer",
+      password: "camera-secret",
+      streamUrl: "http://camera.local/snapshot.jpg",
+      previewType: "snapshot",
+    },
+    {
+      fetchImpl: async (url, init) => {
+        assert.equal(url, "http://camera.local/snapshot.jpg");
+        assert.deepEqual(init?.headers, {
+          Authorization: `Basic ${Buffer.from("viewer:camera-secret").toString("base64")}`,
+        });
+        return new Response(frame, { headers: { "content-type": "image/jpeg" } });
+      },
+    },
+  );
+
+  assert.equal(thumbnail, `data:image/jpeg;base64,${frame.toString("base64")}`);
 });
 
 test("refreshPresetThumbnail rejects missing presets and cameras", async () => {

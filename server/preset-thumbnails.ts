@@ -6,12 +6,12 @@ export interface PresetThumbnailStorage {
   savePreset(preset: InsertPreset): Promise<Preset>;
 }
 
-export type PresetThumbnailCapture = (url: string) => Promise<string | null>;
+export type PresetThumbnailCapture = (camera: Camera) => Promise<string | null>;
 
 export async function refreshPresetThumbnail(
   storage: PresetThumbnailStorage,
   presetId: number,
-  captureSnapshot: PresetThumbnailCapture,
+  captureThumbnail: PresetThumbnailCapture,
 ) {
   const preset = await storage.getPresetById(presetId);
   if (!preset) {
@@ -27,7 +27,7 @@ export async function refreshPresetThumbnail(
     throw new Error(`No preview URL configured for ${camera.name}`);
   }
 
-  const thumbnail = await captureSnapshot(camera.streamUrl);
+  const thumbnail = await captureThumbnail(camera);
   if (!thumbnail) {
     throw new Error(`Could not capture thumbnail for ${camera.name}`);
   }
