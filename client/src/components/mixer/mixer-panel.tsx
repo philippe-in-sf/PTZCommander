@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Volume2, VolumeX, Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Mixer } from "@shared/schema";
@@ -492,6 +492,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
               return (
                 <ChannelStrip
                   key={`${activeSection}-${ch.channel}`}
+                  section={activeSection}
                   channel={ch.channel}
                   name={ch.name}
                   fader={ch.fader}
@@ -501,32 +502,67 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 />
               );
             })}
-          </div>
 
-          <div className="flex items-center gap-4 p-3 bg-slate-300/50 dark:bg-slate-800/50 rounded-lg border border-slate-300 dark:border-slate-600">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-cyan-500 dark:text-cyan-400">MAIN</span>
+            <div
+              className={cn(
+                "mixer-console-strip flex min-h-[292px] min-w-[68px] flex-col items-center border border-black bg-[linear-gradient(90deg,#252b2e,#323a3d_52%,#1b2023)] px-2 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06),inset_-1px_0_0_rgba(0,0,0,0.8)]",
+                mainMuted && "opacity-70"
+              )}
+              data-testid="mixer-main-panel-strip"
+            >
+              <div className="grid w-full gap-1">
+                <div className="h-5 rounded-sm border border-black/70 bg-[#252b2f] text-center font-mono text-[10px] leading-5 text-zinc-200">
+                  MAIN
+                </div>
+                <div className="rounded-sm border border-black bg-[#16191c] text-center font-mono text-[9px] leading-4 text-zinc-500">
+                  LR
+                </div>
+                <div className="h-6 rounded-sm border border-black bg-[#121518] text-center font-mono text-[9px] leading-6 text-zinc-500">
+                  LEVEL
+                </div>
+              </div>
+
+              <div className="mt-2 flex items-center justify-center">
+                <div className="mixer-fader-well relative flex h-[170px] w-11 items-center justify-center rounded-sm border border-black bg-[#0f1214] shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
+                  <div className="absolute inset-y-3 left-2 w-px bg-zinc-500/30" />
+                  <div className="absolute inset-y-3 right-2 w-px bg-zinc-500/30" />
+                  <div className="absolute left-2 right-2 top-1/2 h-px bg-sky-300/35" />
+                  <Slider
+                    orientation="vertical"
+                    value={[mainFader]}
+                    onValueChange={handleMainFaderChange}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    className="mixer-console-slider h-[150px] w-8"
+                    data-testid="fader-main"
+                  />
+                </div>
+              </div>
+
+              <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-zinc-400">
+                {faderToDb(mainFader)}
+              </span>
+
               <Button
-                variant={mainMuted ? "destructive" : "outline"}
+                variant="ghost"
                 size="sm"
+                className={cn(
+                  "mt-1 h-6 min-h-0 w-full rounded-sm border px-1 font-mono text-[9px]",
+                  mainMuted
+                    ? "border-red-500/80 bg-red-600 text-white"
+                    : "border-black bg-[#2d3337] text-zinc-200"
+                )}
                 onClick={handleMainMuteToggle}
                 data-testid="mute-main"
               >
-                {mainMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                MUTE
               </Button>
+
+              <div className="mt-1 h-6 w-full rounded-sm border border-black bg-[#1b2227] text-center font-mono text-[10px] leading-6 text-zinc-300">
+                LR
+              </div>
             </div>
-            <Slider
-              value={[mainFader]}
-              onValueChange={handleMainFaderChange}
-              min={0}
-              max={1}
-              step={0.01}
-              className="flex-1"
-              data-testid="fader-main"
-            />
-            <span className="text-xs font-mono text-slate-700 dark:text-slate-400 w-12 text-right">
-              {faderToDb(mainFader)}
-            </span>
           </div>
         </div>
       )}
@@ -536,11 +572,11 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
 
 function faderToDb(value: number): string {
   if (value <= 0) return "-inf";
-  if (value >= 1) return "+10 dB";
+  if (value >= 1) return "+10";
   if (value >= 0.75) {
     const db = ((value - 0.75) / 0.25) * 10;
-    return db >= 0 ? `+${db.toFixed(0)} dB` : `${db.toFixed(0)} dB`;
+    return db >= 0 ? `+${db.toFixed(0)}` : `${db.toFixed(0)}`;
   }
   const db = -60 + (value / 0.75) * 60;
-  return `${db.toFixed(0)} dB`;
+  return `${db.toFixed(0)}`;
 }

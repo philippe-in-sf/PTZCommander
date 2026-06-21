@@ -1,10 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
 interface ChannelStripProps {
+  section?: string;
   channel: number;
   name: string;
   fader: number;
@@ -14,6 +14,7 @@ interface ChannelStripProps {
 }
 
 export function ChannelStrip({ 
+  section = "ch",
   channel, 
   name, 
   fader, 
@@ -23,6 +24,10 @@ export function ChannelStrip({
 }: ChannelStripProps) {
   const [localFader, setLocalFader] = useState(fader);
 
+  useEffect(() => {
+    setLocalFader(fader);
+  }, [fader]);
+
   const handleFaderChange = useCallback((value: number[]) => {
     const newValue = value[0];
     setLocalFader(newValue);
@@ -30,6 +35,7 @@ export function ChannelStrip({
   }, [channel, onFaderChange]);
 
   const dbValue = faderToDb(localFader);
+  const displayName = name || `${sectionCode(section)} ${channel}`;
 
   return (
     <div 
@@ -61,18 +67,56 @@ export function ChannelStrip({
       </span>
 
       <Button
-        variant={muted ? "destructive" : "outline"}
+        variant="ghost"
         size="sm"
         className="h-7 w-full p-0 min-h-0 text-[10px]"
         onClick={() => onMuteToggle(channel, !muted)}
         data-testid={`mute-${channel}`}
       >
-        {muted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+        MUTE
       </Button>
 
       <span className="flex h-4 items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
     </div>
   );
+}
+
+function sectionCode(section: string): string {
+  if (section === "bus") return "BUS";
+  if (section === "dca") return "DCA";
+  return "CH";
+}
+
+function stripToneClass(section: string, channel: number): string {
+  if (section === "bus") {
+    return channel % 4 === 0
+      ? "bg-[linear-gradient(90deg,rgba(19,62,57,0.95),rgba(27,92,76,0.95)_52%,rgba(16,48,47,0.95))]"
+      : "bg-[linear-gradient(90deg,rgba(23,45,43,0.95),rgba(32,67,60,0.95)_52%,rgba(18,39,38,0.95))]";
+  }
+
+  if (section === "dca") {
+    return "bg-[linear-gradient(90deg,rgba(33,39,42,0.98),rgba(48,57,60,0.98)_52%,rgba(26,31,34,0.98))]";
+  }
+
+  if (channel % 8 === 0 || channel % 8 === 7) {
+    return "bg-[linear-gradient(90deg,rgba(18,58,53,0.95),rgba(27,89,73,0.95)_52%,rgba(17,46,44,0.95))]";
+  }
+
+  if (channel % 4 === 0) {
+    return "bg-[linear-gradient(90deg,rgba(42,36,34,0.98),rgba(56,45,39,0.98)_52%,rgba(30,27,26,0.98))]";
+  }
+
+  return "";
+}
+
+function shortStripName(name: string, channel: number): string {
+  const trimmed = name.trim();
+  if (!trimmed) return String(channel);
+  const compact = trimmed
+    .replace(/channel/i, "CH")
+    .replace(/\s+/g, " ")
+    .trim();
+  return compact.length <= 5 ? compact : compact.slice(0, 5).toUpperCase();
 }
 
 function faderToDb(value: number): string {
