@@ -2,6 +2,16 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.10] - 2026-06-21
+
+### Changed
+- **Dashboard Mixer Console Faders** — Dashboard Audio Mixer now uses the dark console shell and fader treatment from the mixer page, including console strip framing, fader wells, and the vertical MAIN output.
+- **Mixer Page Fader Consistency** — full Mixer page channel strips now use the same console-style fader surface as the dashboard.
+- **Version Display** — interface version labels now report v1.7.10
+
+### Fixed
+- **Full Mixer Page Layout** — restored the section tabs above the mixer fader frame and removed the stale duplicate wrapped fader block.
+
 ## [1.7.9] - 2026-06-13
 
 ### Added

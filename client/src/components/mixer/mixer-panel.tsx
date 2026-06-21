@@ -285,27 +285,27 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   }
 
   return (
-    <div className="bg-slate-300/80 dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700 rounded-lg p-4" data-testid="mixer-panel">
-      <div className="flex items-center justify-between mb-4">
+    <div className="overflow-hidden rounded-md border border-black bg-[#12161a] p-0 text-zinc-100 shadow-[0_14px_38px_rgba(0,0,0,0.42)]" data-testid="mixer-panel">
+      <div className="flex min-h-12 items-center justify-between border-b border-black bg-[linear-gradient(#24282c,#0d0f11)] px-4">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-5 w-5 text-cyan-500 dark:text-cyan-400" />
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Audio Mixer</h2>
+          <SlidersHorizontal className="h-4 w-4 text-sky-300" />
+          <h2 className="text-sm font-semibold text-zinc-100">Audio Mixer</h2>
         </div>
 
         {mixer ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-700 dark:text-slate-400">{mixer.name}</span>
+            <span className="text-sm text-zinc-400">{mixer.name}</span>
             {mixer.status === "online" ? (
-              <Wifi className="h-4 w-4 text-green-500" />
+              <Wifi className="h-4 w-4 text-emerald-400" />
             ) : (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => connectMixerMutation.mutate(mixer.id)}
-                className="text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                className="h-7 border border-zinc-700 bg-[#171a1d] px-2 text-xs text-zinc-200"
                 data-testid="button-connect-mixer"
               >
-                <WifiOff className="h-4 w-4 mr-1" />
+                <WifiOff className="h-3.5 w-3.5" />
                 Connect
               </Button>
             )}
@@ -313,10 +313,10 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
               variant="ghost"
               size="sm"
               onClick={handleEditClick}
-              className="text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5"
+              className="h-7 w-7 border border-zinc-700 bg-[#171a1d] p-0 text-zinc-300"
               data-testid="button-edit-mixer"
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-3.5 w-3.5" />
             </Button>
           </div>
         ) : (
@@ -462,32 +462,34 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
       </Dialog>
 
       {!mixer ? (
-        <div className="text-center py-8 text-slate-700 dark:text-slate-500">
+        <div className="py-8 text-center text-zinc-500">
           <SlidersHorizontal className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No mixer configured</p>
           <p className="text-sm">Add your X32 to get started</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="flex gap-1 mb-2">
+        <div>
+          <div className="border-b border-black bg-[#161a1e] px-2">
+            <div className="flex gap-px overflow-x-auto py-2">
             {PANEL_SECTIONS.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveSection(tab.key)}
                 className={cn(
-                  "px-3 py-1.5 rounded text-xs font-medium transition-colors",
+                  "h-8 min-w-24 whitespace-nowrap border px-3 text-xs transition-colors",
                   activeSection === tab.key
-                    ? "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-400/30 dark:hover:bg-slate-800"
+                    ? "border-sky-400/50 bg-[linear-gradient(#3b86bd,#215a86)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
+                    : "border-black bg-[linear-gradient(#2a2e32,#14171a)] text-zinc-300 hover:bg-[#242a30] hover:text-white"
                 )}
                 data-testid={`tab-panel-section-${tab.key}`}
               >
                 {tab.label}
               </button>
             ))}
+            </div>
           </div>
 
-          <div className="flex items-end gap-1 overflow-x-auto pb-2">
+          <div className="mixer-console-frame flex items-stretch gap-1 overflow-x-auto overflow-y-hidden rounded-b-md border-t border-black bg-[#0a0c0e] p-1.5 pb-2">
             {channels.map((ch) => {
               return (
                 <ChannelStrip
