@@ -17,16 +17,11 @@ echo ""
 # Check for Node.js
 if ! command -v node &> /dev/null; then
     echo "Error: Node.js is not installed."
-    echo "Please install Node.js 20+ from https://nodejs.org/"
+    echo "Please install Node.js 24.x from https://nodejs.org/"
     exit 1
 fi
 
-NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 20 ]; then
-    echo "Warning: Node.js version 20+ recommended. Current version: $(node -v)"
-fi
-
-echo "Node.js version: $(node -v)"
+node script/check-node-version.mjs || exit 1
 
 # Install dependencies
 echo ""

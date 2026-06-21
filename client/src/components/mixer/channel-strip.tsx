@@ -40,74 +40,43 @@ export function ChannelStrip({
   return (
     <div 
       className={cn(
-        "mixer-console-strip flex min-h-[292px] min-w-[52px] flex-col items-center border border-black bg-[linear-gradient(90deg,#171b1f,#22272b_48%,#15191d)] px-1 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.04),inset_-1px_0_0_rgba(0,0,0,0.75)]",
-        stripToneClass(section, channel),
-        muted && "opacity-70"
+        "grid min-w-16 w-16 grid-rows-[24px_128px_14px_28px_16px] items-center gap-2 p-2 rounded-lg bg-slate-300/50 dark:bg-slate-800/50 border border-slate-300 dark:border-slate-700",
+        muted && "opacity-60"
       )}
       data-testid={`channel-strip-${channel}`}
     >
-      <div className="grid w-full gap-1">
-        <div className="h-5 truncate rounded-sm border border-black/70 bg-[#23282c] px-1 text-center font-mono text-[10px] leading-5 text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" title={displayName}>
-          {displayName}
-        </div>
-        <div className="grid grid-cols-2 gap-1">
-          <span className="rounded-sm border border-black/70 bg-[#30363a] text-center font-mono text-[9px] leading-4 text-zinc-400">
-            {sectionCode(section)}
-          </span>
-          <span className="rounded-sm border border-black/70 bg-[#30363a] text-center font-mono text-[9px] leading-4 text-zinc-400">
-            {channel}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-1">
-          <span className="rounded-sm border border-black/70 bg-[#202529] text-center font-mono text-[9px] leading-4 text-zinc-500">
-            EQ
-          </span>
-          <span className="rounded-sm border border-black/70 bg-[#202529] text-center font-mono text-[9px] leading-4 text-zinc-500">
-            DYN
-          </span>
-        </div>
+      <span className="flex h-6 w-full items-center justify-center overflow-hidden text-center text-[10px] leading-3 text-slate-700 dark:text-slate-400 font-mono">
+        <span className="line-clamp-2 break-words">{name}</span>
+      </span>
+      
+      <div className="flex h-32 w-full items-center justify-center">
+        <Slider
+          orientation="vertical"
+          value={[localFader]}
+          onValueChange={handleFaderChange}
+          min={0}
+          max={1}
+          step={0.01}
+          className="h-28"
+          data-testid={`fader-${channel}`}
+        />
       </div>
 
-      <div className="mt-2 flex items-center justify-center">
-        <div className="mixer-fader-well relative flex h-[170px] w-9 items-center justify-center rounded-sm border border-black bg-[#101316] shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
-          <div className="absolute inset-y-3 left-1 w-px bg-zinc-500/30" />
-          <div className="absolute inset-y-3 right-1 w-px bg-zinc-500/30" />
-          <div className="absolute left-1.5 right-1.5 top-1/2 h-px bg-sky-300/35" />
-          <Slider
-            orientation="vertical"
-            value={[localFader]}
-            onValueChange={handleFaderChange}
-            min={0}
-            max={1}
-            step={0.01}
-            className="mixer-console-slider h-[150px] w-7"
-            data-testid={`fader-${channel}`}
-          />
-        </div>
-      </div>
-
-      <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-zinc-400">
+      <span className="flex h-3 w-full items-center justify-center text-[10px] leading-none text-slate-600 dark:text-slate-500 font-mono">
         {dbValue}
       </span>
 
       <Button
         variant="ghost"
         size="sm"
-        className={cn(
-          "mt-1 h-6 min-h-0 w-full rounded-sm border px-1 font-mono text-[9px]",
-          muted
-            ? "border-red-500/80 bg-red-600 text-white"
-            : "border-black bg-[#2d3337] text-zinc-200"
-        )}
+        className="h-7 w-full p-0 min-h-0 text-[10px]"
         onClick={() => onMuteToggle(channel, !muted)}
         data-testid={`mute-${channel}`}
       >
         MUTE
       </Button>
 
-      <div className="mt-1 h-6 w-full truncate rounded-sm border border-black bg-[#1b2227] px-1 text-center font-mono text-[10px] leading-6 text-zinc-300" title={displayName}>
-        {shortStripName(displayName, channel)}
-      </div>
+      <span className="flex h-4 items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300">{channel}</span>
     </div>
   );
 }

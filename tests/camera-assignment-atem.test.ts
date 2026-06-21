@@ -54,13 +54,23 @@ test("camera selector updates and saves ATEM inputs from numbered assignments", 
   assert.match(selector, /const hasBlankCameraName = editForm\.name\.trim\(\)\.length === 0;/);
   assert.match(selector, /name: cameraNameForAssignmentSelection\(nextAssignment, editForm\.name\),/);
   assert.match(selector, /atemInputId: atemInputValueForAssignmentSelection\(nextAssignment, previousAssignment, editForm\.atemInputId\),/);
-  assert.match(selector, /atemInputId: "atemInputId" in overrides \? overrides\.atemInputId \?\? null : camera\.atemInputId \?\? null,/);
+  assert.match(selector, /atemInputId: hasCameraUpdateOverride\(overrides, "atemInputId"\) \? overrides\.atemInputId \?\? null : camera\.atemInputId \?\? null,/);
   assert.match(selector, /if \(hasBlankCameraName\) return;/);
   assert.match(selector, /if \(hasBlockingAssignmentConflict\) return;/);
-  assert.match(selector, /name: formatCameraAssignmentName\(currentAssignment\),/);
-  assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(currentAssignment, assignmentConflict\.atemInputId \?\? null\),/);
+  assert.match(selector, /buildCameraAssignmentSwapUpdatePayload\(assignmentConflict, currentAssignment\)/);
+  assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(currentAssignment, camera\.atemInputId \?\? null\),/);
   assert.match(selector, /atemInputId: atemInputIdForCameraAssignment\(effectiveAssignment, parseAtemInputId\(editForm\.atemInputId\)\),/);
   assert.match(selector, /disabled=\{hasBlockingAssignmentConflict \|\| hasBlankCameraName\}/);
+});
+
+test("camera selector saves explicit cleared camera settings", () => {
+  const selector = source("client/src/components/ptz/camera-selector.tsx");
+
+  assert.match(selector, /username: hasCameraUpdateOverride\(overrides, "username"\) \? overrides\.username \?\? null : camera\.username \?\? null,/);
+  assert.match(selector, /password: hasCameraUpdateOverride\(overrides, "password"\) \? overrides\.password \?\? null : camera\.password \?\? null,/);
+  assert.match(selector, /streamUrl: hasCameraUpdateOverride\(overrides, "streamUrl"\) \? overrides\.streamUrl \?\? null : \(camera\.previewType === 'none' \? null : camera\.streamUrl \?\? null\),/);
+  assert.match(selector, /previewType: hasCameraUpdateOverride\(overrides, "previewType"\) \? overrides\.previewType \?\? "none" : camera\.previewType \?\? \(camera\.streamUrl \? 'snapshot' : 'none'\),/);
+  assert.match(selector, /atemInputId: hasCameraUpdateOverride\(overrides, "atemInputId"\) \? overrides\.atemInputId \?\? null : camera\.atemInputId \?\? null,/);
 });
 
 test("camera route logs safe assignment and ATEM input updates", () => {

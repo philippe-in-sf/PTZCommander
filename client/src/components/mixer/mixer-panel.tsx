@@ -487,7 +487,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
             ))}
           </div>
 
-          <div className="mixer-console-frame flex items-stretch gap-1 overflow-x-auto overflow-y-hidden rounded-md border border-black bg-[#0a0c0e] p-1.5 pb-2">
+          <div className="flex items-end gap-1 overflow-x-auto pb-2">
             {channels.map((ch) => {
               return (
                 <ChannelStrip
