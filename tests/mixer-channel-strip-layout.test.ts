@@ -7,19 +7,22 @@ function source(path: string) {
   return readFileSync(join(process.cwd(), path), "utf8");
 }
 
-test("dashboard mixer channel strips keep mute controls in fixed rows", () => {
+test("dashboard mixer channel strips keep console controls in fixed slots", () => {
   const strip = source("client/src/components/mixer/channel-strip.tsx");
 
-  assert.match(strip, /grid-rows-\[24px_128px_14px_28px_16px\]/);
-  assert.match(strip, /min-w-16 w-16/);
-  assert.match(strip, /line-clamp-2/);
-  assert.match(strip, /h-7 w-full p-0/);
+  assert.match(strip, /mixer-console-strip/);
+  assert.match(strip, /mixer-fader-well relative flex h-\[170px\] w-9/);
+  assert.match(strip, /mixer-console-slider h-\[150px\] w-7/);
+  assert.match(strip, /mt-1 h-6 min-h-0 w-full/);
+  assert.match(strip, /shortStripName\(displayName, channel\)/);
 });
 
-test("full mixer page channel strips keep mute controls in fixed rows", () => {
+test("full mixer page channel strips keep console controls in fixed slots", () => {
   const mixer = source("client/src/pages/mixer.tsx");
 
-  assert.match(mixer, /grid-rows-\[24px_160px_14px_28px_16px\]/);
-  assert.match(mixer, /line-clamp-2/);
-  assert.match(mixer, /h-7 w-full p-0/);
+  assert.match(mixer, /mixer-console-strip/);
+  assert.match(mixer, /mixer-fader-well relative flex h-\[220px\] w-9/);
+  assert.match(mixer, /mixer-console-slider h-\[196px\] w-7/);
+  assert.match(mixer, /mt-1 h-6 min-h-0 w-full/);
+  assert.match(mixer, /shortStripName\(displayName, channel\)/);
 });

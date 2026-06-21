@@ -13,17 +13,24 @@ function assertContainsTokens(sourceText: string, tokens: string[]) {
   }
 }
 
-test("dashboard mixer channel strips use fixed geometry with bottom-anchored channel numbers", () => {
+test("dashboard mixer channel strips use the console frame geometry", () => {
   const strip = source("client/src/components/mixer/channel-strip.tsx");
   const panel = source("client/src/components/mixer/mixer-panel.tsx");
 
-  assertContainsTokens(strip, ["h-64", "w-20", "shrink-0", "mt-auto"]);
-  assert.match(panel, /className="flex items-end gap-1 overflow-x-auto pb-2"/);
+  assertContainsTokens(strip, ["mixer-console-strip", "mixer-fader-well", "mixer-console-slider", "min-w-[52px]"]);
+  assert.match(panel, /className="mixer-console-frame flex items-stretch gap-1 overflow-x-auto overflow-y-hidden/);
 });
 
-test("full mixer page keeps wrapped channel strips bottom-aligned", () => {
+test("full mixer page keeps channel strips in the console frame", () => {
   const mixerPage = source("client/src/pages/mixer.tsx");
 
-  assertContainsTokens(mixerPage, ["h-80", "w-[72px]", "shrink-0", "mt-auto"]);
-  assert.match(mixerPage, /className="flex flex-wrap items-end justify-center gap-2"/);
+  assertContainsTokens(mixerPage, ["mixer-console-strip", "mixer-fader-well", "mixer-console-slider", "min-w-[52px]"]);
+  assert.match(mixerPage, /className="flex h-full min-h-\[420px\] items-stretch gap-\[3px\]"/);
+});
+
+test("full mixer page keeps section tabs above a single console fader frame", () => {
+  const mixerPage = source("client/src/pages/mixer.tsx");
+
+  assert.match(mixerPage, /data-testid=\{`tab-section-\$\{tab\.key\}`\}/);
+  assert.doesNotMatch(mixerPage, /flex flex-wrap items-end justify-center gap-2/);
 });
