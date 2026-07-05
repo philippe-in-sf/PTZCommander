@@ -57,7 +57,9 @@ async function main() {
       console.log(describeHomebrewNodeState(parseHomebrewNodePackages(brewList.stdout), nodeStatus));
     }
     process.exitCode = 1;
-    return;
+    if (!nonInteractive) {
+      return;
+    }
   }
 
   const deps = dependencyStatus({
