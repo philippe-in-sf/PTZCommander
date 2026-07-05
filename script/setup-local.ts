@@ -38,7 +38,13 @@ async function commandExists(command: string) {
 }
 
 async function checkPort(portNumber: number): Promise<PortCheckResult> {
-  const result = await runCommand("sh", ["-lc", `lsof -nP -iTCP:${portNumber} -sTCP:LISTEN | sed -n '2p'`], { cwd: root });
+  const result = await runCommand("lsof", ["-nP", `-iTCP:${portNumber}`, "-sTCP:LISTEN"], { cwd: root });
+  if (result.code !== 0 && !result.stdout.trim()) {
+    return {
+      port: portNumber,
+      available: true,
+    };
+  }
   const owner = parseLsofPortOwner(result.stdout);
   return {
     port: portNumber,
@@ -70,7 +76,6 @@ async function main() {
   });
   console.log(deps.message);
   if (!deps.ok) {
-    process.exitCode = 1;
     if (!nonInteractive) {
       if (await confirm("Run npm install now?")) {
         const install = await runCommand("npm", ["install"], { cwd: root });
@@ -81,9 +86,13 @@ async function main() {
           process.exitCode = install.code || 1;
           return;
         }
+        process.exitCode = undefined;
       } else {
+        process.exitCode = 1;
         return;
       }
+    } else {
+      process.exitCode = 1;
     }
   }
 
@@ -100,7 +109,7 @@ async function main() {
   const portStatus = await checkPort(port);
   console.log(formatPortConflict(portStatus));
   if (!portStatus.available) {
-    console.log(`Use PORT=4000 npm run dev, stop the listed process, or change the launchd PORT before installing.`);
+    console.log(`Use a different port, stop the listed process, or change the launchd PORT before installing. For example: PORT=${port + 1} npm run dev`);
   }
 
   if (await confirm("Run npm run build now?")) {
