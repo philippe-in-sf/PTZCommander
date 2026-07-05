@@ -4,6 +4,7 @@ import {
   buildRtspCandidates,
   decryptSetupSecret,
   encryptSetupSecret,
+  formatCameraPreviewResult,
   shouldOverwritePreview,
   type CameraPreviewRow,
 } from "../script/lib/camera-preview-config";
@@ -99,4 +100,18 @@ test("shouldOverwritePreview allows empty preview configuration", () => {
     preview_refresh_ms: 2000,
   };
   assert.equal(shouldOverwritePreview(camera, false), true);
+});
+
+test("formatCameraPreviewResult reports configured camera", () => {
+  assert.equal(
+    formatCameraPreviewResult({ name: "Camera 1", status: "configured", url: "rtsp://192.168.0.27:554/live/av0" }),
+    "Camera 1: configured rtsp://192.168.0.27:554/live/av0",
+  );
+});
+
+test("formatCameraPreviewResult reports manual follow-up", () => {
+  assert.equal(
+    formatCameraPreviewResult({ name: "Camera 2", status: "needs-credentials" }),
+    "Camera 2: RTSP responded but needs credentials",
+  );
 });
