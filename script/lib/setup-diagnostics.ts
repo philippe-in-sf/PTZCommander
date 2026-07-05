@@ -86,12 +86,14 @@ export function formatPortConflict(result: PortCheckResult): string {
 }
 
 export function parseLsofPortOwner(output: string) {
-  const line = output
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .find((item) => item && !item.startsWith("COMMAND"));
-  if (!line) return undefined;
-  const [command, pid] = line.split(/\s+/);
-  if (!command || !pid) return undefined;
-  return `${command} ${pid}`;
+  for (const line of output.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("COMMAND") || trimmed.startsWith("lsof:") || trimmed.startsWith("WARNING") || trimmed.startsWith("ERROR")) {
+      continue;
+    }
+    const [command, pid] = trimmed.split(/\s+/);
+    if (!command || !pid || !/^\d+$/.test(pid)) continue;
+    return `${command} ${pid}`;
+  }
+  return undefined;
 }
