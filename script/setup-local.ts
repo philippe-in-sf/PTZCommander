@@ -19,6 +19,7 @@ const root = process.cwd();
 const port = Number.parseInt(process.env.PORT || "3478", 10);
 const nonInteractive = process.argv.includes("--non-interactive");
 const assumeYes = process.argv.includes("--yes") && !nonInteractive;
+let hasFailure = false;
 
 async function confirm(question: string) {
   if (nonInteractive) return false;
@@ -38,19 +39,26 @@ async function commandExists(command: string) {
 }
 
 async function checkPort(portNumber: number): Promise<PortCheckResult> {
-  const result = await runCommand("lsof", ["-nP", `-iTCP:${portNumber}`, "-sTCP:LISTEN"], { cwd: root });
-  if (result.code !== 0 && !result.stdout.trim()) {
+  try {
+    const result = await runCommand("lsof", ["-nP", `-iTCP:${portNumber}`, "-sTCP:LISTEN"], { cwd: root });
+    if (result.code !== 0 && !result.stdout.trim()) {
+      return {
+        port: portNumber,
+        available: true,
+      };
+    }
+    const owner = parseLsofPortOwner(result.stdout);
+    return {
+      port: portNumber,
+      available: !owner,
+      process: owner,
+    };
+  } catch {
     return {
       port: portNumber,
       available: true,
     };
   }
-  const owner = parseLsofPortOwner(result.stdout);
-  return {
-    port: portNumber,
-    available: !owner,
-    process: owner,
-  };
 }
 
 async function main() {
@@ -60,11 +68,11 @@ async function main() {
   const nodeStatus = classifyNodeVersion(process.version);
   console.log(nodeStatus.ok ? describeNodeProblem(nodeStatus) : `ERROR: ${describeNodeProblem(nodeStatus)}`);
   if (!nodeStatus.ok) {
+    hasFailure = true;
     if (process.platform === "darwin" && await commandExists("brew")) {
       const brewList = await runCommand("brew", ["list", "--formula"], { cwd: root });
       console.log(describeHomebrewNodeState(parseHomebrewNodePackages(brewList.stdout), nodeStatus));
     }
-    process.exitCode = 1;
     if (!nonInteractive) {
       return;
     }
@@ -83,16 +91,17 @@ async function main() {
         process.stderr.write(install.stderr);
         if (install.code !== 0) {
           console.error("ERROR: npm install failed.");
+          hasFailure = true;
           process.exitCode = install.code || 1;
           return;
         }
-        process.exitCode = undefined;
       } else {
+        hasFailure = true;
         process.exitCode = 1;
         return;
       }
     } else {
-      process.exitCode = 1;
+      hasFailure = true;
     }
   }
 
@@ -118,6 +127,7 @@ async function main() {
     process.stderr.write(build.stderr);
     if (build.code !== 0) {
       console.error("ERROR: npm run build failed.");
+      hasFailure = true;
       process.exitCode = build.code || 1;
       return;
     }
@@ -130,6 +140,7 @@ async function main() {
       process.stderr.write(launchd.stderr);
       if (launchd.code !== 0) {
         console.error("ERROR: launchd install failed.");
+        hasFailure = true;
         process.exitCode = launchd.code || 1;
         return;
       }
@@ -142,6 +153,10 @@ async function main() {
     console.log("RTSP/RTP preview auto-configuration requires FFmpeg/FFprobe before it can verify streams.");
   } else {
     console.log("Next camera step: npm run cameras:configure-previews");
+  }
+
+  if (hasFailure) {
+    process.exitCode = 1;
   }
 }
 
