@@ -17,10 +17,12 @@ import {
 
 const root = process.cwd();
 const port = Number.parseInt(process.env.PORT || "3478", 10);
-const nonInteractive = process.argv.includes("--yes") || process.argv.includes("--non-interactive");
+const nonInteractive = process.argv.includes("--non-interactive");
+const assumeYes = process.argv.includes("--yes") && !nonInteractive;
 
 async function confirm(question: string) {
-  if (nonInteractive) return process.argv.includes("--yes");
+  if (nonInteractive) return false;
+  if (assumeYes) return true;
   const rl = createInterface({ input, output });
   try {
     const answer = await rl.question(`${question} [y/N] `);
