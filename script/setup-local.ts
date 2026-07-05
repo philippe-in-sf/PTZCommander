@@ -66,23 +66,32 @@ async function main() {
   });
   console.log(deps.message);
   if (!deps.ok) {
-    if (await confirm("Run npm install now?")) {
-      const install = await runCommand("npm", ["install"], { cwd: root });
-      process.stdout.write(install.stdout);
-      process.stderr.write(install.stderr);
-      if (install.code !== 0) {
-        console.error("ERROR: npm install failed.");
-        process.exitCode = install.code || 1;
+    process.exitCode = 1;
+    if (!nonInteractive) {
+      if (await confirm("Run npm install now?")) {
+        const install = await runCommand("npm", ["install"], { cwd: root });
+        process.stdout.write(install.stdout);
+        process.stderr.write(install.stderr);
+        if (install.code !== 0) {
+          console.error("ERROR: npm install failed.");
+          process.exitCode = install.code || 1;
+          return;
+        }
+      } else {
         return;
       }
-    } else {
-      process.exitCode = 1;
-      return;
     }
   }
 
+  const ffmpegAvailable = await commandExists("ffmpeg");
   const ffprobeAvailable = await commandExists("ffprobe");
-  console.log(ffmpegStatus(ffprobeAvailable).message);
+  console.log(ffmpegStatus(ffmpegAvailable && ffprobeAvailable).message);
+  if (!ffmpegAvailable || !ffprobeAvailable) {
+    console.log(`Missing media binary: ${[
+      !ffmpegAvailable ? "ffmpeg" : null,
+      !ffprobeAvailable ? "ffprobe" : null,
+    ].filter(Boolean).join(", ")}.`);
+  }
 
   const portStatus = await checkPort(port);
   console.log(formatPortConflict(portStatus));
@@ -116,7 +125,7 @@ async function main() {
 
   console.log("");
   console.log(`Setup check complete. Open http://127.0.0.1:${port}/`);
-  if (!ffprobeAvailable) {
+  if (!ffmpegAvailable || !ffprobeAvailable) {
     console.log("RTSP/RTP preview auto-configuration requires FFmpeg/FFprobe before it can verify streams.");
   } else {
     console.log("Next camera step: npm run cameras:configure-previews");
