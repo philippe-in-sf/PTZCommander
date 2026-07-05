@@ -54,7 +54,10 @@ export function decryptSetupSecret(value: string | null | undefined, material?: 
 
 export function shouldOverwritePreview(camera: CameraPreviewRow, force: boolean) {
   if (force) return true;
-  const url = camera.stream_url || "";
-  const type = camera.preview_type || "";
-  return url.trim() === "" && (type.trim() === "" || type.trim() === "none");
+  const url = camera.stream_url?.trim() || "";
+  const type = camera.preview_type?.trim() || "";
+  if (type === "none") return true;
+  if (type !== "") return false;
+  if (url !== "") return false;
+  return true;
 }

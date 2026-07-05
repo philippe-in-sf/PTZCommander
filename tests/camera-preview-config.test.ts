@@ -72,6 +72,21 @@ test("shouldOverwritePreview protects configured preview modes without urls", ()
   assert.equal(shouldOverwritePreview(camera, true), true);
 });
 
+test("shouldOverwritePreview allows explicit none mode even with stale url", () => {
+  const camera: CameraPreviewRow = {
+    id: 1,
+    name: "Camera 1",
+    ip: "192.168.0.27",
+    username: null,
+    password: null,
+    preview_type: "none",
+    stream_url: "rtsp://192.168.0.27:554/live/av0",
+    preview_refresh_ms: 2000,
+  };
+  assert.equal(shouldOverwritePreview(camera, false), true);
+  assert.equal(shouldOverwritePreview(camera, true), true);
+});
+
 test("shouldOverwritePreview allows empty preview configuration", () => {
   const camera: CameraPreviewRow = {
     id: 1,
