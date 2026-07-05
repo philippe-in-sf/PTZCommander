@@ -42,6 +42,21 @@ test("shouldOverwritePreview protects existing configured previews", () => {
   assert.equal(shouldOverwritePreview(camera, true), true);
 });
 
+test("shouldOverwritePreview protects legacy preview urls", () => {
+  const camera: CameraPreviewRow = {
+    id: 1,
+    name: "Camera 1",
+    ip: "192.168.0.27",
+    username: null,
+    password: null,
+    preview_type: null,
+    stream_url: "rtsp://192.168.0.27:554/live/av0",
+    preview_refresh_ms: 2000,
+  };
+  assert.equal(shouldOverwritePreview(camera, false), false);
+  assert.equal(shouldOverwritePreview(camera, true), true);
+});
+
 test("shouldOverwritePreview allows empty preview configuration", () => {
   const camera: CameraPreviewRow = {
     id: 1,
