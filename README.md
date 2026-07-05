@@ -98,15 +98,30 @@ Touch-optimized mobile web view with camera control, scene execution, and switch
 
 ## Installation
 
-### 1. Download and Install Dependencies
+### Guided Local Setup
 
-Download the project files and open a terminal in the project folder:
+Download the project files, open a terminal in the project folder, then run:
 
 ```bash
 npm install
+npm run setup:local
 ```
 
-### 2. Start the Application
+The guided setup checks Node 24, local dependencies, FFmpeg/FFprobe, port 3478, build readiness, and optional macOS background service installation. When it finishes, open:
+
+```text
+http://127.0.0.1:3478
+```
+
+If the dashboard cameras do not show inline previews yet, run:
+
+```bash
+npm run cameras:configure-previews
+```
+
+That command tests the supported FoMaKo RTSP preview sources, preserves any preview source you already configured, and stores shared camera credentials encrypted when you enter them.
+
+### Start the Application Manually
 
 #### On Mac / Linux:
 ```bash

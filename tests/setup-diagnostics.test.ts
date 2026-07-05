@@ -122,3 +122,9 @@ test("runCommand merges env overrides and rejects on nonzero exit when requested
     }
   );
 });
+
+test("runCommand returns when a command exceeds its timeout", async () => {
+  const result = await runCommand("node", ["-e", "setTimeout(() => {}, 1000)"], { timeoutMs: 50 });
+  assert.equal(result.code, null);
+  assert.match(result.stderr, /Command timed out after 50ms/);
+});
