@@ -7,6 +7,7 @@ import {
   dependencyStatus,
   formatPortConflict,
   parseHomebrewNodePackages,
+  parseLsofPortOwner,
   type PortCheckResult,
 } from "../script/lib/setup-diagnostics";
 
@@ -48,4 +49,16 @@ test("describeHomebrewNodeState explains node and node@24 conflict", () => {
   assert.match(describeHomebrewNodeState(packages, nodeStatus), /Homebrew has both node and node@24/);
   assert.match(describeHomebrewNodeState(packages, nodeStatus), /brew unlink node/);
   assert.match(describeHomebrewNodeState(packages, nodeStatus), /brew link --overwrite --force node@24/);
+});
+
+test("parseLsofPortOwner returns the first command and pid", () => {
+  const output = [
+    "COMMAND   PID USER   FD   TYPE DEVICE SIZE/OFF NODE NAME",
+    "node     680 user   40u  IPv4  12345      0t0  TCP *:3478 (LISTEN)",
+  ].join("\n");
+  assert.equal(parseLsofPortOwner(output), "node 680");
+});
+
+test("parseLsofPortOwner returns undefined for no process", () => {
+  assert.equal(parseLsofPortOwner(""), undefined);
 });

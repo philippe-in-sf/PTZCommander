@@ -84,3 +84,14 @@ export function formatPortConflict(result: PortCheckResult): string {
   if (result.available) return `Port ${result.port} is available.`;
   return `Port ${result.port} is already in use${result.process ? ` by ${result.process}` : ""}.`;
 }
+
+export function parseLsofPortOwner(output: string) {
+  const line = output
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item && !item.startsWith("COMMAND"));
+  if (!line) return undefined;
+  const [command, pid] = line.split(/\s+/);
+  if (!command || !pid) return undefined;
+  return `${command} ${pid}`;
+}
