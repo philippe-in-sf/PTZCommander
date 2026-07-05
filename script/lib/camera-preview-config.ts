@@ -38,14 +38,18 @@ export function encryptSetupSecret(value: string | null | undefined, material?: 
 export function decryptSetupSecret(value: string | null | undefined, material?: string) {
   if (!value) return value ?? null;
   if (!value.startsWith(SECRET_PREFIX)) return value;
-  const [ivText, tagText, encryptedText] = value.slice(SECRET_PREFIX.length).split(":");
-  if (!ivText || !tagText || !encryptedText) return null;
-  const decipher = createDecipheriv("aes-256-gcm", secretKey(material), Buffer.from(ivText, "base64"));
-  decipher.setAuthTag(Buffer.from(tagText, "base64"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(encryptedText, "base64")),
-    decipher.final(),
-  ]).toString("utf8");
+  try {
+    const [ivText, tagText, encryptedText] = value.slice(SECRET_PREFIX.length).split(":");
+    if (!ivText || !tagText || !encryptedText) return null;
+    const decipher = createDecipheriv("aes-256-gcm", secretKey(material), Buffer.from(ivText, "base64"));
+    decipher.setAuthTag(Buffer.from(tagText, "base64"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(encryptedText, "base64")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 export function shouldOverwritePreview(camera: CameraPreviewRow, force: boolean) {

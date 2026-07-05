@@ -21,6 +21,12 @@ test("encryptSetupSecret round-trips with decryptSetupSecret", () => {
   assert.equal(decryptSetupSecret(encrypted, "test-secret"), "admin");
 });
 
+test("decryptSetupSecret returns null for invalid encrypted payloads", () => {
+  assert.equal(decryptSetupSecret("enc:v1:not-valid:not-valid:not-valid", "test-secret"), null);
+  const encrypted = encryptSetupSecret("admin", "test-secret");
+  assert.equal(decryptSetupSecret(encrypted, "wrong-secret"), null);
+});
+
 test("shouldOverwritePreview protects existing configured previews", () => {
   const camera: CameraPreviewRow = {
     id: 1,
