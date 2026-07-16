@@ -32,9 +32,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     entries: ["client/src/**/*.{ts,tsx}"],
-    esbuildOptions: {
-      absWorkingDir: projectRoot,
-    },
   },
   server: {
     host: "0.0.0.0",
