@@ -45,10 +45,13 @@ if (!readme.includes("Node.js 24.x")) {
 }
 
 for (const stalePath of [
+  ".replit",
   "attached_assets",
+  "artifacts/mockup-sandbox",
   "client/src/pages/displays 2.tsx",
   "dist 3",
   "dist.bad.2026-04-20",
+  "replit.md",
 ]) {
   if (existsSync(join(root, stalePath))) {
     failures.push(`stale generated artifact is still present: ${stalePath}`);

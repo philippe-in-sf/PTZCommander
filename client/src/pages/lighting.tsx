@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/app-layout";
 import { useDeviceSetup } from "@/hooks/use-device-setup";
+import { apiFetch } from "@/lib/api";
 import { Plus, Trash2, Wifi, WifiOff, Lightbulb, Layers, Palette, RefreshCw, Power, PowerOff, LinkIcon } from "lucide-react";
 import type { HueBridge } from "@shared/schema";
 
@@ -31,7 +32,7 @@ function BridgeSetup({ onAdded }: { onAdded: () => void }) {
     if (!name.trim() || !ip.trim()) { toast({ title: "Name and IP are required", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const res = await fetch("/api/hue/bridges", {
+      const res = await apiFetch("/api/hue/bridges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, ip, apiKey: apiKey || undefined }),
@@ -76,7 +77,7 @@ function BridgeCard({ bridge, onSelect }: { bridge: HueBridge; onSelect: () => v
   async function pair() {
     setPairing(true);
     try {
-      const res = await fetch(`/api/hue/bridges/${bridge.id}/pair`, { method: "POST" });
+      const res = await apiFetch(`/api/hue/bridges/${bridge.id}/pair`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       qc.invalidateQueries({ queryKey: ["/api/hue/bridges"] });
@@ -87,7 +88,7 @@ function BridgeCard({ bridge, onSelect }: { bridge: HueBridge; onSelect: () => v
   }
 
   async function deleteBridge() {
-    await fetch(`/api/hue/bridges/${bridge.id}`, { method: "DELETE" });
+    await apiFetch(`/api/hue/bridges/${bridge.id}`, { method: "DELETE" });
     qc.invalidateQueries({ queryKey: ["/api/hue/bridges"] });
     toast({ title: "Bridge removed" });
   }
@@ -154,7 +155,7 @@ function LightControl({ bridgeId, light }: { bridgeId: number; light: HueLight }
   }, [light.brightness]);
 
   async function setOn(on: boolean) {
-    const res = await fetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
+    const res = await apiFetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
@@ -167,7 +168,7 @@ function LightControl({ bridgeId, light }: { bridgeId: number; light: HueLight }
   }
 
   async function applyBrightness(bri: number) {
-    const res = await fetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
+    const res = await apiFetch(`/api/hue/bridges/${bridgeId}/lights/${light.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on: true, bri }),
@@ -233,7 +234,7 @@ function GroupControl({ bridgeId, group }: { bridgeId: number; group: HueGroup }
   }, [group.brightness]);
 
   async function setOn(on: boolean) {
-    const res = await fetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
+    const res = await apiFetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
@@ -246,7 +247,7 @@ function GroupControl({ bridgeId, group }: { bridgeId: number; group: HueGroup }
   }
 
   async function applyBrightness(bri: number) {
-    const res = await fetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
+    const res = await apiFetch(`/api/hue/bridges/${bridgeId}/groups/${group.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on: true, bri }),
@@ -309,7 +310,7 @@ function SceneList({ bridgeId, groups }: { bridgeId: number; groups: HueGroup[] 
   async function activateScene(scene: HueScene) {
     const groupId = scene.group;
     const body = groupId ? { groupId } : {};
-    const res = await fetch(`/api/hue/bridges/${bridgeId}/scenes/${scene.id}/activate`, {
+    const res = await apiFetch(`/api/hue/bridges/${bridgeId}/scenes/${scene.id}/activate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

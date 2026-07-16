@@ -4,7 +4,9 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { attachCurrentUser, requireApiAccess, sessionMiddleware } from "./auth";
+import { csrfProtection } from "./csrf";
 import { errorDetails, logger } from "./logger";
+import { reencryptStoredSecrets } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -26,6 +28,7 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 app.use(sessionMiddleware);
+app.use("/api", csrfProtection);
 app.use(attachCurrentUser);
 app.use(requireApiAccess);
 
@@ -84,6 +87,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await reencryptStoredSecrets();
   await registerRoutes(httpServer, app);
 
   app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, next: NextFunction) => {

@@ -5,7 +5,7 @@ import {
   requiresProgramRecallConfirmation,
 } from "@shared/preset-management";
 import { refreshPresetThumbnail } from "../server/preset-thumbnails";
-import { captureConfiguredPreviewThumbnail } from "../server/routes/camera";
+import { captureConfiguredPreviewThumbnail, isConfiguredFfmpegPreviewTarget } from "../server/routes/camera";
 
 test("requiresProgramRecallConfirmation is true for program tally", () => {
   assert.equal(requiresProgramRecallConfirmation({ tallyState: "program" }), true);
@@ -177,6 +177,15 @@ test("captureConfiguredPreviewThumbnail captures RTSP and RTP preview frames", a
 
     assert.equal(thumbnail, `data:image/jpeg;base64,${frame.toString("base64")}`);
   }
+});
+
+test("FFmpeg preview targets must stay on the configured camera host", () => {
+  assert.equal(isConfiguredFfmpegPreviewTarget("rtsp://192.168.0.4/live", baseCamera), true);
+  assert.equal(isConfiguredFfmpegPreviewTarget("rtsps://192.168.0.4/live", baseCamera), true);
+  assert.equal(isConfiguredFfmpegPreviewTarget("rtp://192.168.0.4:5004/live", baseCamera), true);
+  assert.equal(isConfiguredFfmpegPreviewTarget("rtsp://169.254.169.254/latest/meta-data", baseCamera), false);
+  assert.equal(isConfiguredFfmpegPreviewTarget("rtsp://192.168.0.44/live", baseCamera), false);
+  assert.equal(isConfiguredFfmpegPreviewTarget("not a url", baseCamera), false);
 });
 
 test("captureConfiguredPreviewThumbnail sends basic auth for authenticated snapshot previews", async () => {

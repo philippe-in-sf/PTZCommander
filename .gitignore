@@ -7,6 +7,9 @@ data/
 .DS_Store
 server/public
 attached_assets/
+deploy/.session-secret
+deploy/.secret-encryption-key
+deploy/.secret-encryption-previous-key
 vite.config.ts.*
 *.tar.gz
 ios/**/xcuserdata/
