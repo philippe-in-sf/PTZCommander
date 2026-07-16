@@ -2,6 +2,21 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.11] - 2026-07-16
+
+### Added
+- **CI Release Gates** — added GitHub Actions coverage for typecheck, lint, test, and build.
+- **Hardware Edge Tests** — expanded coverage around camera preview target handling and device-host restrictions.
+
+### Changed
+- **Package Identity** — renamed the package from `rest-express` to `ptz-commander` and pruned Replit-specific artifacts.
+- **Credential Encryption** — separated the credential-encryption key from the session secret and documented rotation behavior.
+- **Version Display** — interface version labels now report v1.7.11.
+- **Vite Optimizer Config** — removed the deprecated `optimizeDeps.esbuildOptions` setting so builds no longer emit the Vite/Rolldown migration warning.
+
+### Fixed
+- **Request Protection** — wired installed Lusca protection into the Express app so the dependency reflects active middleware coverage.
+
 ## [1.7.10] - 2026-06-21
 
 ### Changed
