@@ -1,6 +1,37 @@
 import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, ObsConnection, InsertObsConnection, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice, HueBridge, InsertHueBridge, UserRole } from "@shared/schema";
 
 const API_BASE = "/api";
+const CSRF_COOKIE_NAME = "XSRF-TOKEN";
+const CSRF_HEADER_NAME = "X-XSRF-TOKEN";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function csrfTokenFromCookie() {
+  if (typeof document === "undefined") return null;
+  const token = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${CSRF_COOKIE_NAME}=`))
+    ?.slice(CSRF_COOKIE_NAME.length + 1);
+  return token ? decodeURIComponent(token) : null;
+}
+
+export function csrfHeaders(method = "GET", headers: HeadersInit = {}) {
+  const nextHeaders = new Headers(headers);
+  if (!SAFE_METHODS.has(method.toUpperCase()) && !nextHeaders.has(CSRF_HEADER_NAME)) {
+    const token = csrfTokenFromCookie();
+    if (token) nextHeaders.set(CSRF_HEADER_NAME, token);
+  }
+  return nextHeaders;
+}
+
+export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const method = init.method || "GET";
+  return fetch(input, {
+    ...init,
+    credentials: init.credentials || "include",
+    headers: csrfHeaders(method, init.headers),
+  });
+}
 
 export interface AppUser {
   id: number;
@@ -189,21 +220,21 @@ export interface SceneCaptureResponse {
 
 export const authApi = {
   getSession: async (): Promise<AuthSessionResponse> => {
-    const res = await fetch(`${API_BASE}/auth/session`, { credentials: "include" });
+    const res = await apiFetch(`${API_BASE}/auth/session`, { credentials: "include" });
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.message || "Failed to load session");
     return data;
   },
 
   getBootstrapStatus: async (): Promise<BootstrapStatus> => {
-    const res = await fetch(`${API_BASE}/auth/bootstrap-status`, { credentials: "include" });
+    const res = await apiFetch(`${API_BASE}/auth/bootstrap-status`, { credentials: "include" });
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.message || "Failed to load setup status");
     return data;
   },
 
   bootstrap: async (payload: { username: string; displayName: string; password: string }): Promise<AuthSessionResponse> => {
-    const res = await fetch(`${API_BASE}/auth/bootstrap`, {
+    const res = await apiFetch(`${API_BASE}/auth/bootstrap`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -215,7 +246,7 @@ export const authApi = {
   },
 
   login: async (payload: { username: string; password: string }): Promise<AuthSessionResponse> => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await apiFetch(`${API_BASE}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -227,7 +258,7 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    const res = await fetch(`${API_BASE}/auth/logout`, {
+    const res = await apiFetch(`${API_BASE}/auth/logout`, {
       method: "POST",
       credentials: "include",
     });
@@ -240,14 +271,14 @@ export const authApi = {
 
 export const userAdminApi = {
   getAll: async (): Promise<AppUser[]> => {
-    const res = await fetch(`${API_BASE}/users`, { credentials: "include" });
+    const res = await apiFetch(`${API_BASE}/users`, { credentials: "include" });
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.message || "Failed to fetch users");
     return data;
   },
 
   create: async (payload: { username: string; displayName: string; password: string; role: UserRole }): Promise<AppUser> => {
-    const res = await fetch(`${API_BASE}/users`, {
+    const res = await apiFetch(`${API_BASE}/users`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -259,7 +290,7 @@ export const userAdminApi = {
   },
 
   update: async (id: number, payload: { displayName?: string; password?: string; role?: UserRole; isActive?: boolean }): Promise<AppUser> => {
-    const res = await fetch(`${API_BASE}/users/${id}`, {
+    const res = await apiFetch(`${API_BASE}/users/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -273,13 +304,13 @@ export const userAdminApi = {
 
 export const rehearsalApi = {
   get: async (): Promise<RehearsalMode> => {
-    const res = await fetch(`${API_BASE}/rehearsal`);
+    const res = await apiFetch(`${API_BASE}/rehearsal`);
     if (!res.ok) throw new Error("Failed to fetch rehearsal mode");
     return res.json();
   },
 
   set: async (enabled: boolean): Promise<RehearsalMode> => {
-    const res = await fetch(`${API_BASE}/rehearsal`, {
+    const res = await apiFetch(`${API_BASE}/rehearsal`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
@@ -292,19 +323,19 @@ export const rehearsalApi = {
 // Camera API
 export const cameraApi = {
   getAll: async (): Promise<Camera[]> => {
-    const res = await fetch(`${API_BASE}/cameras`);
+    const res = await apiFetch(`${API_BASE}/cameras`);
     if (!res.ok) throw new Error("Failed to fetch cameras");
     return res.json();
   },
 
   getOne: async (id: number): Promise<Camera> => {
-    const res = await fetch(`${API_BASE}/cameras/${id}`);
+    const res = await apiFetch(`${API_BASE}/cameras/${id}`);
     if (!res.ok) throw new Error("Failed to fetch camera");
     return res.json();
   },
 
   create: async (camera: InsertCamera): Promise<Camera> => {
-    const res = await fetch(`${API_BASE}/cameras`, {
+    const res = await apiFetch(`${API_BASE}/cameras`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(camera),
@@ -314,7 +345,7 @@ export const cameraApi = {
   },
 
   update: async (id: number, updates: Partial<Camera>): Promise<Camera> => {
-    const res = await fetch(`${API_BASE}/cameras/${id}`, {
+    const res = await apiFetch(`${API_BASE}/cameras/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -324,28 +355,28 @@ export const cameraApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/cameras/${id}`, {
+    const res = await apiFetch(`${API_BASE}/cameras/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete camera");
   },
 
   setProgram: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/cameras/${id}/program`, {
+    const res = await apiFetch(`${API_BASE}/cameras/${id}/program`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to set program camera");
   },
 
   setPreview: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/cameras/${id}/preview`, {
+    const res = await apiFetch(`${API_BASE}/cameras/${id}/preview`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to set preview camera");
   },
 
   getPresets: async (id: number): Promise<Preset[]> => {
-    const res = await fetch(`${API_BASE}/cameras/${id}/presets`, {
+    const res = await apiFetch(`${API_BASE}/cameras/${id}/presets`, {
       cache: "no-store",
     });
     if (!res.ok) throw new Error("Failed to fetch presets");
@@ -353,7 +384,7 @@ export const cameraApi = {
   },
 
   discover: async (options: CameraDiscoveryOptions = {}): Promise<CameraDiscoveryResult> => {
-    const res = await fetch(`${API_BASE}/cameras/discover`, {
+    const res = await apiFetch(`${API_BASE}/cameras/discover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(options),
@@ -366,7 +397,7 @@ export const cameraApi = {
   },
 
   importDiscovered: async (cameras: Array<{ ip: string; port: number; name?: string; streamUrl?: string | null }>): Promise<{ added: Camera[]; skipped: Array<{ ip: string; port: number; reason: string }> }> => {
-    const res = await fetch(`${API_BASE}/cameras/import-discovered`, {
+    const res = await apiFetch(`${API_BASE}/cameras/import-discovered`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cameras }),
@@ -382,7 +413,7 @@ export const cameraApi = {
 // Preset API
 export const presetApi = {
   save: async (preset: InsertPreset): Promise<Preset> => {
-    const res = await fetch(`${API_BASE}/presets`, {
+    const res = await apiFetch(`${API_BASE}/presets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(preset),
@@ -395,7 +426,7 @@ export const presetApi = {
   },
 
   recall: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/presets/${id}/recall`, {
+    const res = await apiFetch(`${API_BASE}/presets/${id}/recall`, {
       method: "POST",
     });
     if (!res.ok) {
@@ -405,7 +436,7 @@ export const presetApi = {
   },
 
   update: async (id: number, updates: Partial<Preset>): Promise<Preset> => {
-    const res = await fetch(`${API_BASE}/presets/${id}`, {
+    const res = await apiFetch(`${API_BASE}/presets/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -418,7 +449,7 @@ export const presetApi = {
   },
 
   refreshThumbnail: async (id: number): Promise<Preset> => {
-    const res = await fetch(`${API_BASE}/presets/${id}/thumbnail`, {
+    const res = await apiFetch(`${API_BASE}/presets/${id}/thumbnail`, {
       method: "POST",
     });
     if (!res.ok) {
@@ -429,7 +460,7 @@ export const presetApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/presets/${id}`, {
+    const res = await apiFetch(`${API_BASE}/presets/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete preset");
@@ -439,19 +470,19 @@ export const presetApi = {
 // Mixer API
 export const mixerApi = {
   getAll: async (): Promise<Mixer[]> => {
-    const res = await fetch(`${API_BASE}/mixers`);
+    const res = await apiFetch(`${API_BASE}/mixers`);
     if (!res.ok) throw new Error("Failed to fetch mixers");
     return res.json();
   },
 
   getOne: async (id: number): Promise<Mixer> => {
-    const res = await fetch(`${API_BASE}/mixers/${id}`);
+    const res = await apiFetch(`${API_BASE}/mixers/${id}`);
     if (!res.ok) throw new Error("Failed to fetch mixer");
     return res.json();
   },
 
   create: async (mixer: InsertMixer): Promise<Mixer> => {
-    const res = await fetch(`${API_BASE}/mixers`, {
+    const res = await apiFetch(`${API_BASE}/mixers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(mixer),
@@ -461,7 +492,7 @@ export const mixerApi = {
   },
 
   update: async (id: number, updates: Partial<Mixer>): Promise<Mixer> => {
-    const res = await fetch(`${API_BASE}/mixers/${id}`, {
+    const res = await apiFetch(`${API_BASE}/mixers/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -471,14 +502,14 @@ export const mixerApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/mixers/${id}`, {
+    const res = await apiFetch(`${API_BASE}/mixers/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete mixer");
   },
 
   connect: async (id: number): Promise<{ success: boolean; status: string }> => {
-    const res = await fetch(`${API_BASE}/mixers/${id}/connect`, {
+    const res = await apiFetch(`${API_BASE}/mixers/${id}/connect`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to connect to mixer");
@@ -486,7 +517,7 @@ export const mixerApi = {
   },
 
   getStatus: async (id: number): Promise<{ connected: boolean; channels: any[]; sections?: Record<string, any[]> }> => {
-    const res = await fetch(`${API_BASE}/mixers/${id}/status`);
+    const res = await apiFetch(`${API_BASE}/mixers/${id}/status`);
     if (!res.ok) throw new Error("Failed to get mixer status");
     return res.json();
   },
@@ -495,19 +526,19 @@ export const mixerApi = {
 // Switcher (ATEM) API
 export const switcherApi = {
   getAll: async (): Promise<Switcher[]> => {
-    const res = await fetch(`${API_BASE}/switchers`);
+    const res = await apiFetch(`${API_BASE}/switchers`);
     if (!res.ok) throw new Error("Failed to fetch switchers");
     return res.json();
   },
 
   getOne: async (id: number): Promise<Switcher> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}`);
+    const res = await apiFetch(`${API_BASE}/switchers/${id}`);
     if (!res.ok) throw new Error("Failed to fetch switcher");
     return res.json();
   },
 
   create: async (switcher: InsertSwitcher): Promise<Switcher> => {
-    const res = await fetch(`${API_BASE}/switchers`, {
+    const res = await apiFetch(`${API_BASE}/switchers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(switcher),
@@ -517,7 +548,7 @@ export const switcherApi = {
   },
 
   update: async (id: number, updates: Partial<Switcher>): Promise<Switcher> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}`, {
+    const res = await apiFetch(`${API_BASE}/switchers/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -527,14 +558,14 @@ export const switcherApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}`, {
+    const res = await apiFetch(`${API_BASE}/switchers/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete switcher");
   },
 
   connect: async (id: number): Promise<{ success: boolean; status: string; message?: string }> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}/connect`, {
+    const res = await apiFetch(`${API_BASE}/switchers/${id}/connect`, {
       method: "POST",
     });
     if (!res.ok) {
@@ -545,27 +576,27 @@ export const switcherApi = {
   },
 
   getStatus: async (id: number): Promise<any> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}/status`);
+    const res = await apiFetch(`${API_BASE}/switchers/${id}/status`);
     if (!res.ok) throw new Error("Failed to get switcher status");
     return res.json();
   },
 
   cut: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}/cut`, {
+    const res = await apiFetch(`${API_BASE}/switchers/${id}/cut`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to execute cut");
   },
 
   auto: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}/auto`, {
+    const res = await apiFetch(`${API_BASE}/switchers/${id}/auto`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to execute auto transition");
   },
 
   setProgram: async (id: number, inputId: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}/program`, {
+    const res = await apiFetch(`${API_BASE}/switchers/${id}/program`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ inputId }),
@@ -574,7 +605,7 @@ export const switcherApi = {
   },
 
   setPreview: async (id: number, inputId: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/switchers/${id}/preview`, {
+    const res = await apiFetch(`${API_BASE}/switchers/${id}/preview`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ inputId }),
@@ -585,13 +616,13 @@ export const switcherApi = {
 
 export const obsApi = {
   getAll: async (): Promise<ObsConnection[]> => {
-    const res = await fetch(`${API_BASE}/obs`);
+    const res = await apiFetch(`${API_BASE}/obs`);
     if (!res.ok) throw new Error("Failed to fetch OBS connections");
     return res.json();
   },
 
   create: async (connection: InsertObsConnection): Promise<ObsConnection> => {
-    const res = await fetch(`${API_BASE}/obs`, {
+    const res = await apiFetch(`${API_BASE}/obs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(connection),
@@ -604,7 +635,7 @@ export const obsApi = {
   },
 
   update: async (id: number, updates: Partial<ObsConnection>): Promise<ObsConnection> => {
-    const res = await fetch(`${API_BASE}/obs/${id}`, {
+    const res = await apiFetch(`${API_BASE}/obs/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -617,12 +648,12 @@ export const obsApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/obs/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE}/obs/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete OBS connection");
   },
 
   connect: async (id: number): Promise<{ success: boolean; status: string; state?: ObsState }> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/connect`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/obs/${id}/connect`, { method: "POST" });
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
       throw new Error(payload?.message || "Failed to connect to OBS");
@@ -631,19 +662,19 @@ export const obsApi = {
   },
 
   disconnect: async (id: number): Promise<{ success: boolean; status: string }> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/disconnect`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/obs/${id}/disconnect`, { method: "POST" });
     if (!res.ok) throw new Error("Failed to disconnect OBS");
     return res.json();
   },
 
   getStatus: async (id: number): Promise<ObsState> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/status`);
+    const res = await apiFetch(`${API_BASE}/obs/${id}/status`);
     if (!res.ok) throw new Error("Failed to get OBS status");
     return res.json();
   },
 
   getScenes: async (id: number): Promise<{ scenes: ObsScene[]; state: ObsState }> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/scenes`);
+    const res = await apiFetch(`${API_BASE}/obs/${id}/scenes`);
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
       throw new Error(payload?.message || "Failed to fetch OBS scenes");
@@ -652,7 +683,7 @@ export const obsApi = {
   },
 
   setProgramScene: async (id: number, sceneName: string): Promise<{ success: boolean; state: ObsState }> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/program`, {
+    const res = await apiFetch(`${API_BASE}/obs/${id}/program`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sceneName }),
@@ -665,35 +696,35 @@ export const obsApi = {
   },
 
   getRecordingStatus: async (id: number): Promise<ObsRecordingResponse> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/recording`);
+    const res = await apiFetch(`${API_BASE}/obs/${id}/recording`);
     const payload = await res.json().catch(() => null);
     if (!res.ok) throw new Error(payload?.message || "Failed to get OBS recording status");
     return payload;
   },
 
   startRecording: async (id: number): Promise<ObsRecordingResponse> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/recording/start`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/obs/${id}/recording/start`, { method: "POST" });
     const payload = await res.json().catch(() => null);
     if (!res.ok) throw new Error(payload?.message || "Failed to start OBS recording");
     return payload;
   },
 
   stopRecording: async (id: number): Promise<ObsRecordingResponse> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/recording/stop`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/obs/${id}/recording/stop`, { method: "POST" });
     const payload = await res.json().catch(() => null);
     if (!res.ok) throw new Error(payload?.message || "Failed to stop OBS recording");
     return payload;
   },
 
   pauseRecording: async (id: number): Promise<ObsRecordingResponse> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/recording/pause`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/obs/${id}/recording/pause`, { method: "POST" });
     const payload = await res.json().catch(() => null);
     if (!res.ok) throw new Error(payload?.message || "Failed to pause OBS recording");
     return payload;
   },
 
   resumeRecording: async (id: number): Promise<ObsRecordingResponse> => {
-    const res = await fetch(`${API_BASE}/obs/${id}/recording/resume`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/obs/${id}/recording/resume`, { method: "POST" });
     const payload = await res.json().catch(() => null);
     if (!res.ok) throw new Error(payload?.message || "Failed to resume OBS recording");
     return payload;
@@ -702,13 +733,13 @@ export const obsApi = {
 
 export const hueApi = {
   getAll: async (): Promise<HueBridge[]> => {
-    const res = await fetch(`${API_BASE}/hue/bridges`);
+    const res = await apiFetch(`${API_BASE}/hue/bridges`);
     if (!res.ok) throw new Error("Failed to fetch Hue bridges");
     return res.json();
   },
 
   create: async (bridge: InsertHueBridge): Promise<HueBridge> => {
-    const res = await fetch(`${API_BASE}/hue/bridges`, {
+    const res = await apiFetch(`${API_BASE}/hue/bridges`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bridge),
@@ -719,7 +750,7 @@ export const hueApi = {
   },
 
   pair: async (id: number): Promise<{ success: boolean; bridge: HueBridge }> => {
-    const res = await fetch(`${API_BASE}/hue/bridges/${id}/pair`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/hue/bridges/${id}/pair`, { method: "POST" });
     const payload = await res.json().catch(() => null);
     if (!res.ok) throw new Error(payload?.error || payload?.message || "Failed to pair Hue bridge");
     return payload;
@@ -728,13 +759,13 @@ export const hueApi = {
 
 export const sceneButtonApi = {
   getAll: async (): Promise<SceneButton[]> => {
-    const res = await fetch(`${API_BASE}/scene-buttons`);
+    const res = await apiFetch(`${API_BASE}/scene-buttons`);
     if (!res.ok) throw new Error("Failed to fetch scene buttons");
     return res.json();
   },
 
   capture: async (payload: SceneCaptureRequest): Promise<SceneCaptureResponse> => {
-    const res = await fetch(`${API_BASE}/scene-buttons/capture`, {
+    const res = await apiFetch(`${API_BASE}/scene-buttons/capture`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -747,7 +778,7 @@ export const sceneButtonApi = {
   },
 
   create: async (button: InsertSceneButton): Promise<SceneButton> => {
-    const res = await fetch(`${API_BASE}/scene-buttons`, {
+    const res = await apiFetch(`${API_BASE}/scene-buttons`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(button),
@@ -757,7 +788,7 @@ export const sceneButtonApi = {
   },
 
   update: async (id: number, updates: Partial<SceneButton>): Promise<SceneButton> => {
-    const res = await fetch(`${API_BASE}/scene-buttons/${id}`, {
+    const res = await apiFetch(`${API_BASE}/scene-buttons/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -767,14 +798,14 @@ export const sceneButtonApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/scene-buttons/${id}`, {
+    const res = await apiFetch(`${API_BASE}/scene-buttons/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete scene button");
   },
 
   execute: async (id: number): Promise<{ success: boolean; results: string[] }> => {
-    const res = await fetch(`${API_BASE}/scene-buttons/${id}/execute`, {
+    const res = await apiFetch(`${API_BASE}/scene-buttons/${id}/execute`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to execute scene button");
@@ -782,7 +813,7 @@ export const sceneButtonApi = {
   },
 
   test: async (id: number, section: "atem" | "obs" | "mixer" | "hue" | "ptz" | "display"): Promise<{ success: boolean; results: string[] }> => {
-    const res = await fetch(`${API_BASE}/scene-buttons/${id}/test`, {
+    const res = await apiFetch(`${API_BASE}/scene-buttons/${id}/test`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ section }),
@@ -794,13 +825,13 @@ export const sceneButtonApi = {
 
 export const displayApi = {
   getAll: async (): Promise<DisplayDevice[]> => {
-    const res = await fetch(`${API_BASE}/displays`);
+    const res = await apiFetch(`${API_BASE}/displays`);
     if (!res.ok) throw new Error("Failed to fetch displays");
     return res.json();
   },
 
   discoverSamsung: async (timeoutMs = 3500): Promise<{ displays: SamsungDiscoveredDisplay[] }> => {
-    const res = await fetch(`${API_BASE}/displays/samsung/discover`, {
+    const res = await apiFetch(`${API_BASE}/displays/samsung/discover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ timeoutMs }),
@@ -813,7 +844,7 @@ export const displayApi = {
   },
 
   discoverHisense: async (timeoutMs = 3500): Promise<{ displays: HisenseDiscoveredDisplay[] }> => {
-    const res = await fetch(`${API_BASE}/displays/hisense/discover`, {
+    const res = await apiFetch(`${API_BASE}/displays/hisense/discover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ timeoutMs }),
@@ -826,7 +857,7 @@ export const displayApi = {
   },
 
   discoverSmartThings: async (token: string): Promise<{ devices: SmartThingsDiscoveredDevice[] }> => {
-    const res = await fetch(`${API_BASE}/displays/smartthings/discover`, {
+    const res = await apiFetch(`${API_BASE}/displays/smartthings/discover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
@@ -839,7 +870,7 @@ export const displayApi = {
   },
 
   startSmartThingsOAuth: async (payload: { clientId: string; clientSecret: string; redirectUri: string; scope: string }): Promise<{ authorizeUrl: string; state: string; redirectUri: string; scope: string }> => {
-    const res = await fetch(`${API_BASE}/displays/smartthings/oauth/start`, {
+    const res = await apiFetch(`${API_BASE}/displays/smartthings/oauth/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -852,7 +883,7 @@ export const displayApi = {
   },
 
   getSmartThingsOAuthSession: async (state: string): Promise<SmartThingsOAuthSession> => {
-    const res = await fetch(`${API_BASE}/displays/smartthings/oauth/session/${encodeURIComponent(state)}`);
+    const res = await apiFetch(`${API_BASE}/displays/smartthings/oauth/session/${encodeURIComponent(state)}`);
     if (!res.ok) {
       const data = await res.json().catch(() => null);
       throw new Error(data?.message || "Failed to complete SmartThings authorization");
@@ -861,7 +892,7 @@ export const displayApi = {
   },
 
   create: async (display: InsertDisplayDevice): Promise<DisplayDevice> => {
-    const res = await fetch(`${API_BASE}/displays`, {
+    const res = await apiFetch(`${API_BASE}/displays`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(display),
@@ -874,7 +905,7 @@ export const displayApi = {
   },
 
   update: async (id: number, updates: Partial<DisplayDevice>): Promise<DisplayDevice> => {
-    const res = await fetch(`${API_BASE}/displays/${id}`, {
+    const res = await apiFetch(`${API_BASE}/displays/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -884,12 +915,12 @@ export const displayApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/displays/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE}/displays/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete display");
   },
 
   refresh: async (id: number): Promise<DisplayDevice> => {
-    const res = await fetch(`${API_BASE}/displays/${id}/refresh`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/displays/${id}/refresh`, { method: "POST" });
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
       throw new Error(payload?.message || "Failed to refresh display");
@@ -898,7 +929,7 @@ export const displayApi = {
   },
 
   pair: async (id: number, payload?: { authCode?: string }): Promise<DisplayDevice> => {
-    const res = await fetch(`${API_BASE}/displays/${id}/pair`, {
+    const res = await apiFetch(`${API_BASE}/displays/${id}/pair`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
@@ -911,7 +942,7 @@ export const displayApi = {
   },
 
   command: async (id: number, payload: DisplayCommandPayload): Promise<DisplayDevice> => {
-    const res = await fetch(`${API_BASE}/displays/${id}/command`, {
+    const res = await apiFetch(`${API_BASE}/displays/${id}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -926,19 +957,19 @@ export const displayApi = {
 
 export const macroApi = {
   getAll: async (): Promise<Macro[]> => {
-    const res = await fetch(`${API_BASE}/macros`);
+    const res = await apiFetch(`${API_BASE}/macros`);
     if (!res.ok) throw new Error("Failed to fetch macros");
     return res.json();
   },
 
   getOne: async (id: number): Promise<Macro> => {
-    const res = await fetch(`${API_BASE}/macros/${id}`);
+    const res = await apiFetch(`${API_BASE}/macros/${id}`);
     if (!res.ok) throw new Error("Failed to fetch macro");
     return res.json();
   },
 
   create: async (macro: InsertMacro): Promise<Macro> => {
-    const res = await fetch(`${API_BASE}/macros`, {
+    const res = await apiFetch(`${API_BASE}/macros`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(macro),
@@ -948,7 +979,7 @@ export const macroApi = {
   },
 
   update: async (id: number, updates: Partial<Macro>): Promise<Macro> => {
-    const res = await fetch(`${API_BASE}/macros/${id}`, {
+    const res = await apiFetch(`${API_BASE}/macros/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -958,14 +989,14 @@ export const macroApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/macros/${id}`, {
+    const res = await apiFetch(`${API_BASE}/macros/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete macro");
   },
 
   execute: async (id: number): Promise<{ success: boolean; message: string }> => {
-    const res = await fetch(`${API_BASE}/macros/${id}/execute`, {
+    const res = await apiFetch(`${API_BASE}/macros/${id}/execute`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to execute macro");
@@ -975,13 +1006,13 @@ export const macroApi = {
 
 export const runsheetApi = {
   getAll: async (): Promise<RunsheetCueWithScene[]> => {
-    const res = await fetch(`${API_BASE}/runsheet/cues`);
+    const res = await apiFetch(`${API_BASE}/runsheet/cues`);
     if (!res.ok) throw new Error("Failed to fetch runsheet cues");
     return res.json();
   },
 
   create: async (cue: InsertRunsheetCue): Promise<RunsheetCueWithScene> => {
-    const res = await fetch(`${API_BASE}/runsheet/cues`, {
+    const res = await apiFetch(`${API_BASE}/runsheet/cues`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cue),
@@ -994,7 +1025,7 @@ export const runsheetApi = {
   },
 
   update: async (id: number, updates: Partial<RunsheetCue>): Promise<RunsheetCueWithScene> => {
-    const res = await fetch(`${API_BASE}/runsheet/cues/${id}`, {
+    const res = await apiFetch(`${API_BASE}/runsheet/cues/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -1007,12 +1038,12 @@ export const runsheetApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/runsheet/cues/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE}/runsheet/cues/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete runsheet cue");
   },
 
   reorder: async (ids: number[]): Promise<RunsheetCueWithScene[]> => {
-    const res = await fetch(`${API_BASE}/runsheet/cues/reorder`, {
+    const res = await apiFetch(`${API_BASE}/runsheet/cues/reorder`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
@@ -1027,12 +1058,12 @@ export const runsheetApi = {
 
 export const undoApi = {
   getStatus: async (): Promise<{ canUndo: boolean; count: number; lastAction: any }> => {
-    const res = await fetch(`${API_BASE}/undo/status`);
+    const res = await apiFetch(`${API_BASE}/undo/status`);
     if (!res.ok) throw new Error("Failed to get undo status");
     return res.json();
   },
   undo: async (): Promise<{ success: boolean; message: string }> => {
-    const res = await fetch(`${API_BASE}/undo`, { method: "POST" });
+    const res = await apiFetch(`${API_BASE}/undo`, { method: "POST" });
     if (!res.ok) throw new Error("Failed to undo");
     return res.json();
   },
@@ -1040,24 +1071,24 @@ export const undoApi = {
 
 export const sessionLogApi = {
   getAll: async (): Promise<any[]> => {
-    const res = await fetch(`${API_BASE}/session-log`);
+    const res = await apiFetch(`${API_BASE}/session-log`);
     if (!res.ok) throw new Error("Failed to get session log");
     return res.json();
   },
   clear: async (): Promise<void> => {
-    await fetch(`${API_BASE}/session-log`, { method: "DELETE" });
+    await apiFetch(`${API_BASE}/session-log`, { method: "DELETE" });
   },
 };
 
 export const healthApi = {
   getDevices: async (): Promise<DeviceHealthResponse> => {
-    const res = await fetch(`${API_BASE}/health/devices`);
+    const res = await apiFetch(`${API_BASE}/health/devices`);
     if (!res.ok) throw new Error("Failed to get device health");
     return res.json();
   },
 
   getSystem: async (): Promise<SystemHealthResponse> => {
-    const res = await fetch(`${API_BASE}/health/system`);
+    const res = await apiFetch(`${API_BASE}/health/system`);
     if (!res.ok) throw new Error("Failed to get system health");
     return res.json();
   },
@@ -1065,7 +1096,7 @@ export const healthApi = {
 
 export const diagnosticsApi = {
   exportBundle: async (): Promise<any> => {
-    const res = await fetch(`${API_BASE}/diagnostics/bundle`);
+    const res = await apiFetch(`${API_BASE}/diagnostics/bundle`);
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.message || "Failed to export diagnostics");
     return data;
@@ -1074,25 +1105,25 @@ export const diagnosticsApi = {
 
 export const layoutApi = {
   getAll: async (): Promise<Layout[]> => {
-    const res = await fetch(`${API_BASE}/layouts`);
+    const res = await apiFetch(`${API_BASE}/layouts`);
     if (!res.ok) throw new Error("Failed to fetch layouts");
     return res.json();
   },
 
   getActive: async (): Promise<Layout | null> => {
-    const res = await fetch(`${API_BASE}/layouts/active`);
+    const res = await apiFetch(`${API_BASE}/layouts/active`);
     if (!res.ok) throw new Error("Failed to fetch active layout");
     return res.json();
   },
 
   getOne: async (id: number): Promise<Layout> => {
-    const res = await fetch(`${API_BASE}/layouts/${id}`);
+    const res = await apiFetch(`${API_BASE}/layouts/${id}`);
     if (!res.ok) throw new Error("Failed to fetch layout");
     return res.json();
   },
 
   saveCurrent: async (data: { name: string; description?: string; color?: string }): Promise<Layout> => {
-    const res = await fetch(`${API_BASE}/layouts/save-current`, {
+    const res = await apiFetch(`${API_BASE}/layouts/save-current`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -1102,7 +1133,7 @@ export const layoutApi = {
   },
 
   load: async (id: number): Promise<{ success: boolean; message: string }> => {
-    const res = await fetch(`${API_BASE}/layouts/${id}/load`, {
+    const res = await apiFetch(`${API_BASE}/layouts/${id}/load`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to load layout");
@@ -1110,7 +1141,7 @@ export const layoutApi = {
   },
 
   updateSnapshot: async (id: number): Promise<Layout> => {
-    const res = await fetch(`${API_BASE}/layouts/${id}/update-snapshot`, {
+    const res = await apiFetch(`${API_BASE}/layouts/${id}/update-snapshot`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to update layout snapshot");
@@ -1118,7 +1149,7 @@ export const layoutApi = {
   },
 
   update: async (id: number, updates: Partial<Layout>): Promise<Layout> => {
-    const res = await fetch(`${API_BASE}/layouts/${id}`, {
+    const res = await apiFetch(`${API_BASE}/layouts/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
@@ -1128,14 +1159,14 @@ export const layoutApi = {
   },
 
   delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/layouts/${id}`, {
+    const res = await apiFetch(`${API_BASE}/layouts/${id}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete layout");
   },
 
   exportLayout: async (id: number): Promise<void> => {
-    const res = await fetch(`${API_BASE}/layouts/${id}/export`);
+    const res = await apiFetch(`${API_BASE}/layouts/${id}/export`);
     if (!res.ok) throw new Error("Failed to export layout");
     const data = await res.json();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -1150,7 +1181,7 @@ export const layoutApi = {
   importLayout: async (file: File): Promise<Layout> => {
     const text = await file.text();
     const parsed = JSON.parse(text);
-    const res = await fetch(`${API_BASE}/layouts/import`, {
+    const res = await apiFetch(`${API_BASE}/layouts/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parsed),

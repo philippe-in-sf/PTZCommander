@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { cameraApi, sceneButtonApi, macroApi } from "@/lib/api";
+import { apiFetch, cameraApi, sceneButtonApi, macroApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
 import { useTheme } from "@/components/theme-provider";
 import { useAtemControl } from "@/hooks/use-atem-control";
@@ -295,7 +295,7 @@ function LightingTab() {
     if (!selectedBridgeId) return;
     setActivatingScene(sceneId);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/hue/bridges/${selectedBridgeId}/scenes/${sceneId}/activate`,
         { method: "POST" }
       );
@@ -310,7 +310,7 @@ function LightingTab() {
 
   const toggleGroup = async (groupId: string, on: boolean) => {
     if (!selectedBridgeId) return;
-    const res = await fetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
+    const res = await apiFetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
@@ -328,7 +328,7 @@ function LightingTab() {
 
   const setGroupBrightness = async (groupId: string, bri: number) => {
     if (!selectedBridgeId) return;
-    const res = await fetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
+    const res = await apiFetch(`/api/hue/bridges/${selectedBridgeId}/groups/${groupId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on: true, bri }),
@@ -346,7 +346,7 @@ function LightingTab() {
 
   const toggleLight = async (lightId: string, on: boolean) => {
     if (!selectedBridgeId) return;
-    const res = await fetch(`/api/hue/bridges/${selectedBridgeId}/lights/${lightId}`, {
+    const res = await apiFetch(`/api/hue/bridges/${selectedBridgeId}/lights/${lightId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ on }),
@@ -607,7 +607,7 @@ export default function MobilePage() {
 
   const executeScene = async (btn: SceneButton) => {
     try {
-      const res = await fetch(`/api/scene-buttons/${btn.id}/execute`, { method: "POST" });
+      const res = await apiFetch(`/api/scene-buttons/${btn.id}/execute`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         toast.error(data.message || `Failed to execute "${btn.name}"`);

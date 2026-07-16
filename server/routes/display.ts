@@ -5,7 +5,7 @@ import { z } from "zod";
 import { SmartThingsClient, commandForDisplayAction } from "../smartthings";
 import { discoverHisenseDisplays, HisenseVidaaClient, keyForHisenseAction } from "../hisense-local";
 import { discoverSamsungDisplays, keyForSamsungAction, SamsungLocalDisplayClient } from "../samsung-local";
-import { logger } from "../logger";
+import { errorDetails, logger } from "../logger";
 import type { DisplayDevice } from "@shared/schema";
 import { registerApiAccessRule } from "../auth";
 
@@ -364,7 +364,10 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       });
       res.redirect(`/displays?smartthingsAuth=${encodeURIComponent(state)}`);
     } catch (error: any) {
-      logger.error({ error }, "SmartThings OAuth callback failed");
+      logger.error("system", "SmartThings OAuth callback failed", {
+        action: "display:smartthings_oauth_callback_failed",
+        details: errorDetails(error),
+      });
       res.status(500).send("SmartThings authorization failed.");
     }
   });

@@ -24,6 +24,10 @@
       <string>production</string>
       <key>SESSION_SECRET</key>
       <string>__SESSION_SECRET__</string>
+      <key>SECRET_ENCRYPTION_KEY</key>
+      <string>__SECRET_ENCRYPTION_KEY__</string>
+      <key>SECRET_ENCRYPTION_PREVIOUS_KEY</key>
+      <string>__SECRET_ENCRYPTION_PREVIOUS_KEY__</string>
       <key>SESSION_COOKIE_SECURE</key>
       <string>false</string>
     </dict>

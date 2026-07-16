@@ -8,6 +8,8 @@ PLIST_TEMPLATE="$SCRIPT_DIR/com.ptzcommander.multiuser.plist"
 PLIST_TARGET="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_DIR="${PTZCOMMAND_LOG_DIR:-$HOME/Library/Logs/PTZCommand}"
 SECRET_FILE="$SCRIPT_DIR/.session-secret"
+ENCRYPTION_SECRET_FILE="$SCRIPT_DIR/.secret-encryption-key"
+ENCRYPTION_PREVIOUS_SECRET_FILE="$SCRIPT_DIR/.secret-encryption-previous-key"
 PORT="${PORT:-3478}"
 SELF_CHECK_TIMEOUT="${PTZCOMMAND_SELF_CHECK_TIMEOUT:-45}"
 SERVICE_DOMAIN="gui/$(id -u)"
@@ -227,7 +229,20 @@ if [ ! -f "$SECRET_FILE" ]; then
   /usr/bin/openssl rand -hex 32 > "$SECRET_FILE"
 fi
 
+if [ ! -f "$ENCRYPTION_SECRET_FILE" ]; then
+  umask 077
+  /usr/bin/openssl rand -hex 32 > "$ENCRYPTION_SECRET_FILE"
+  if [ -f "$SECRET_FILE" ]; then
+    cp "$SECRET_FILE" "$ENCRYPTION_PREVIOUS_SECRET_FILE"
+  fi
+fi
+
 SESSION_SECRET=$(tr -d '\n' < "$SECRET_FILE")
+SECRET_ENCRYPTION_KEY=$(tr -d '\n' < "$ENCRYPTION_SECRET_FILE")
+SECRET_ENCRYPTION_PREVIOUS_KEY="${SECRET_ENCRYPTION_PREVIOUS_KEY:-}"
+if [ -f "$ENCRYPTION_PREVIOUS_SECRET_FILE" ]; then
+  SECRET_ENCRYPTION_PREVIOUS_KEY=$(tr -d '\n' < "$ENCRYPTION_PREVIOUS_SECRET_FILE")
+fi
 HOSTNAME=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
 
 ROOT_ESCAPED=$(printf '%s\n' "$ROOT_DIR" | sed 's/[\/&]/\\&/g')
@@ -235,6 +250,8 @@ NODE_ESCAPED=$(printf '%s\n' "$NODE_BIN" | sed 's/[\/&]/\\&/g')
 LOG_ESCAPED=$(printf '%s\n' "$LOG_DIR" | sed 's/[\/&]/\\&/g')
 PORT_ESCAPED=$(printf '%s\n' "$PORT" | sed 's/[\/&]/\\&/g')
 SECRET_ESCAPED=$(printf '%s\n' "$SESSION_SECRET" | sed 's/[\/&]/\\&/g')
+ENCRYPTION_SECRET_ESCAPED=$(printf '%s\n' "$SECRET_ENCRYPTION_KEY" | sed 's/[\/&]/\\&/g')
+ENCRYPTION_PREVIOUS_SECRET_ESCAPED=$(printf '%s\n' "$SECRET_ENCRYPTION_PREVIOUS_KEY" | sed 's/[\/&]/\\&/g')
 
 sed \
   -e "s/__ROOT__/$ROOT_ESCAPED/g" \
@@ -242,6 +259,8 @@ sed \
   -e "s/__LOG_DIR__/$LOG_ESCAPED/g" \
   -e "s/__PORT__/$PORT_ESCAPED/g" \
   -e "s/__SESSION_SECRET__/$SECRET_ESCAPED/g" \
+  -e "s/__SECRET_ENCRYPTION_KEY__/$ENCRYPTION_SECRET_ESCAPED/g" \
+  -e "s/__SECRET_ENCRYPTION_PREVIOUS_KEY__/$ENCRYPTION_PREVIOUS_SECRET_ESCAPED/g" \
   "$PLIST_TEMPLATE" > "$PLIST_TARGET"
 
 launchctl bootout "$SERVICE_DOMAIN" "$PLIST_TARGET" >/dev/null 2>&1 || true

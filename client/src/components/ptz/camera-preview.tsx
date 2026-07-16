@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Camera, Maximize2, MonitorUp, Radio, RefreshCw, Video, VideoOff } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api";
 import type { Camera as CameraType } from "@shared/schema";
 import { sortCamerasByAssignmentName } from "@shared/camera-import";
 
@@ -351,7 +352,7 @@ function WebRtcPreview({ camera, className }: { camera: CameraType; className?: 
         await peer.setLocalDescription(offer);
         await waitForIceGathering(peer);
 
-        const response = await fetch(`/api/cameras/${camera.id}/webrtc/offer`, {
+        const response = await apiFetch(`/api/cameras/${camera.id}/webrtc/offer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sdp: peer.localDescription?.sdp || offer.sdp }),

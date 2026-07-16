@@ -147,6 +147,7 @@ If you prefer PostgreSQL instead of SQLite, set up a database and create a `.env
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/ptz_command
 SESSION_SECRET=change-this-in-production
+SECRET_ENCRYPTION_KEY=change-this-too
 ```
 
 Then push the schema:
@@ -161,7 +162,8 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 
 - On a brand-new install, open PTZ Command once and create the first admin account.
 - After that, admins can create additional viewer, operator, or admin users from the in-app **Users** page.
-- For shared deployments, set `SESSION_SECRET` explicitly before running the app.
+- For shared deployments, set `SESSION_SECRET` and `SECRET_ENCRYPTION_KEY` explicitly before running the app. Keep them different: session cookies and stored camera/OBS/Hue/display credentials should not share one secret.
+- To rotate stored-credential encryption, set the new `SECRET_ENCRYPTION_KEY` and put the previous key in `SECRET_ENCRYPTION_PREVIOUS_KEY` or comma-separated `SECRET_ENCRYPTION_PREVIOUS_KEYS`, then start the app once. Startup re-encrypts stored credentials under the new key; remove the previous-key setting after the app has started successfully. Older installs that encrypted credentials with `SESSION_SECRET` should use that old session secret as the previous key for the first startup. Rotating without the previous key leaves existing encrypted credentials unreadable.
 
 ### LAN Hosting
 
@@ -169,7 +171,7 @@ For a shared station on your local network, run the production build on one host
 
 ```bash
 npm run build
-PORT=3478 SESSION_SECRET=change-this npm run start
+PORT=3478 SESSION_SECRET=change-this SECRET_ENCRYPTION_KEY=change-this-too npm run start
 ```
 
 The server listens on `0.0.0.0`, so other machines on the same network can connect to:
@@ -187,7 +189,7 @@ npm run build
 
 That installs a `launchd` agent, keeps PTZ Command running after login, and writes logs to `~/Library/Logs/PTZCommand`.
 
-The installer launches the built `dist/index.cjs` file with the detected Node binary, then checks `http://127.0.0.1:$PORT/api/version` before declaring victory. The self-check prints the live app version, working directory, Node version, runtime PID, and launchd PID. It exits nonzero if the build is stale, the running service is missing runtime metadata, reports a different app version, points at a different checkout, or if another process is still answering on the port. Use `PTZCOMMAND_SELF_CHECK_TIMEOUT=60 ./deploy/install-launchd.sh` if the Mac needs more startup time.
+The installer launches the built `dist/index.cjs` file with the detected Node binary, then checks `http://127.0.0.1:$PORT/api/version` before declaring victory. It stores the session secret and credential-encryption key in separate local files under `deploy/`. On upgrade from older launchd installs, first creation of the encryption key also writes the existing session secret as the previous encryption key so startup can re-encrypt stored credentials. The self-check prints the live app version, working directory, Node version, runtime PID, and launchd PID. It exits nonzero if the build is stale, the running service is missing runtime metadata, reports a different app version, points at a different checkout, or if another process is still answering on the port. Use `PTZCOMMAND_SELF_CHECK_TIMEOUT=60 ./deploy/install-launchd.sh` if the Mac needs more startup time.
 
 The launchd installer requires a Node 24 binary. It checks `PTZCOMMAND_NODE_BIN` first, then common Homebrew Node 24 paths, then the `node` on `PATH`; anything outside Node 24 fails before the plist is installed.
 

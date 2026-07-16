@@ -1,7 +1,7 @@
 import { users, cameras, presets, mixers, switchers, sceneButtons, layouts, macros, obsConnections, runsheetCues, auditLogs, hueBridges, displayDevices, type User, type UserRole, type Camera, type InsertCamera, type Preset, type InsertPreset, type Mixer, type InsertMixer, type Switcher, type InsertSwitcher, type SceneButton, type InsertSceneButton, type Layout, type InsertLayout, type Macro, type InsertMacro, type ObsConnection, type InsertObsConnection, type RunsheetCue, type InsertRunsheetCue, type AuditLog, type InsertAuditLog, type HueBridge, type InsertHueBridge, type DisplayDevice, type InsertDisplayDevice } from "@shared/schema";
 import { sql, desc, eq, and } from "drizzle-orm";
-import { db, sqlite, useSqlite } from "./db";
-import { decryptSecret, encryptSecret } from "./secrets";
+import { db, pool, sqlite, useSqlite } from "./db";
+import { decryptSecret, encryptSecret, reencryptSecret } from "./secrets";
 
 export interface IStorage {
   // User operations
@@ -332,6 +332,88 @@ function encryptDisplaySecrets<T extends Partial<DisplayDevice> | InsertDisplayD
     samsungToken: display.samsungToken !== undefined ? encryptSecret(display.samsungToken) : display.samsungToken,
     hisensePassword: display.hisensePassword !== undefined ? encryptSecret(display.hisensePassword) : display.hisensePassword,
   } as T;
+}
+
+type SecretColumnSet = {
+  table: string;
+  idColumn: string;
+  columns: string[];
+};
+
+const SECRET_COLUMN_SETS: SecretColumnSet[] = [
+  { table: "cameras", idColumn: "id", columns: ["password"] },
+  { table: "obs_connections", idColumn: "id", columns: ["password"] },
+  { table: "hue_bridges", idColumn: "id", columns: ["api_key"] },
+  {
+    table: "display_devices",
+    idColumn: "id",
+    columns: [
+      "smartthings_token",
+      "smartthings_refresh_token",
+      "smartthings_client_secret",
+      "samsung_token",
+      "hisense_password",
+    ],
+  },
+];
+
+function quoteIdentifier(identifier: string) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
+    throw new Error(`Unsafe SQL identifier: ${identifier}`);
+  }
+  return `"${identifier}"`;
+}
+
+function reencryptSqliteSecrets() {
+  if (!sqlite) return 0;
+  let changed = 0;
+  const rotate = sqlite.transaction(() => {
+    for (const set of SECRET_COLUMN_SETS) {
+      const selectedColumns = [set.idColumn, ...set.columns].map(quoteIdentifier).join(", ");
+      const rows = sqlite.prepare(`SELECT ${selectedColumns} FROM ${quoteIdentifier(set.table)}`).all() as Record<string, string | number | null>[];
+      for (const row of rows) {
+        for (const column of set.columns) {
+          const secretValue = row[column];
+          const result = reencryptSecret(typeof secretValue === "string" ? secretValue : null);
+          if (!result.changed) continue;
+          sqlite
+            .prepare(`UPDATE ${quoteIdentifier(set.table)} SET ${quoteIdentifier(column)} = ? WHERE ${quoteIdentifier(set.idColumn)} = ?`)
+            .run(result.value, row[set.idColumn]);
+          changed += 1;
+        }
+      }
+    }
+  });
+  rotate();
+  return changed;
+}
+
+async function reencryptPostgresSecrets() {
+  if (!pool) return 0;
+  let changed = 0;
+  for (const set of SECRET_COLUMN_SETS) {
+    const selectedColumns = [set.idColumn, ...set.columns].map(quoteIdentifier).join(", ");
+    const result = await pool.query(`SELECT ${selectedColumns} FROM ${quoteIdentifier(set.table)}`);
+    for (const row of result.rows) {
+      for (const column of set.columns) {
+        const next = reencryptSecret(row[column]);
+        if (!next.changed) continue;
+        await pool.query(
+          `UPDATE ${quoteIdentifier(set.table)} SET ${quoteIdentifier(column)} = $1 WHERE ${quoteIdentifier(set.idColumn)} = $2`,
+          [next.value, row[set.idColumn]],
+        );
+        changed += 1;
+      }
+    }
+  }
+  return changed;
+}
+
+export async function reencryptStoredSecrets() {
+  const changed = useSqlite ? reencryptSqliteSecrets() : await reencryptPostgresSecrets();
+  if (changed > 0) {
+    console.log(`[Secrets] Re-encrypted ${changed} stored credential field${changed === 1 ? "" : "s"}.`);
+  }
 }
 
 function sqliteRowToUser(row: any): User {

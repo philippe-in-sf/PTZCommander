@@ -119,6 +119,30 @@ function normalizeFfmpegPreviewUrl(value: string, protocol: FfmpegPreviewProtoco
   }
 }
 
+export function isConfiguredFfmpegPreviewTarget(
+  value: string,
+  camera: { ip: string },
+) {
+  try {
+    const url = new URL(value);
+    return url.hostname.toLowerCase() === camera.ip.trim().toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+function assertConfiguredFfmpegPreviewTarget(
+  normalizedUrl: string,
+  camera: { name: string; ip: string },
+  protocol: FfmpegPreviewProtocol,
+) {
+  if (isConfiguredFfmpegPreviewTarget(normalizedUrl, camera)) return;
+  throw new CameraPreviewCaptureError(
+    `${protocol.toUpperCase()} preview URL host must match the configured camera host for ${camera.name}`,
+    400,
+  );
+}
+
 function applyCameraCredentialsToPreviewUrl(
   value: string,
   camera: { username: string | null; password: string | null },
@@ -383,6 +407,7 @@ async function captureFfmpegFrameForCameraResult(camera: Camera, protocol: Ffmpe
     const allowed = protocol === "rtsp" ? "rtsp:// or rtsps://" : "rtp://";
     throw new CameraPreviewCaptureError(`${protocol.toUpperCase()} frame URLs must start with ${allowed}`, 400);
   }
+  assertConfiguredFfmpegPreviewTarget(normalizedUrl, camera, protocol);
 
   const inputUrl = applyCameraCredentialsToPreviewUrl(normalizedUrl, camera);
   return getFfmpegFrame(getFfmpegPath(), protocol, camera.id, normalizedUrl, inputUrl, camera);
@@ -979,6 +1004,11 @@ export function registerCameraRoutes(ctx: RouteContext) {
         if (!normalizedUrl) {
           const allowed = protocol === "rtsp" ? "rtsp:// or rtsps://" : "rtp://";
           return res.status(400).json({ message: `${label} preview URLs must start with ${allowed}` });
+        }
+        if (!isConfiguredFfmpegPreviewTarget(normalizedUrl, camera)) {
+          return res.status(400).json({
+            message: `${label} preview URL host must match the configured camera host for ${camera.name}`,
+          });
         }
 
         const inputUrl = applyCameraCredentialsToPreviewUrl(normalizedUrl, camera);
