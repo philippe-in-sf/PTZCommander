@@ -7,6 +7,7 @@ import { PresetManagementDialog } from "@/components/ptz/preset-management-dialo
 import { LensControls } from "@/components/ptz/lens-controls";
 import { MixerPanel } from "@/components/mixer/mixer-panel";
 import { AtemPanel } from "@/components/switcher/atem-panel";
+import { AtemMultiview } from "@/components/switcher/atem-multiview";
 import { HuePanel } from "@/components/lighting/hue-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
 import { CameraMonitor, CameraPreview } from "@/components/ptz/camera-preview";
@@ -707,6 +708,8 @@ export default function Dashboard() {
         </section>
 
         {/* Camera Preview */}
+        <AtemMultiview />
+
         {cameras.length > 0 && (
           <section>
             <CameraPreview
