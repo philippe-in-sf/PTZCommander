@@ -47,10 +47,11 @@ test("desktop update manifest reports an unpublished package safely", async () =
 });
 
 test("macOS update flow verifies and replaces the app with rollback protection", async () => {
-  const [appSource, buildScript, authSource] = await Promise.all([
+  const [appSource, buildScript, authSource, systemRoutes] = await Promise.all([
     readFile(join(process.cwd(), "macos/PTZCommandApp.swift"), "utf8"),
     readFile(join(process.cwd(), "deploy/build-macos-app.sh"), "utf8"),
     readFile(join(process.cwd(), "server/auth.ts"), "utf8"),
+    readFile(join(process.cwd(), "server/routes/system.ts"), "utf8"),
   ]);
 
   assert.match(appSource, /CFBundleShortVersionString/);
@@ -64,4 +65,7 @@ test("macOS update flow verifies and replaces the app with rollback protection",
   assert.match(buildScript, /PTZ-Commander-macOS\.zip/);
   assert.match(buildScript, /ditto -c -k --sequesterRsrc --keepParent/);
   assert.match(authSource, /api\\\/desktop-update/);
+  assert.match(systemRoutes, /const desktopUpdateRateLimiter = rateLimit/);
+  assert.match(systemRoutes, /app\.get\("\/api\/desktop-update", desktopUpdateRateLimiter/);
+  assert.match(systemRoutes, /app\.get\("\/api\/desktop-update\/download", desktopUpdateRateLimiter/);
 });

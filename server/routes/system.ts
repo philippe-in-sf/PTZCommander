@@ -10,6 +10,7 @@ import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { getRehearsalMode, setRehearsalMode } from "../rehearsal";
+import rateLimit from "express-rate-limit";
 import {
   DESKTOP_UPDATE_ARCHIVE_NAME,
   buildDesktopUpdateManifest,
@@ -17,6 +18,13 @@ import {
 } from "../desktop-update";
 
 const execFileAsync = promisify(execFile);
+const desktopUpdateRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many desktop update requests; wait a minute and try again" },
+});
 
 function getVersionMetadata() {
   return {
@@ -243,7 +251,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
     res.json(getVersionMetadata());
   });
 
-  app.get("/api/desktop-update", async (_req, res) => {
+  app.get("/api/desktop-update", desktopUpdateRateLimiter, async (_req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store");
       res.json(await buildDesktopUpdateManifest(APP_VERSION));
@@ -256,7 +264,7 @@ export function registerSystemRoutes(ctx: RouteContext) {
     }
   });
 
-  app.get("/api/desktop-update/download", async (_req, res) => {
+  app.get("/api/desktop-update/download", desktopUpdateRateLimiter, async (_req, res) => {
     try {
       const artifact = await inspectDesktopUpdateArtifact();
       if (!artifact) {
