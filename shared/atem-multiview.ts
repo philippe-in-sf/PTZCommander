@@ -5,19 +5,25 @@ export interface AtemMultiviewCrop {
   height: number;
 }
 
+export const ATEM_MULTIVIEW_LAYOUT_PROGRAM_BOTTOM = 3;
+export const ATEM_MULTIVIEW_LAYOUT_PROGRAM_TOP = 12;
+
 /**
- * Standard ATEM Mini Extreme 2+8 multiview layout: preview/program occupy the
- * top half and inputs 1-8 occupy a four-by-two grid in the bottom half.
+ * Resolve one of the eight small windows in ATEM Mini Extreme layouts where
+ * Preview and Program share either the top or bottom half of the Multiview.
  */
-export function atemTwoPlusEightInputCrop(inputNumber: number): AtemMultiviewCrop {
-  if (!Number.isInteger(inputNumber) || inputNumber < 1 || inputNumber > 8) {
-    throw new RangeError("ATEM multiview input number must be between 1 and 8");
+export function atemTwoPlusEightWindowCrop(layout: number, windowIndex: number): AtemMultiviewCrop | null {
+  if (!Number.isInteger(windowIndex) || windowIndex < 0 || windowIndex > 7) {
+    return null;
+  }
+  if (layout !== ATEM_MULTIVIEW_LAYOUT_PROGRAM_BOTTOM && layout !== ATEM_MULTIVIEW_LAYOUT_PROGRAM_TOP) {
+    return null;
   }
 
-  const index = inputNumber - 1;
+  const inputGridTop = layout === ATEM_MULTIVIEW_LAYOUT_PROGRAM_BOTTOM ? 0 : 0.5;
   return {
-    left: (index % 4) * 0.25,
-    top: 0.5 + Math.floor(index / 4) * 0.25,
+    left: (windowIndex % 4) * 0.25,
+    top: inputGridTop + Math.floor(windowIndex / 4) * 0.25,
     width: 0.25,
     height: 0.25,
   };

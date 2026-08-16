@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MonitorUp, Settings2, Video, VideoOff } from "lucide-react";
-import { atemMultiviewVideoStyle, atemTwoPlusEightInputCrop } from "@shared/atem-multiview";
+import {
+  ATEM_MULTIVIEW_LAYOUT_PROGRAM_BOTTOM,
+  atemMultiviewVideoStyle,
+  atemTwoPlusEightWindowCrop,
+  type AtemMultiviewCrop,
+} from "@shared/atem-multiview";
 import { useAtemControl, type AtemInput } from "@/hooks/use-atem-control";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,11 +25,11 @@ function inputName(input: AtemInput) {
   return longName || shortName || `Input ${input.inputId}`;
 }
 
-function CroppedInputVideo({ stream, inputNumber }: { stream: MediaStream; inputNumber: number }) {
+function CroppedInputVideo({ stream, crop }: { stream: MediaStream; crop: AtemMultiviewCrop }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const style = useMemo(
-    () => atemMultiviewVideoStyle(atemTwoPlusEightInputCrop(inputNumber)),
-    [inputNumber],
+    () => atemMultiviewVideoStyle(crop),
+    [crop],
   );
 
   useEffect(() => {
@@ -163,6 +168,9 @@ export function AtemMultiview() {
         {inputs.map((input, index) => {
           const isProgram = atemState.programInput === input.inputId;
           const isPreview = atemState.previewInput === input.inputId;
+          const windowIndex = atemState.multiview?.windows.find((window) => window.source === input.inputId)?.windowIndex ?? index;
+          const multiviewLayout = atemState.multiview?.layout ?? ATEM_MULTIVIEW_LAYOUT_PROGRAM_BOTTOM;
+          const crop = atemTwoPlusEightWindowCrop(multiviewLayout, windowIndex);
           return (
             <div
               key={input.inputId}
@@ -172,12 +180,14 @@ export function AtemMultiview() {
               )}
               data-testid={`atem-multiview-input-${input.inputId}`}
             >
-              {stream ? (
-                <CroppedInputVideo stream={stream} inputNumber={index + 1} />
+              {stream && crop ? (
+                <CroppedInputVideo stream={stream} crop={crop} />
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
                   {captureError ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-                  <span className="mt-1 max-w-[90%] truncate text-[10px]">{captureError || "Choose Multiview capture"}</span>
+                  <span className="mt-1 max-w-[90%] truncate text-[10px]">
+                    {captureError || (crop ? "Choose Multiview capture" : `Unsupported Multiview layout ${multiviewLayout}`)}
+                  </span>
                 </div>
               )}
               <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/85 to-transparent px-2 py-1.5 text-white">
@@ -193,7 +203,7 @@ export function AtemMultiview() {
       </div>
 
       <p className="mt-3 text-[10px] text-slate-500">
-        Uses the standard ATEM 2+8 Multiview layout: Preview and Program on top, inputs 1–8 in the lower grid. Capture selection is saved in this browser.
+        Crops follow the Multiview layout and window assignments reported by the connected ATEM. Capture selection is saved in this browser.
       </p>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

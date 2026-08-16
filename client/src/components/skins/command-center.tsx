@@ -17,6 +17,7 @@ import type { DashboardSkinProps } from "./types";
 import { BrandWatermark } from "@/components/branding/brand";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraPreview } from "@/components/ptz/camera-preview";
+import { AtemMultiview } from "@/components/switcher/atem-multiview";
 import { AppHeader } from "@/components/app-header";
 import { healthApi, type DeviceHealthResponse, type SystemHealthResponse } from "@/lib/api";
 import { useAtemControl } from "@/hooks/use-atem-control";
@@ -210,6 +211,7 @@ export default function CommandCenter(props: DashboardSkinProps) {
         
         {/* LEFT COLUMN - Cameras & Presets (7 cols) */}
         <div className="col-span-12 lg:col-span-7 flex flex-col gap-4">
+          <AtemMultiview />
           <CameraPreview
             cameras={cameras}
             selectedId={selectedCameraId}

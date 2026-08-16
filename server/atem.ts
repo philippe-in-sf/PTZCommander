@@ -16,6 +16,12 @@ export interface AtemInputInfo {
   longName: string;
 }
 
+export interface AtemMultiviewInfo {
+  layout: number;
+  programPreviewSwapped: boolean;
+  windows: Array<{ windowIndex: number; source: number }>;
+}
+
 export interface AtemDSKState {
   index: number;
   onAir: boolean;
@@ -76,6 +82,7 @@ export interface AtemSwitcherState {
   inTransition: boolean;
   transitionPosition: number;
   inputs: AtemInputInfo[];
+  multiview: AtemMultiviewInfo | null;
   transition: AtemTransitionState;
   fadeToBlack: AtemFTBState;
   downstreamKeyers: AtemDSKState[];
@@ -486,6 +493,15 @@ export class AtemClient {
       }
     }
 
+    const multiviewState = state?.settings?.multiViewers?.[0];
+    const multiview = multiviewState ? {
+      layout: multiviewState.properties?.layout ?? 0,
+      programPreviewSwapped: multiviewState.properties?.programPreviewSwapped ?? false,
+      windows: (multiviewState.windows || [])
+        .filter((window: any) => window && Number.isInteger(window.windowIndex) && Number.isInteger(window.source))
+        .map((window: any) => ({ windowIndex: window.windowIndex, source: window.source })),
+    } : null;
+
     const downstreamKeyers: AtemDSKState[] = [];
     if (state?.video?.downstreamKeyers) {
       state.video.downstreamKeyers.forEach((dsk: any, i: number) => {
@@ -577,6 +593,7 @@ export class AtemClient {
       inTransition: mixEffect?.transitionPosition?.inTransition ?? false,
       transitionPosition: mixEffect?.transitionPosition?.handlePosition ?? 0,
       inputs: inputs.filter(i => i.inputId >= 1 && i.inputId <= 20),
+      multiview,
       transition,
       fadeToBlack,
       downstreamKeyers,

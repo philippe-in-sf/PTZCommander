@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraPreview } from "@/components/ptz/camera-preview";
+import { AtemMultiview } from "@/components/switcher/atem-multiview";
 import { BrandWatermark } from "@/components/branding/brand";
 import { AppHeader } from "@/components/app-header";
 import { useAtemControl } from "@/hooks/use-atem-control";
@@ -90,6 +91,7 @@ export default function StudioGlass(props: DashboardSkinProps) {
 
         <section>
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Camera Select</h2>
+          <AtemMultiview />
           <CameraPreview
             cameras={props.cameras}
             selectedId={props.selectedCameraId}
