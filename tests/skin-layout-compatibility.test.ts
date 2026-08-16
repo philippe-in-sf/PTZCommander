@@ -29,6 +29,16 @@ test("alternate dashboard skins render shared control-surface shortcut labels", 
   }
 });
 
+test("alternate dashboard skins expose all eight ATEM inputs", () => {
+  for (const path of [
+    "client/src/components/skins/broadcast-console.tsx",
+    "client/src/components/skins/command-center.tsx",
+    "client/src/components/skins/studio-glass.tsx",
+  ]) {
+    assert.match(source(path), /displayInputs\.slice\(0, 8\)/);
+  }
+});
+
 test("skin selector stays open while moving over menu options", () => {
   const skinSelector = source("client/src/components/skin-selector.tsx");
 

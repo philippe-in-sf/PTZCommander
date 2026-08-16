@@ -193,6 +193,17 @@ The installer launches the built `dist/index.cjs` file with the detected Node bi
 
 The launchd installer requires a Node 24 binary. It checks `PTZCOMMAND_NODE_BIN` first, then common Homebrew Node 24 paths, then the `node` on `PATH`; anything outside Node 24 fails before the plist is installed.
 
+### Native macOS App
+
+PTZ Command can also run in its own macOS window while the browser and LAN versions remain available. The native bundle includes the production client, server, Node runtime, and required dependencies. It does not launch Chrome.
+
+```bash
+./deploy/build-macos-app.sh
+open "$HOME/Applications/PTZ Commander.app"
+```
+
+The build script installs an ad-hoc-signed app in `~/Applications`. When the existing PTZ Command background service is available, the app reuses it so both interfaces share configuration and only one process controls the hardware. If the service is not running, the app starts its bundled server automatically and stores standalone data under `~/Library/Application Support/PTZ Command`. Browsers can still connect to port 3478 or the host's `.local` LAN address.
+
 ## Camera Setup
 
 1. Ensure your PTZ cameras are connected to the same network

@@ -9,6 +9,12 @@ export interface AtemInput {
   longName: string;
 }
 
+export interface AtemMultiviewInfo {
+  layout: number;
+  programPreviewSwapped: boolean;
+  windows: Array<{ windowIndex: number; source: number }>;
+}
+
 export interface AtemTransition {
   style: number;
   nextStyle: number;
@@ -43,6 +49,7 @@ export interface AtemState {
   inTransition: boolean;
   transitionPosition: number;
   inputs: AtemInput[];
+  multiview: AtemMultiviewInfo | null;
   transition: AtemTransition;
   fadeToBlack: AtemFadeToBlack;
   downstreamKeyers: any[];
@@ -72,6 +79,7 @@ export const DEFAULT_ATEM_STATE: AtemState = {
   inTransition: false,
   transitionPosition: 0,
   inputs: [],
+  multiview: null,
   transition: DEFAULT_TRANSITION,
   fadeToBlack: DEFAULT_FTB,
   downstreamKeyers: [],
@@ -103,6 +111,7 @@ export function useAtemControl() {
       inTransition: stateMessage.inTransition ?? false,
       transitionPosition: stateMessage.transitionPosition ?? 0,
       inputs: stateMessage.inputs ?? [],
+      multiview: stateMessage.multiview ?? null,
       transition: stateMessage.transition ?? DEFAULT_TRANSITION,
       fadeToBlack: stateMessage.fadeToBlack ?? DEFAULT_FTB,
       downstreamKeyers: stateMessage.downstreamKeyers ?? [],

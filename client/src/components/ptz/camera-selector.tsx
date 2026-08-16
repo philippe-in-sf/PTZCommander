@@ -510,7 +510,7 @@ export function CameraSelector({
                   type="number"
                   value={editForm.atemInputId}
                   onChange={(e) => setEditForm({ ...editForm, atemInputId: e.target.value })}
-                  placeholder="e.g. 1, 2, 3, 4"
+                  placeholder="e.g. 1 through 8"
                   data-testid="input-camera-atem-input"
                 />
                 <p className="text-xs text-slate-500 mt-1">

@@ -13,6 +13,7 @@ import {
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
 import { CameraPreview } from "@/components/ptz/camera-preview";
+import { AtemMultiview } from "@/components/switcher/atem-multiview";
 import { BrandWatermark } from "@/components/branding/brand";
 import { AppHeader } from "@/components/app-header";
 import { useAtemControl } from "@/hooks/use-atem-control";
@@ -145,6 +146,7 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
         </div>
 
         <div className="col-span-6 flex flex-col gap-3">
+          <AtemMultiview />
           <CameraPreview
             cameras={props.cameras}
             selectedId={props.selectedCameraId}
