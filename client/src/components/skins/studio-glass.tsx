@@ -13,7 +13,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
-import { CameraPreview } from "@/components/ptz/camera-preview";
 import { AtemMultiview } from "@/components/switcher/atem-multiview";
 import { BrandWatermark } from "@/components/branding/brand";
 import { AppHeader } from "@/components/app-header";
@@ -92,11 +91,7 @@ export default function StudioGlass(props: DashboardSkinProps) {
         <section>
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">Camera Select</h2>
           <AtemMultiview />
-          <CameraPreview
-            cameras={props.cameras}
-            selectedId={props.selectedCameraId}
-            onSelect={props.onSelectCamera}
-          />
+          <div className="mt-4">{props.cameraSelectorPanel}</div>
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -272,6 +267,11 @@ export default function StudioGlass(props: DashboardSkinProps) {
             </div>
 
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <section>{props.obsPanel}</section>
+          <section>{props.lightingPanel}</section>
         </div>
       </main>
     </div>

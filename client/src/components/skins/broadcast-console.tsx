@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import type { DashboardSkinProps } from "./types";
 import { Joystick } from "@/components/ptz/joystick";
-import { CameraPreview } from "@/components/ptz/camera-preview";
 import { AtemMultiview } from "@/components/switcher/atem-multiview";
 import { BrandWatermark } from "@/components/branding/brand";
 import { AppHeader } from "@/components/app-header";
@@ -69,7 +68,7 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
         rightContent={<span className="tabular-nums text-zinc-300">{currentTime}</span>}
       />
 
-      <main className="flex-1 min-h-0 p-3 grid grid-cols-12 gap-3">
+      <main className="flex-1 min-h-0 p-3 grid grid-cols-12 gap-3 overflow-y-auto">
         
         <div className="col-span-3 flex flex-col gap-3">
           <div className="bg-[#14141c] border border-[#2a2a3a] rounded-lg flex flex-col flex-1">
@@ -147,11 +146,7 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
 
         <div className="col-span-6 flex flex-col gap-3">
           <AtemMultiview />
-          <CameraPreview
-            cameras={props.cameras}
-            selectedId={props.selectedCameraId}
-            onSelect={props.onSelectCamera}
-          />
+          <div className="normal-case tracking-normal">{props.cameraSelectorPanel}</div>
 
           <div className="bg-[#14141c] border border-[#2a2a3a] rounded-lg flex-1 flex p-4 relative overflow-hidden">
             
@@ -297,6 +292,9 @@ export default function BroadcastConsole(props: DashboardSkinProps) {
             </div>
           </div>
         </div>
+
+        <section className="col-span-12 normal-case tracking-normal">{props.obsPanel}</section>
+        <section className="col-span-12 normal-case tracking-normal">{props.lightingPanel}</section>
 
       </main>
     </div>

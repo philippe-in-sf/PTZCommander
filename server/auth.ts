@@ -78,6 +78,7 @@ type RouteRule = {
 
 const PUBLIC_ROUTE_RULES: RouteRule[] = [
   { methods: ["GET"], pattern: /^\/api\/version$/, role: "viewer" },
+  { methods: ["GET"], pattern: /^\/api\/desktop-update(?:\/download)?$/, role: "viewer" },
   { methods: ["GET"], pattern: /^\/api\/auth\/bootstrap-status$/, role: "viewer" },
   { methods: ["POST"], pattern: /^\/api\/auth\/bootstrap$/, role: "viewer" },
   { methods: ["POST"], pattern: /^\/api\/auth\/login$/, role: "viewer" },

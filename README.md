@@ -1,6 +1,6 @@
 # PTZ Command - Camera & Audio Control System
 
-Current version: **1.7.11**
+Current version: **1.7.12**
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, one Behringer X32 audio mixer via OSC, and one Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
@@ -203,6 +203,8 @@ open "$HOME/Applications/PTZ Commander.app"
 ```
 
 The build script installs an ad-hoc-signed app in `~/Applications`. When the existing PTZ Command background service is available, the app reuses it so both interfaces share configuration and only one process controls the hardware. If the service is not running, the app starts its bundled server automatically and stores standalone data under `~/Library/Application Support/PTZ Command`. Browsers can still connect to port 3478 or the host's `.local` LAN address.
+
+The build also publishes `dist/PTZ-Commander-macOS.zip`. A thick client connected to the local thin client compares its `CFBundleShortVersionString` with `/api/version`; when the thin client is newer, it reads `/api/desktop-update`, offers **Upgrade and Relaunch**, verifies the archive size and SHA-256 digest, validates the bundle identity/version and code signature, then replaces the current app with rollback protection. Use **PTZ Commander → Check for Updates…** to run the check manually. The update package can be served from another absolute path by setting `PTZCOMMAND_DESKTOP_UPDATE_PATH` on the thin-client server.
 
 ## Camera Setup
 

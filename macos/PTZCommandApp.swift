@@ -1,10 +1,51 @@
 import AppKit
+import CryptoKit
 import Foundation
 import Security
 import WebKit
 
 private let defaultPort = 3478
 private let allowedHosts = Set(["127.0.0.1", "localhost"])
+
+private struct ServerVersionMetadata: Decodable {
+    let version: String
+}
+
+private struct DesktopUpdateManifest: Decodable {
+    let version: String
+    let platform: String
+    let available: Bool
+    let downloadUrl: String?
+    let sha256: String?
+    let sizeBytes: Int?
+}
+
+private enum DesktopUpdateError: LocalizedError {
+    case invalidResponse
+    case invalidDownloadURL
+    case unavailable
+    case checksumMismatch
+    case invalidArchive
+    case invalidBundle
+    case versionMismatch(expected: String, actual: String)
+    case installLocationNotWritable
+    case commandFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse: return "The update server returned an invalid response."
+        case .invalidDownloadURL: return "The update download address is invalid."
+        case .unavailable: return "The thin client has not published a macOS update package."
+        case .checksumMismatch: return "The downloaded update failed its SHA-256 integrity check."
+        case .invalidArchive: return "The update archive does not contain a PTZ Commander app."
+        case .invalidBundle: return "The downloaded app has the wrong bundle identity or an invalid signature."
+        case .versionMismatch(let expected, let actual):
+            return "The downloaded app is version \(actual), but version \(expected) was expected."
+        case .installLocationNotWritable: return "PTZ Commander cannot replace itself at its current location."
+        case .commandFailed(let command): return "The update command failed: \(command)"
+        }
+    }
+}
 
 @main
 private enum PTZCommanderMain {
@@ -24,6 +65,12 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
     private var webView: WKWebView!
     private var serverProcess: Process?
     private var appURL = URL(string: "http://127.0.0.1:\(defaultPort)/")!
+    private var lastPromptedServerVersion: String?
+    private var updateInProgress = false
+
+    private var desktopVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMenu()
@@ -74,10 +121,11 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
     }
 
     private func connectOrStartServer() {
-        checkServer { [weak self] isAvailable in
+        checkServer { [weak self] serverVersion in
             guard let self else { return }
-            if isAvailable {
+            if let serverVersion {
                 self.loadApp()
+                self.checkForDesktopUpdate(serverVersion: serverVersion, userInitiated: false)
             } else if self.serverProcess?.isRunning == true {
                 self.waitForServer(attempt: 0)
             } else {
@@ -86,17 +134,15 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
         }
     }
 
-    private func checkServer(completion: @escaping (Bool) -> Void) {
+    private func checkServer(completion: @escaping (String?) -> Void) {
         let versionURL = appURL.appendingPathComponent("api/version")
         var request = URLRequest(url: versionURL)
         request.timeoutInterval = 1.5
         URLSession.shared.dataTask(with: request) { data, response, _ in
             let httpResponse = response as? HTTPURLResponse
-            let hasVersion = data.flatMap {
-                try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
-            }?["version"] is String
+            let metadata = data.flatMap { try? JSONDecoder().decode(ServerVersionMetadata.self, from: $0) }
             DispatchQueue.main.async {
-                completion(httpResponse?.statusCode == 200 && hasVersion)
+                completion(httpResponse?.statusCode == 200 ? metadata?.version : nil)
             }
         }.resume()
     }
@@ -148,10 +194,11 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
     }
 
     private func waitForServer(attempt: Int) {
-        checkServer { [weak self] isAvailable in
+        checkServer { [weak self] serverVersion in
             guard let self else { return }
-            if isAvailable {
+            if let serverVersion {
                 self.loadApp()
+                self.checkForDesktopUpdate(serverVersion: serverVersion, userInitiated: false)
             } else if attempt < 40 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                     self.waitForServer(attempt: attempt + 1)
@@ -196,6 +243,290 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
         webView.load(URLRequest(url: appURL, cachePolicy: .reloadIgnoringLocalCacheData))
     }
 
+    @objc private func checkForUpdates(_ sender: Any?) {
+        checkServer { [weak self] serverVersion in
+            guard let self else { return }
+            guard let serverVersion else {
+                self.showAlert(
+                    title: "Unable to Check for Updates",
+                    message: "The local thin client is not responding on port \(defaultPort)."
+                )
+                return
+            }
+            self.checkForDesktopUpdate(serverVersion: serverVersion, userInitiated: true)
+        }
+    }
+
+    private func checkForDesktopUpdate(serverVersion: String, userInitiated: Bool) {
+        guard !updateInProgress else { return }
+
+        let comparison = serverVersion.compare(desktopVersion, options: .numeric)
+        if comparison == .orderedSame {
+            if userInitiated {
+                showAlert(
+                    title: "PTZ Commander Is Up to Date",
+                    message: "The thick and thin clients are both version \(desktopVersion)."
+                )
+            }
+            return
+        }
+
+        if !userInitiated && lastPromptedServerVersion == serverVersion { return }
+        lastPromptedServerVersion = serverVersion
+
+        guard comparison == .orderedDescending else {
+            showAlert(
+                title: "Client Version Mismatch",
+                message: "This thick client is version \(desktopVersion), while the local thin client is older at \(serverVersion). Upgrade the thin client before changing the desktop app."
+            )
+            return
+        }
+
+        let manifestURL = appURL.appendingPathComponent("api/desktop-update")
+        var request = URLRequest(url: manifestURL)
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else { return }
+            do {
+                guard error == nil,
+                      (response as? HTTPURLResponse)?.statusCode == 200,
+                      let data,
+                      let manifest = try? JSONDecoder().decode(DesktopUpdateManifest.self, from: data),
+                      manifest.platform == "macos",
+                      manifest.version == serverVersion else {
+                    throw DesktopUpdateError.invalidResponse
+                }
+
+                DispatchQueue.main.async {
+                    self.presentUpdate(manifest: manifest)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.showAlert(title: "Update Check Failed", message: error.localizedDescription)
+                }
+            }
+        }.resume()
+    }
+
+    private func presentUpdate(manifest: DesktopUpdateManifest) {
+        guard manifest.available,
+              manifest.downloadUrl != nil,
+              manifest.sha256 != nil,
+              manifest.sizeBytes != nil else {
+            showAlert(
+                title: "Desktop Update Not Published",
+                message: "Thin client \(manifest.version) is newer than this thick client (\(desktopVersion)), but its macOS update package is unavailable. Build the macOS app package on the thin-client host, then check again."
+            )
+            return
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "PTZ Commander \(manifest.version) Is Available"
+        alert.informativeText = "The local thin client is newer than this thick client (\(desktopVersion)). PTZ Commander can upgrade itself in place and relaunch."
+        alert.addButton(withTitle: "Upgrade and Relaunch")
+        alert.addButton(withTitle: "Later")
+        if alert.runModal() == .alertFirstButtonReturn {
+            beginDesktopUpdate(manifest: manifest)
+        }
+    }
+
+    private func beginDesktopUpdate(manifest: DesktopUpdateManifest) {
+        guard let relativeDownloadURL = manifest.downloadUrl,
+              let downloadURL = URL(string: relativeDownloadURL, relativeTo: appURL)?.absoluteURL,
+              downloadURL.scheme == appURL.scheme,
+              downloadURL.host == appURL.host,
+              downloadURL.port == appURL.port else {
+            showAlert(title: "Update Failed", message: DesktopUpdateError.invalidDownloadURL.localizedDescription)
+            return
+        }
+
+        updateInProgress = true
+        showStatusPage(
+            title: "Updating PTZ Commander",
+            message: "Downloading and verifying version \(manifest.version)…",
+            includeRetry: false
+        )
+
+        var request = URLRequest(url: downloadURL)
+        request.timeoutInterval = 300
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        URLSession.shared.downloadTask(with: request) { [weak self] temporaryURL, response, error in
+            guard let self else { return }
+            do {
+                guard error == nil,
+                      (response as? HTTPURLResponse)?.statusCode == 200,
+                      let temporaryURL,
+                      let expectedChecksum = manifest.sha256,
+                      let expectedSize = manifest.sizeBytes else {
+                    throw DesktopUpdateError.invalidResponse
+                }
+
+                let workDirectory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("ptzcommander-update-\(UUID().uuidString)", isDirectory: true)
+                try FileManager.default.createDirectory(at: workDirectory, withIntermediateDirectories: true)
+                let archiveURL = workDirectory.appendingPathComponent("PTZ-Commander-macOS.zip")
+                try FileManager.default.moveItem(at: temporaryURL, to: archiveURL)
+
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let attributes = try FileManager.default.attributesOfItem(atPath: archiveURL.path)
+                        let actualSize = (attributes[.size] as? NSNumber)?.intValue ?? -1
+                        guard actualSize == expectedSize else { throw DesktopUpdateError.invalidResponse }
+                        guard try self.sha256(of: archiveURL) == expectedChecksum.lowercased() else {
+                            throw DesktopUpdateError.checksumMismatch
+                        }
+
+                        let stagedAppURL = try self.extractAndValidateUpdate(
+                            archiveURL: archiveURL,
+                            workDirectory: workDirectory,
+                            expectedVersion: manifest.version
+                        )
+                        DispatchQueue.main.async {
+                            do {
+                                try self.launchReplacement(
+                                    stagedAppURL: stagedAppURL,
+                                    workDirectory: workDirectory
+                                )
+                                NSApp.terminate(nil)
+                            } catch {
+                                self.updateFailed(error, workDirectory: workDirectory)
+                            }
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            self.updateFailed(error, workDirectory: workDirectory)
+                        }
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.updateFailed(error, workDirectory: nil)
+                }
+            }
+        }.resume()
+    }
+
+    private func sha256(of fileURL: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? handle.close() }
+        var hasher = SHA256()
+        while true {
+            let data = try handle.read(upToCount: 1_048_576) ?? Data()
+            if data.isEmpty { break }
+            hasher.update(data: data)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func extractAndValidateUpdate(
+        archiveURL: URL,
+        workDirectory: URL,
+        expectedVersion: String
+    ) throws -> URL {
+        let extractionURL = workDirectory.appendingPathComponent("extracted", isDirectory: true)
+        try FileManager.default.createDirectory(at: extractionURL, withIntermediateDirectories: true)
+        try runCommand("/usr/bin/ditto", arguments: ["-x", "-k", archiveURL.path, extractionURL.path])
+
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: extractionURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ), let appURL = contents.first(where: { $0.pathExtension == "app" }) else {
+            throw DesktopUpdateError.invalidArchive
+        }
+
+        guard let candidateBundle = Bundle(url: appURL),
+              candidateBundle.bundleIdentifier == Bundle.main.bundleIdentifier else {
+            throw DesktopUpdateError.invalidBundle
+        }
+        let candidateVersion = candidateBundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+        guard candidateVersion == expectedVersion else {
+            throw DesktopUpdateError.versionMismatch(expected: expectedVersion, actual: candidateVersion)
+        }
+        do {
+            try runCommand("/usr/bin/codesign", arguments: ["--verify", "--deep", "--strict", appURL.path])
+        } catch {
+            throw DesktopUpdateError.invalidBundle
+        }
+        return appURL
+    }
+
+    private func runCommand(_ executable: String, arguments: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw DesktopUpdateError.commandFailed(URL(fileURLWithPath: executable).lastPathComponent)
+        }
+    }
+
+    private func launchReplacement(stagedAppURL: URL, workDirectory: URL) throws {
+        let targetAppURL = Bundle.main.bundleURL.standardizedFileURL
+        let parentURL = targetAppURL.deletingLastPathComponent()
+        guard targetAppURL.pathExtension == "app",
+              FileManager.default.isWritableFile(atPath: parentURL.path) else {
+            throw DesktopUpdateError.installLocationNotWritable
+        }
+
+        let backupURL = parentURL.appendingPathComponent(".\(targetAppURL.lastPathComponent).previous-update")
+        let script = """
+        set -eu
+        pid="$1"
+        target="$2"
+        staged="$3"
+        backup="$4"
+        workdir="$5"
+        while kill -0 "$pid" 2>/dev/null; do sleep 0.2; done
+        if [ -e "$backup" ]; then /bin/rm -rf "$backup"; fi
+        /bin/mv "$target" "$backup"
+        if /bin/mv "$staged" "$target"; then
+          if /usr/bin/open "$target"; then
+            /bin/rm -rf "$backup" "$workdir"
+          else
+            /bin/rm -rf "$target"
+            /bin/mv "$backup" "$target"
+            /usr/bin/open "$target"
+            exit 1
+          fi
+        else
+          /bin/mv "$backup" "$target"
+          exit 1
+        fi
+        """
+
+        let updater = Process()
+        updater.executableURL = URL(fileURLWithPath: "/bin/sh")
+        updater.arguments = [
+            "-c", script, "ptzcommander-updater", String(ProcessInfo.processInfo.processIdentifier),
+            targetAppURL.path, stagedAppURL.path, backupURL.path, workDirectory.path,
+        ]
+        updater.standardOutput = FileHandle.nullDevice
+        updater.standardError = FileHandle.nullDevice
+        try updater.run()
+    }
+
+    private func updateFailed(_ error: Error, workDirectory: URL?) {
+        updateInProgress = false
+        if let workDirectory { try? FileManager.default.removeItem(at: workDirectory) }
+        loadApp()
+        showAlert(title: "Update Failed", message: error.localizedDescription)
+    }
+
+    private func showAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
     private func showStartupPage() {
         showStatusPage(
             title: "Starting PTZ Command",
@@ -237,6 +568,9 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About PTZ Commander", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates(_:)), keyEquivalent: "")
+        updateItem.target = self
+        appMenu.addItem(updateItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Quit PTZ Commander", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu

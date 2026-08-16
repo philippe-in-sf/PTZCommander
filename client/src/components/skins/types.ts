@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Camera, Preset } from "@shared/schema";
 import type { PTZWebSocket } from "@/lib/websocket";
 
@@ -15,4 +16,7 @@ export interface DashboardSkinProps {
   onFocusAuto: () => void;
   selectedCamera: Camera | undefined;
   ws: PTZWebSocket;
+  cameraSelectorPanel: ReactNode;
+  obsPanel: ReactNode;
+  lightingPanel: ReactNode;
 }

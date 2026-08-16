@@ -39,6 +39,43 @@ test("alternate dashboard skins expose all eight ATEM inputs", () => {
   }
 });
 
+test("all dashboard skins expose the shared camera, OBS, and lighting panels", () => {
+  const skinTypes = source("client/src/components/skins/types.ts");
+  const dashboard = source("client/src/pages/dashboard.tsx");
+
+  for (const prop of ["cameraSelectorPanel", "obsPanel", "lightingPanel"]) {
+    assert.match(skinTypes, new RegExp(`${prop}: ReactNode`));
+    assert.match(dashboard, new RegExp(`${prop}[,:]`));
+  }
+
+  for (const path of [
+    "client/src/components/skins/broadcast-console.tsx",
+    "client/src/components/skins/command-center.tsx",
+    "client/src/components/skins/studio-glass.tsx",
+  ]) {
+    const skinSource = source(path);
+
+    assert.match(skinSource, /props\.cameraSelectorPanel/);
+    assert.match(skinSource, /props\.obsPanel/);
+    assert.match(skinSource, /props\.lightingPanel/);
+  }
+});
+
+test("dashboard skins use ATEM multiview without the legacy camera preview pane", () => {
+  for (const path of [
+    "client/src/pages/dashboard.tsx",
+    "client/src/components/skins/broadcast-console.tsx",
+    "client/src/components/skins/command-center.tsx",
+    "client/src/components/skins/studio-glass.tsx",
+  ]) {
+    const dashboardSource = source(path);
+
+    assert.match(dashboardSource, /<AtemMultiview\s*\/>/);
+    assert.doesNotMatch(dashboardSource, /<CameraPreview\b/);
+    assert.doesNotMatch(dashboardSource, /<CameraMonitor\b/);
+  }
+});
+
 test("skin selector stays open while moving over menu options", () => {
   const skinSelector = source("client/src/components/skin-selector.tsx");
 

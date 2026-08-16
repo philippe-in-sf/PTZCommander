@@ -10,7 +10,6 @@ import { AtemPanel } from "@/components/switcher/atem-panel";
 import { AtemMultiview } from "@/components/switcher/atem-multiview";
 import { HuePanel } from "@/components/lighting/hue-panel";
 import { SceneButtons } from "@/components/ptz/scene-buttons";
-import { CameraMonitor, CameraPreview } from "@/components/ptz/camera-preview";
 import { SessionLog } from "@/components/logs/session-log";
 import { ConnectionHealth } from "@/components/ptz/connection-health";
 import { AppHeader } from "@/components/app-header";
@@ -97,7 +96,6 @@ export default function Dashboard() {
     previewRefreshMs: 2000,
   });
   const [panTiltSpeed, setPanTiltSpeed] = useState(0.5);
-  const [suspendPreviewStreaming, setSuspendPreviewStreaming] = useState(false);
   const [managingPreset, setManagingPreset] = useState<Preset | null>(null);
   const [pendingProgramRecall, setPendingProgramRecall] = useState<Preset | null>(null);
 
@@ -363,9 +361,6 @@ export default function Dashboard() {
       if (context?.toastId) toast.dismiss(context.toastId);
       toast.error(error.message);
     },
-    onSettled: () => {
-      setSuspendPreviewStreaming(false);
-    },
   });
 
   const recallPresetMutation = useMutation({
@@ -520,7 +515,6 @@ export default function Dashboard() {
       return;
     }
 
-    setSuspendPreviewStreaming(true);
     savePresetMutation.mutate({
       cameraId: selectedId,
       presetNumber: index,
@@ -550,6 +544,80 @@ export default function Dashboard() {
     return <StartupSplash detail="Discovering devices and restoring your control workspace" />;
   }
 
+  const cameraSelectorPanel = cameras.length === 0 ? (
+    <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center">
+      <p className="text-slate-700 dark:text-slate-500 mb-4">No cameras configured</p>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+        <Button onClick={() => openDeviceSetup({ type: "camera" })} data-testid="button-find-first-camera">
+          <Search className="w-4 h-4 mr-2" /> Find Cameras
+        </Button>
+        <Button variant="outline" onClick={() => openDeviceSetup({ type: "camera" })} data-testid="button-add-first-camera">
+          <Plus className="w-4 h-4 mr-2" /> Add Manually
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <CameraSelector
+      cameras={cameras.map((camera) => ({
+        id: camera.id,
+        name: camera.name,
+        ip: camera.ip,
+        port: camera.port,
+        username: camera.username,
+        password: camera.password,
+        streamUrl: camera.streamUrl,
+        previewType: camera.previewType,
+        previewRefreshMs: camera.previewRefreshMs,
+        atemInputId: camera.atemInputId,
+        tallyState: camera.tallyState || "off",
+        status: camera.status as "online" | "offline" | "tally",
+      }))}
+      selectedId={selectedId || 0}
+      onSelect={handleSelect}
+      onUpdateCamera={(id, updates) => updateCameraMutation.mutate({ id, updates })}
+      onDeleteCamera={(id) => deleteCameraMutation.mutate(id)}
+    />
+  );
+
+  const obsPanel = (
+    <OBSConnectionCard
+      connection={obsConnection}
+      status={obsStatus}
+      scenes={obsScenes}
+      selectedSceneName={obsSceneName}
+      onSelectedSceneNameChange={setObsSceneName}
+      addOpen={addObsOpen}
+      onAddOpenChange={setAddObsOpen}
+      newObs={newObs}
+      onNewObsChange={setNewObs}
+      onCreate={() => createObsMutation.mutate({ ...newObs, password: newObs.password || null })}
+      creating={createObsMutation.isPending}
+      onConnect={() => obsConnection && connectObsMutation.mutate(obsConnection.id)}
+      connecting={connectObsMutation.isPending}
+      onDisconnect={() => obsConnection && disconnectObsMutation.mutate(obsConnection.id)}
+      disconnecting={disconnectObsMutation.isPending}
+      onDelete={() => obsConnection && deleteObsMutation.mutate(obsConnection.id)}
+      deleting={deleteObsMutation.isPending}
+      onSwitchScene={() => obsConnection && obsSceneName && setObsSceneMutation.mutate({ id: obsConnection.id, sceneName: obsSceneName })}
+      switching={setObsSceneMutation.isPending}
+      onStartRecording={() => obsConnection && startObsRecordingMutation.mutate(obsConnection.id)}
+      onStopRecording={() => obsConnection && stopObsRecordingMutation.mutate(obsConnection.id)}
+      onPauseRecording={() => obsConnection && pauseObsRecordingMutation.mutate(obsConnection.id)}
+      onResumeRecording={() => obsConnection && resumeObsRecordingMutation.mutate(obsConnection.id)}
+      recordingPending={
+        startObsRecordingMutation.isPending ||
+        stopObsRecordingMutation.isPending ||
+        pauseObsRecordingMutation.isPending ||
+        resumeObsRecordingMutation.isPending
+      }
+      onRefreshScenes={() => {
+        queryClient.invalidateQueries({ queryKey: ["obs-status"] });
+        queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
+      }}
+      onAddViaWizard={() => openDeviceSetup({ type: "obs" })}
+    />
+  );
+
   const skinProps = {
     cameras,
     presets,
@@ -564,6 +632,9 @@ export default function Dashboard() {
     onFocusAuto: () => ws?.focusAuto(selectedId!),
     selectedCamera: selectedCam,
     ws,
+    cameraSelectorPanel,
+    obsPanel,
+    lightingPanel: <HuePanel />,
   };
 
   const presetManagementDialogs = (
@@ -660,42 +731,7 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <OBSConnectionCard
-            connection={obsConnection}
-            status={obsStatus}
-            scenes={obsScenes}
-            selectedSceneName={obsSceneName}
-            onSelectedSceneNameChange={setObsSceneName}
-            addOpen={addObsOpen}
-            onAddOpenChange={setAddObsOpen}
-            newObs={newObs}
-            onNewObsChange={setNewObs}
-            onCreate={() => createObsMutation.mutate({ ...newObs, password: newObs.password || null })}
-            creating={createObsMutation.isPending}
-            onConnect={() => obsConnection && connectObsMutation.mutate(obsConnection.id)}
-            connecting={connectObsMutation.isPending}
-            onDisconnect={() => obsConnection && disconnectObsMutation.mutate(obsConnection.id)}
-            disconnecting={disconnectObsMutation.isPending}
-            onDelete={() => obsConnection && deleteObsMutation.mutate(obsConnection.id)}
-            deleting={deleteObsMutation.isPending}
-            onSwitchScene={() => obsConnection && obsSceneName && setObsSceneMutation.mutate({ id: obsConnection.id, sceneName: obsSceneName })}
-            switching={setObsSceneMutation.isPending}
-            onStartRecording={() => obsConnection && startObsRecordingMutation.mutate(obsConnection.id)}
-            onStopRecording={() => obsConnection && stopObsRecordingMutation.mutate(obsConnection.id)}
-            onPauseRecording={() => obsConnection && pauseObsRecordingMutation.mutate(obsConnection.id)}
-            onResumeRecording={() => obsConnection && resumeObsRecordingMutation.mutate(obsConnection.id)}
-            recordingPending={
-              startObsRecordingMutation.isPending ||
-              stopObsRecordingMutation.isPending ||
-              pauseObsRecordingMutation.isPending ||
-              resumeObsRecordingMutation.isPending
-            }
-            onRefreshScenes={() => {
-              queryClient.invalidateQueries({ queryKey: ["obs-status"] });
-              queryClient.invalidateQueries({ queryKey: ["obs-scenes"] });
-            }}
-            onAddViaWizard={() => openDeviceSetup({ type: "obs" })}
-          />
+          {obsPanel}
         </section>
 
         {/* Summary Stack */}
@@ -707,19 +743,8 @@ export default function Dashboard() {
           <MixerPanel />
         </section>
 
-        {/* Camera Preview */}
+        {/* ATEM Multiview */}
         <AtemMultiview />
-
-        {cameras.length > 0 && (
-          <section>
-            <CameraPreview
-              cameras={cameras}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-              suspendAllLivePreview={suspendPreviewStreaming}
-            />
-          </section>
-        )}
 
         {/* Camera Strip */}
         <section>
@@ -1008,40 +1033,7 @@ export default function Dashboard() {
             </div>
           </div>
            
-          {cameras.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-300 dark:border-slate-800 rounded-xl p-12 text-center">
-              <p className="text-slate-700 dark:text-slate-500 mb-4">No cameras configured</p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-                <Button onClick={() => setDiscoverOpen(true)} data-testid="button-find-first-camera">
-                  <Search className="w-4 h-4 mr-2" /> Find Cameras
-                </Button>
-                <Button variant="outline" onClick={() => openDeviceSetup({ type: "camera" })} data-testid="button-add-first-camera">
-                  <Plus className="w-4 h-4 mr-2" /> Add Manually
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <CameraSelector 
-              cameras={cameras.map(c => ({
-                id: c.id,
-                name: c.name,
-                ip: c.ip,
-                port: c.port,
-                username: c.username,
-                password: c.password,
-                streamUrl: c.streamUrl,
-                previewType: c.previewType,
-                previewRefreshMs: c.previewRefreshMs,
-                atemInputId: c.atemInputId,
-                tallyState: c.tallyState || 'off',
-                status: c.status as 'online' | 'offline' | 'tally',
-              }))}
-              selectedId={selectedId || 0}
-              onSelect={handleSelect}
-              onUpdateCamera={(id, updates) => updateCameraMutation.mutate({ id, updates })}
-              onDeleteCamera={(id) => deleteCameraMutation.mutate(id)}
-            />
-          )}
+          {cameraSelectorPanel}
         </section>
 
         {/* Command Deck */}
@@ -1056,15 +1048,12 @@ export default function Dashboard() {
                   CONTROLLING: {selectedCam.name.toUpperCase()}
                 </div>
                 
-                <div className="relative z-10 w-full grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_220px] gap-5 items-center mt-6">
-                  <CameraMonitor camera={selectedCam} active={!suspendPreviewStreaming} />
-                  <div className="flex justify-center">
-                    <Joystick
-                      className="border-cyan-500/30"
-                      onMove={handleJoystickMove}
-                      onStop={handleJoystickStop}
-                    />
-                  </div>
+                <div className="relative z-10 w-full flex items-center justify-center mt-6">
+                  <Joystick
+                    className="border-cyan-500/30"
+                    onMove={handleJoystickMove}
+                    onStop={handleJoystickStop}
+                  />
                 </div>
 
                 <div className="relative z-10 mt-6 text-center space-y-1">

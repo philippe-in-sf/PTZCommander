@@ -10,6 +10,11 @@ import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { getRehearsalMode, setRehearsalMode } from "../rehearsal";
+import {
+  DESKTOP_UPDATE_ARCHIVE_NAME,
+  buildDesktopUpdateManifest,
+  inspectDesktopUpdateArtifact,
+} from "../desktop-update";
 
 const execFileAsync = promisify(execFile);
 
@@ -236,6 +241,36 @@ export function registerSystemRoutes(ctx: RouteContext) {
 
   app.get("/api/version", (_req, res) => {
     res.json(getVersionMetadata());
+  });
+
+  app.get("/api/desktop-update", async (_req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await buildDesktopUpdateManifest(APP_VERSION));
+    } catch (error: any) {
+      logger.error("system", "Failed to inspect the desktop update artifact", {
+        action: "desktop_update_manifest_error",
+        details: { message: error?.message || String(error) },
+      });
+      res.status(500).json({ message: "Failed to inspect the desktop update package" });
+    }
+  });
+
+  app.get("/api/desktop-update/download", async (_req, res) => {
+    try {
+      const artifact = await inspectDesktopUpdateArtifact();
+      if (!artifact) {
+        return res.status(404).json({ message: "Desktop update package is not available" });
+      }
+      res.setHeader("Cache-Control", "no-store");
+      res.download(artifact.path, DESKTOP_UPDATE_ARCHIVE_NAME);
+    } catch (error: any) {
+      logger.error("system", "Failed to download the desktop update artifact", {
+        action: "desktop_update_download_error",
+        details: { message: error?.message || String(error) },
+      });
+      res.status(500).json({ message: "Failed to download the desktop update package" });
+    }
   });
 
   app.get("/api/rehearsal", (_req, res) => {
