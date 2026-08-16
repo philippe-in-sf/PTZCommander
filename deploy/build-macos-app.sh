@@ -8,6 +8,7 @@ PLIST_TEMPLATE="$ROOT_DIR/macos/Info.plist"
 ICON_SOURCE="$ROOT_DIR/client/src/assets/ptzcommand-logo-transparent.png"
 INSTALL_DIR="${PTZCOMMAND_APP_INSTALL_DIR:-$HOME/Applications}"
 APP_TARGET="$INSTALL_DIR/PTZ Commander.app"
+UPDATE_ARCHIVE="$ROOT_DIR/dist/PTZ-Commander-macOS.zip"
 BUILD_DIR=$(mktemp -d /tmp/ptzcommand-macos-app.XXXXXX)
 APP_STAGING="$BUILD_DIR/PTZ Command.app"
 CONTENTS_DIR="$APP_STAGING/Contents"
@@ -117,8 +118,15 @@ if [ -e "$APP_TARGET" ]; then
 fi
 mv "$APP_STAGING" "$APP_TARGET"
 
+echo "Publishing desktop update package..."
+ditto -c -k --sequesterRsrc --keepParent "$APP_TARGET" "$UPDATE_ARCHIVE"
+UPDATE_SHA256=$(shasum -a 256 "$UPDATE_ARCHIVE" | awk '{print $1}')
+
 echo "Installed native app:"
 echo "  $APP_TARGET"
+echo "Published desktop update:"
+echo "  $UPDATE_ARCHIVE"
+echo "  SHA-256: $UPDATE_SHA256"
 echo
 echo "The browser version remains available at:"
 echo "  http://127.0.0.1:3478"

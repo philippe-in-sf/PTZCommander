@@ -2,6 +2,16 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.7.12] - 2026-08-16
+
+### Added
+- **In-Place macOS Updates** — the thick client compares its bundle version with the local thin client, offers upgrades when the thin client is newer, verifies the published package, replaces itself with rollback protection, and relaunches.
+- **Dashboard Skin Parity** — Broadcast Console, Command Center, and Studio Glass now include the shared camera selector, OBS controls, and lighting panel.
+
+### Changed
+- **ATEM-First Monitoring** — removed the redundant legacy camera preview pane and retained ATEM Multiview across every dashboard skin.
+- **Version Display** — interface and native bundle version labels now report v1.7.12.
+
 ## [1.7.11] - 2026-07-16
 
 ### Added
