@@ -7,6 +7,18 @@ private let defaultPort = 3478
 private let allowedHosts = Set(["127.0.0.1", "localhost"])
 
 @main
+private enum PTZCommanderMain {
+    static func main() {
+        let application = NSApplication.shared
+        let delegate = PTZCommandApp()
+        application.setActivationPolicy(.regular)
+        application.delegate = delegate
+        withExtendedLifetime(delegate) {
+            application.run()
+        }
+    }
+}
+
 final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
@@ -48,11 +60,12 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
         )
         window.title = "PTZ Commander"
         window.minSize = NSSize(width: 980, height: 680)
+        window.isReleasedWhenClosed = false
         window.center()
         window.contentView = webView
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
 
-        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
     }
 
