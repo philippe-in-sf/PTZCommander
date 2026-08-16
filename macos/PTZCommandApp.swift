@@ -1,17 +1,36 @@
 import AppKit
+import Foundation
+import Security
 import WebKit
 
-private let appURL = URL(string: "http://127.0.0.1:3478/")!
+private let defaultPort = 3478
 private let allowedHosts = Set(["127.0.0.1", "localhost"])
 
 @main
 final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
+    private var serverProcess: Process?
+    private var appURL = URL(string: "http://127.0.0.1:\(defaultPort)/")!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMenu()
+        configureWindow()
+        showStartupPage()
+        connectOrStartServer()
+    }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        if let process = serverProcess, process.isRunning {
+            process.terminate()
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
+
+    private func configureWindow() {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.mediaTypesRequiringUserActionForPlayback = []
@@ -33,24 +52,170 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
         window.contentView = webView
         window.makeKeyAndOrderFront(nil)
 
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        loadApp()
-    }
-
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
     }
 
     @objc private func reloadPage() {
-        if webView.url == nil || webView.url?.scheme == "about" {
-            loadApp()
-        } else {
-            webView.reload()
+        connectOrStartServer()
+    }
+
+    private func connectOrStartServer() {
+        checkServer { [weak self] isAvailable in
+            guard let self else { return }
+            if isAvailable {
+                self.loadApp()
+            } else if self.serverProcess?.isRunning == true {
+                self.waitForServer(attempt: 0)
+            } else {
+                self.startBundledServer()
+            }
         }
     }
 
+    private func checkServer(completion: @escaping (Bool) -> Void) {
+        let versionURL = appURL.appendingPathComponent("api/version")
+        var request = URLRequest(url: versionURL)
+        request.timeoutInterval = 1.5
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            let httpResponse = response as? HTTPURLResponse
+            let hasVersion = data.flatMap {
+                try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+            }?["version"] is String
+            DispatchQueue.main.async {
+                completion(httpResponse?.statusCode == 200 && hasVersion)
+            }
+        }.resume()
+    }
+
+    private func startBundledServer() {
+        guard
+            let resourcesURL = Bundle.main.resourceURL,
+            let nodeURL = Bundle.main.url(forResource: "node", withExtension: nil, subdirectory: "runtime/bin"),
+            let serverURL = Bundle.main.url(forResource: "index", withExtension: "cjs", subdirectory: "server/dist")
+        else {
+            showFatalError("The bundled PTZ Command server is missing. Reinstall the app and try again.")
+            return
+        }
+
+        do {
+            let supportURL = try applicationSupportURL()
+            let logURL = supportURL.appendingPathComponent("server.log")
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+            let logHandle = try FileHandle(forWritingTo: logURL)
+            try logHandle.seekToEnd()
+
+            let process = Process()
+            process.executableURL = nodeURL
+            process.arguments = [serverURL.path]
+            process.currentDirectoryURL = resourcesURL.appendingPathComponent("server")
+            process.standardOutput = logHandle
+            process.standardError = logHandle
+
+            var environment = ProcessInfo.processInfo.environment
+            environment["NODE_ENV"] = "production"
+            environment["PORT"] = String(defaultPort)
+            environment["DATABASE_PATH"] = supportURL.appendingPathComponent("ptzcommand.db").path
+            environment["SESSION_SECRET"] = try loadOrCreateSecret(named: "session-secret")
+            environment["SECRET_ENCRYPTION_KEY"] = try loadOrCreateSecret(named: "encryption-key")
+            process.environment = environment
+            process.terminationHandler = { [weak self] process in
+                guard process.terminationStatus != 0 else { return }
+                DispatchQueue.main.async {
+                    self?.showFatalError("The bundled server stopped unexpectedly. Details are in ~/Library/Application Support/PTZ Command/server.log.")
+                }
+            }
+
+            try process.run()
+            serverProcess = process
+            waitForServer(attempt: 0)
+        } catch {
+            showFatalError("The bundled server could not start: \(error.localizedDescription)")
+        }
+    }
+
+    private func waitForServer(attempt: Int) {
+        checkServer { [weak self] isAvailable in
+            guard let self else { return }
+            if isAvailable {
+                self.loadApp()
+            } else if attempt < 40 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    self.waitForServer(attempt: attempt + 1)
+                }
+            } else {
+                self.showFatalError("PTZ Command did not become ready. Check ~/Library/Application Support/PTZ Command/server.log and try again.")
+            }
+        }
+    }
+
+    private func applicationSupportURL() throws -> URL {
+        let baseURL = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let appSupportURL = baseURL.appendingPathComponent("PTZ Command", isDirectory: true)
+        try FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
+        return appSupportURL
+    }
+
+    private func loadOrCreateSecret(named name: String) throws -> String {
+        let secretURL = try applicationSupportURL().appendingPathComponent(name)
+        if let existing = try? String(contentsOf: secretURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines), !existing.isEmpty {
+            return existing
+        }
+
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard status == errSecSuccess else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+        }
+        let secret = Data(bytes).base64EncodedString()
+        try (secret + "\n").write(to: secretURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: secretURL.path)
+        return secret
+    }
+
     private func loadApp() {
-        webView.load(URLRequest(url: appURL, cachePolicy: .reloadRevalidatingCacheData))
+        webView.load(URLRequest(url: appURL, cachePolicy: .reloadIgnoringLocalCacheData))
+    }
+
+    private func showStartupPage() {
+        showStatusPage(
+            title: "Starting PTZ Command",
+            message: "Preparing the standalone app…",
+            includeRetry: false
+        )
+    }
+
+    private func showFatalError(_ message: String) {
+        showStatusPage(title: "PTZ Command could not start", message: message, includeRetry: true)
+    }
+
+    private func showStatusPage(title: String, message: String, includeRetry: Bool) {
+        let escapedTitle = escapeHTML(title)
+        let escapedMessage = escapeHTML(message)
+        let retry = includeRetry ? "<a href=\"http://127.0.0.1:\(defaultPort)/\">Try Again</a>" : ""
+        let html = """
+        <!doctype html>
+        <html><head><meta name="viewport" content="width=device-width"><style>
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #090e19; color: #dbeafe; font: 15px -apple-system, sans-serif; }
+        main { max-width: 560px; padding: 36px; border: 1px solid #263449; border-radius: 18px; background: #111827; text-align: center; }
+        h1 { font-size: 24px; } p { color: #94a3b8; line-height: 1.5; }
+        a { display: inline-block; margin-top: 12px; padding: 10px 18px; border-radius: 8px; background: #06b6d4; color: #041016; font-weight: 700; text-decoration: none; }
+        </style></head><body><main><h1>\(escapedTitle)</h1><p>\(escapedMessage)</p>\(retry)</main></body></html>
+        """
+        webView.loadHTMLString(html, baseURL: appURL)
+    }
+
+    private func escapeHTML(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 
     private func configureMenu() {
@@ -106,34 +271,6 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
         type: WKMediaCaptureType,
         decisionHandler: @escaping (WKPermissionDecision) -> Void
     ) {
-        let isLocalApp = allowedHosts.contains(origin.host)
-        decisionHandler(isLocalApp && type == .camera ? .grant : .deny)
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        showConnectionError(error)
-    }
-
-    private func showConnectionError(_ error: Error) {
-        let message = error.localizedDescription
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-        let html = """
-        <!doctype html>
-        <html><head><meta name="viewport" content="width=device-width"><style>
-        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #090e19; color: #dbeafe; font: 15px -apple-system, sans-serif; }
-        main { max-width: 520px; padding: 36px; border: 1px solid #263449; border-radius: 18px; background: #111827; text-align: center; }
-        h1 { font-size: 24px; } p { color: #94a3b8; line-height: 1.5; }
-        a { display: inline-block; margin-top: 12px; padding: 10px 18px; border-radius: 8px; background: #06b6d4; color: #041016; font-weight: 700; text-decoration: none; }
-        </style></head><body><main><h1>PTZ Command is not responding</h1>
-        <p>The local background service at 127.0.0.1:3478 could not be reached.</p>
-        <p>\(message)</p><a href="http://127.0.0.1:3478/">Try Again</a></main></body></html>
-        """
-        webView.loadHTMLString(html, baseURL: appURL)
+        decisionHandler(allowedHosts.contains(origin.host) && type == .camera ? .grant : .deny)
     }
 }
