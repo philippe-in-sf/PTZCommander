@@ -33,7 +33,7 @@ export default function StudioGlass(props: DashboardSkinProps) {
   const { atemState, displayInputs } = useAtemControl();
   const { mixerStripData } = useSkinMixerData(props.ws, "studio-glass");
   const { sceneButtons, activeSceneId, executeScene, sceneExecuting } = useSkinSceneButtons(6);
-  const routedInputs = displayInputs.slice(0, 4);
+  const routedInputs = displayInputs.slice(0, 8);
 
   const handleZoomChange = (val: number[]) => {
     setZoomValue(val);
