@@ -199,7 +199,7 @@ PTZ Command can also run in its own macOS window while the browser and LAN versi
 
 ```bash
 ./deploy/build-macos-app.sh
-open "$HOME/Applications/PTZ Command.app"
+open "$HOME/Applications/PTZ Commander.app"
 ```
 
 The build script installs an ad-hoc-signed app in `~/Applications`. When the existing PTZ Command background service is available, the app reuses it so both interfaces share configuration and only one process controls the hardware. If the service is not running, the app starts its bundled server automatically and stores standalone data under `~/Library/Application Support/PTZ Command`. Browsers can still connect to port 3478 or the host's `.local` LAN address.

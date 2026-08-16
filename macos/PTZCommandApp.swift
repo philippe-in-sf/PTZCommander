@@ -46,7 +46,7 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
             backing: .buffered,
             defer: false
         )
-        window.title = "PTZ Command"
+        window.title = "PTZ Commander"
         window.minSize = NSSize(width: 980, height: 680)
         window.center()
         window.contentView = webView
@@ -223,9 +223,9 @@ final class PTZCommandApp: NSObject, NSApplicationDelegate, WKNavigationDelegate
 
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "About PTZ Command", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "About PTZ Commander", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit PTZ Command", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit PTZ Commander", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
