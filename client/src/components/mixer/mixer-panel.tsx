@@ -285,16 +285,16 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-black bg-[#12161a] p-0 text-zinc-100 shadow-[0_14px_38px_rgba(0,0,0,0.42)]" data-testid="mixer-panel">
-      <div className="flex min-h-12 items-center justify-between border-b border-black bg-[linear-gradient(#24282c,#0d0f11)] px-4">
+    <div className="overflow-hidden rounded-md border border-slate-300 bg-slate-100 p-0 text-slate-800 shadow-[0_14px_38px_rgba(71,85,105,0.18)] dark:border-black dark:bg-[#12161a] dark:text-zinc-100 dark:shadow-[0_14px_38px_rgba(0,0,0,0.42)]" data-testid="mixer-panel">
+      <div className="flex min-h-12 items-center justify-between border-b border-slate-300 bg-[linear-gradient(#f8fafc,#dbe3ea)] px-4 dark:border-black dark:bg-[linear-gradient(#24282c,#0d0f11)]">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-sky-300" />
-          <h2 className="text-sm font-semibold text-zinc-100">Audio Mixer</h2>
+          <h2 className="text-sm font-semibold text-slate-800 dark:text-zinc-100">Audio Mixer</h2>
         </div>
 
         {mixer ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-zinc-400">{mixer.name}</span>
+            <span className="text-sm text-slate-600 dark:text-zinc-400">{mixer.name}</span>
             {mixer.status === "online" ? (
               <Wifi className="h-4 w-4 text-emerald-400" />
             ) : (
@@ -302,7 +302,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => connectMixerMutation.mutate(mixer.id)}
-                className="h-7 border border-zinc-700 bg-[#171a1d] px-2 text-xs text-zinc-200"
+                className="h-7 border border-slate-300 bg-white/70 px-2 text-xs text-slate-700 dark:border-zinc-700 dark:bg-[#171a1d] dark:text-zinc-200"
                 data-testid="button-connect-mixer"
               >
                 <WifiOff className="h-3.5 w-3.5" />
@@ -313,7 +313,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
               variant="ghost"
               size="sm"
               onClick={handleEditClick}
-              className="h-7 w-7 border border-zinc-700 bg-[#171a1d] p-0 text-zinc-300"
+              className="h-7 w-7 border border-slate-300 bg-white/70 p-0 text-slate-600 dark:border-zinc-700 dark:bg-[#171a1d] dark:text-zinc-300"
               data-testid="button-edit-mixer"
             >
               <Settings className="h-3.5 w-3.5" />
@@ -462,14 +462,14 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
       </Dialog>
 
       {!mixer ? (
-        <div className="py-8 text-center text-zinc-500">
+        <div className="py-8 text-center text-slate-500 dark:text-zinc-500">
           <SlidersHorizontal className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No mixer configured</p>
           <p className="text-sm">Add your X32 to get started</p>
         </div>
       ) : (
         <div>
-          <div className="border-b border-black bg-[#161a1e] px-2">
+          <div className="border-b border-slate-300 bg-slate-200/80 px-2 dark:border-black dark:bg-[#161a1e]">
             <div className="flex gap-px overflow-x-auto py-2">
             {PANEL_SECTIONS.map(tab => (
               <button
@@ -479,7 +479,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                   "h-8 min-w-24 whitespace-nowrap border px-3 text-xs transition-colors",
                   activeSection === tab.key
                     ? "border-sky-400/50 bg-[linear-gradient(#3b86bd,#215a86)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
-                    : "border-black bg-[linear-gradient(#2a2e32,#14171a)] text-zinc-300 hover:bg-[#242a30] hover:text-white"
+                    : "border-slate-300 bg-[linear-gradient(#ffffff,#dce3e9)] text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:border-black dark:bg-[linear-gradient(#2a2e32,#14171a)] dark:text-zinc-300 dark:hover:bg-[#242a30] dark:hover:text-white"
                 )}
                 data-testid={`tab-panel-section-${tab.key}`}
               >
@@ -489,7 +489,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
             </div>
           </div>
 
-          <div className="mixer-console-frame flex items-stretch gap-1 overflow-x-auto overflow-y-hidden rounded-b-md border-t border-black bg-[#0a0c0e] p-1.5 pb-2">
+          <div className="mixer-console-frame flex items-stretch gap-1 overflow-x-auto overflow-y-hidden rounded-b-md border-t border-slate-300 bg-slate-200 p-1.5 pb-2 dark:border-black dark:bg-[#0a0c0e]">
             {channels.map((ch) => {
               return (
                 <ChannelStrip
@@ -507,25 +507,25 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
 
             <div
               className={cn(
-                "mixer-console-strip flex min-h-[292px] min-w-[68px] flex-col items-center border border-black bg-[linear-gradient(90deg,#252b2e,#323a3d_52%,#1b2023)] px-2 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06),inset_-1px_0_0_rgba(0,0,0,0.8)]",
+                "mixer-console-strip flex min-h-[292px] min-w-[68px] flex-col items-center border border-slate-400 bg-[linear-gradient(90deg,#cbd4db,#edf1f4_52%,#bcc7cf)] px-2 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.85),inset_-1px_0_0_rgba(71,85,105,0.3)] dark:border-black dark:bg-[linear-gradient(90deg,#252b2e,#323a3d_52%,#1b2023)] dark:shadow-[inset_1px_0_0_rgba(255,255,255,0.06),inset_-1px_0_0_rgba(0,0,0,0.8)]",
                 mainMuted && "opacity-70"
               )}
               data-testid="mixer-main-panel-strip"
             >
               <div className="grid w-full gap-1">
-                <div className="h-5 rounded-sm border border-black/70 bg-[#252b2f] text-center font-mono text-[10px] leading-5 text-zinc-200">
+                <div className="h-5 rounded-sm border border-slate-400 bg-white/80 text-center font-mono text-[10px] leading-5 text-slate-700 dark:border-black/70 dark:bg-[#252b2f] dark:text-zinc-200">
                   MAIN
                 </div>
-                <div className="rounded-sm border border-black bg-[#16191c] text-center font-mono text-[9px] leading-4 text-zinc-500">
+                <div className="rounded-sm border border-slate-400 bg-slate-200 text-center font-mono text-[9px] leading-4 text-slate-500 dark:border-black dark:bg-[#16191c] dark:text-zinc-500">
                   LR
                 </div>
-                <div className="h-6 rounded-sm border border-black bg-[#121518] text-center font-mono text-[9px] leading-6 text-zinc-500">
+                <div className="h-6 rounded-sm border border-slate-400 bg-slate-100 text-center font-mono text-[9px] leading-6 text-slate-500 dark:border-black dark:bg-[#121518] dark:text-zinc-500">
                   LEVEL
                 </div>
               </div>
 
               <div className="mt-2 flex items-center justify-center">
-                <div className="mixer-fader-well relative flex h-[170px] w-11 items-center justify-center rounded-sm border border-black bg-[#0f1214] shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
+                <div className="mixer-fader-well relative flex h-[170px] w-11 items-center justify-center rounded-sm border border-slate-400 bg-slate-200 shadow-[inset_0_0_12px_rgba(71,85,105,0.22)] dark:border-black dark:bg-[#0f1214] dark:shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
                   <div className="absolute inset-y-3 left-2 w-px bg-zinc-500/30" />
                   <div className="absolute inset-y-3 right-2 w-px bg-zinc-500/30" />
                   <div className="absolute left-2 right-2 top-1/2 h-px bg-sky-300/35" />
@@ -542,7 +542,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 </div>
               </div>
 
-              <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-zinc-400">
+              <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-slate-600 dark:text-zinc-400">
                 {faderToDb(mainFader)}
               </span>
 
@@ -553,7 +553,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                   "mt-1 h-6 min-h-0 w-full rounded-sm border px-1 font-mono text-[9px]",
                   mainMuted
                     ? "border-red-500/80 bg-red-600 text-white"
-                    : "border-black bg-[#2d3337] text-zinc-200"
+                    : "border-slate-400 bg-slate-200 text-slate-700 hover:bg-slate-300 dark:border-black dark:bg-[#2d3337] dark:text-zinc-200 dark:hover:bg-[#394146]"
                 )}
                 onClick={handleMainMuteToggle}
                 data-testid="mute-main"
@@ -561,7 +561,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                 MUTE
               </Button>
 
-              <div className="mt-1 h-6 w-full rounded-sm border border-black bg-[#1b2227] text-center font-mono text-[10px] leading-6 text-zinc-300">
+              <div className="mt-1 h-6 w-full rounded-sm border border-slate-400 bg-white/75 text-center font-mono text-[10px] leading-6 text-slate-700 dark:border-black dark:bg-[#1b2227] dark:text-zinc-300">
                 LR
               </div>
             </div>

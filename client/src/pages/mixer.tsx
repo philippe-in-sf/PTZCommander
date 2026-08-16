@@ -289,17 +289,17 @@ export default function MixerPage() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-hidden bg-[#07090c] p-3 text-zinc-100 sm:p-5">
-          <div className="mx-auto flex h-full min-h-0 max-w-[1540px] flex-col overflow-hidden rounded-md border border-black bg-[#12161a] shadow-[0_18px_50px_rgba(0,0,0,0.55)]">
-            <div className="flex min-h-12 items-center justify-between border-b border-black bg-[linear-gradient(#24282c,#0d0f11)] px-4">
+        <div className="flex-1 overflow-hidden bg-slate-200 p-3 text-slate-800 dark:bg-[#07090c] dark:text-zinc-100 sm:p-5">
+          <div className="mx-auto flex h-full min-h-0 max-w-[1540px] flex-col overflow-hidden rounded-md border border-slate-300 bg-slate-100 shadow-[0_18px_50px_rgba(71,85,105,0.2)] dark:border-black dark:bg-[#12161a] dark:shadow-[0_18px_50px_rgba(0,0,0,0.55)]">
+            <div className="flex min-h-12 items-center justify-between border-b border-slate-300 bg-[linear-gradient(#f8fafc,#dbe3ea)] px-4 dark:border-black dark:bg-[linear-gradient(#24282c,#0d0f11)]">
               <div className="flex min-w-0 items-center gap-3">
                 <SlidersHorizontal className="h-4 w-4 text-sky-300" />
                 <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold text-zinc-100">Audio Mixer</h2>
-                  <p className="truncate text-xs text-zinc-500">{mixer.name}</p>
+                  <h2 className="truncate text-sm font-semibold text-slate-800 dark:text-zinc-100">Audio Mixer</h2>
+                  <p className="truncate text-xs text-slate-500 dark:text-zinc-500">{mixer.name}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
                 {mixer.status === "online" ? (
                   <Wifi className="h-4 w-4 text-emerald-400" />
                 ) : (
@@ -307,7 +307,7 @@ export default function MixerPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => connectMixerMutation.mutate(mixer.id)}
-                    className="h-7 border border-zinc-700 bg-[#171a1d] px-2 text-xs text-zinc-200"
+                    className="h-7 border border-slate-300 bg-white/70 px-2 text-xs text-slate-700 dark:border-zinc-700 dark:bg-[#171a1d] dark:text-zinc-200"
                     data-testid="button-connect-mixer-console"
                   >
                     <WifiOff className="h-3.5 w-3.5" /> Connect
@@ -317,7 +317,7 @@ export default function MixerPage() {
                   variant="ghost"
                   size="icon"
                   onClick={handleEditClick}
-                  className="h-7 w-7 border border-zinc-700 bg-[#171a1d] text-zinc-300"
+                  className="h-7 w-7 border border-slate-300 bg-white/70 text-slate-600 dark:border-zinc-700 dark:bg-[#171a1d] dark:text-zinc-300"
                   data-testid="button-edit-mixer-console"
                 >
                   <Settings className="h-3.5 w-3.5" />
@@ -325,7 +325,7 @@ export default function MixerPage() {
               </div>
             </div>
 
-            <div className="border-b border-black bg-[#161a1e] px-2">
+            <div className="border-b border-slate-300 bg-slate-200/80 px-2 dark:border-black dark:bg-[#161a1e]">
               <div className="flex gap-px overflow-x-auto py-2">
                 {SECTION_TABS.map(tab => (
                   <button
@@ -335,7 +335,7 @@ export default function MixerPage() {
                       "h-8 min-w-28 whitespace-nowrap border px-3 text-xs transition-colors",
                       activeSection === tab.key
                         ? "border-sky-400/50 bg-[linear-gradient(#3b86bd,#215a86)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
-                        : "border-black bg-[linear-gradient(#2a2e32,#14171a)] text-zinc-300 hover:bg-[#242a30] hover:text-white"
+                        : "border-slate-300 bg-[linear-gradient(#ffffff,#dce3e9)] text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:border-black dark:bg-[linear-gradient(#2a2e32,#14171a)] dark:text-zinc-300 dark:hover:bg-[#242a30] dark:hover:text-white"
                     )}
                     data-testid={`tab-section-${tab.key}`}
                   >
@@ -346,7 +346,7 @@ export default function MixerPage() {
             </div>
 
             <div className="min-h-0 flex-1 overflow-hidden p-2">
-              <div className="mixer-console-frame h-full overflow-x-auto overflow-y-hidden rounded-md border border-black bg-[#0a0c0e] p-1.5">
+              <div className="mixer-console-frame h-full overflow-x-auto overflow-y-hidden rounded-md border border-slate-300 bg-slate-200 p-1.5 dark:border-black dark:bg-[#0a0c0e]">
                 <div className="flex h-full min-h-[420px] items-stretch gap-[3px]">
                   {channels.map((ch) => (
                     <MixerChannelStrip
@@ -452,36 +452,36 @@ function MixerChannelStrip({ section, channel, name, fader, muted, onFaderChange
   return (
     <div
       className={cn(
-        "mixer-console-strip flex h-full min-w-[52px] flex-col items-center border border-black bg-[linear-gradient(90deg,#171b1f,#22272b_48%,#15191d)] px-1 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.04),inset_-1px_0_0_rgba(0,0,0,0.75)]",
+        "mixer-console-strip flex h-full min-w-[52px] flex-col items-center border border-slate-400 bg-[linear-gradient(90deg,#d8dee4,#f1f4f6_48%,#cbd3da)] px-1 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.85),inset_-1px_0_0_rgba(71,85,105,0.28)] dark:border-black dark:bg-[linear-gradient(90deg,#171b1f,#22272b_48%,#15191d)] dark:shadow-[inset_1px_0_0_rgba(255,255,255,0.04),inset_-1px_0_0_rgba(0,0,0,0.75)]",
         stripToneClass(section, channel),
         muted && "opacity-70"
       )}
       data-testid={`mixer-strip-${channel}`}
     >
       <div className="grid w-full gap-1">
-        <div className="h-5 truncate rounded-sm border border-black/70 bg-[#23282c] px-1 text-center font-mono text-[10px] leading-5 text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" title={displayName}>
+        <div className="h-5 truncate rounded-sm border border-slate-400 bg-white/80 px-1 text-center font-mono text-[10px] leading-5 text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] dark:border-black/70 dark:bg-[#23282c] dark:text-zinc-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" title={displayName}>
           {displayName}
         </div>
         <div className="grid grid-cols-2 gap-1">
-          <span className="rounded-sm border border-black/70 bg-[#30363a] text-center font-mono text-[9px] leading-4 text-zinc-400">
+          <span className="rounded-sm border border-slate-400 bg-slate-200 text-center font-mono text-[9px] leading-4 text-slate-600 dark:border-black/70 dark:bg-[#30363a] dark:text-zinc-400">
             {sectionCode[section]}
           </span>
-          <span className="rounded-sm border border-black/70 bg-[#30363a] text-center font-mono text-[9px] leading-4 text-zinc-400">
+          <span className="rounded-sm border border-slate-400 bg-slate-200 text-center font-mono text-[9px] leading-4 text-slate-600 dark:border-black/70 dark:bg-[#30363a] dark:text-zinc-400">
             {channel}
           </span>
         </div>
         <div className="grid grid-cols-2 gap-1">
-          <span className="rounded-sm border border-black/70 bg-[#202529] text-center font-mono text-[9px] leading-4 text-zinc-500">
+          <span className="rounded-sm border border-slate-400 bg-slate-100 text-center font-mono text-[9px] leading-4 text-slate-500 dark:border-black/70 dark:bg-[#202529] dark:text-zinc-500">
             EQ
           </span>
-          <span className="rounded-sm border border-black/70 bg-[#202529] text-center font-mono text-[9px] leading-4 text-zinc-500">
+          <span className="rounded-sm border border-slate-400 bg-slate-100 text-center font-mono text-[9px] leading-4 text-slate-500 dark:border-black/70 dark:bg-[#202529] dark:text-zinc-500">
             DYN
           </span>
         </div>
       </div>
 
       <div className="mt-2 flex items-center justify-center">
-        <div className="mixer-fader-well relative flex h-[220px] w-9 items-center justify-center rounded-sm border border-black bg-[#101316] shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
+        <div className="mixer-fader-well relative flex h-[220px] w-9 items-center justify-center rounded-sm border border-slate-400 bg-slate-200 shadow-[inset_0_0_12px_rgba(71,85,105,0.22)] dark:border-black dark:bg-[#101316] dark:shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
           <div className="absolute inset-y-3 left-1 w-px bg-zinc-500/30" />
           <div className="absolute inset-y-3 right-1 w-px bg-zinc-500/30" />
           <div className="absolute left-1.5 right-1.5 top-1/2 h-px bg-sky-300/35" />
@@ -498,7 +498,7 @@ function MixerChannelStrip({ section, channel, name, fader, muted, onFaderChange
         </div>
       </div>
 
-      <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-zinc-400">
+      <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-slate-600 dark:text-zinc-400">
         {dbValue}
       </span>
 
@@ -509,7 +509,7 @@ function MixerChannelStrip({ section, channel, name, fader, muted, onFaderChange
           "mt-1 h-6 min-h-0 w-full rounded-sm border px-1 font-mono text-[9px]",
           muted
             ? "border-red-500/80 bg-red-600 text-white"
-            : "border-black bg-[#2d3337] text-zinc-200"
+            : "border-slate-400 bg-slate-200 text-slate-700 hover:bg-slate-300 dark:border-black dark:bg-[#2d3337] dark:text-zinc-200 dark:hover:bg-[#394146]"
         )}
         onClick={() => onMuteToggle(!muted)}
         data-testid={`mute-${channel}`}
@@ -517,7 +517,7 @@ function MixerChannelStrip({ section, channel, name, fader, muted, onFaderChange
         MUTE
       </Button>
 
-      <div className="mt-1 h-6 w-full truncate rounded-sm border border-black bg-[#1b2227] px-1 text-center font-mono text-[10px] leading-6 text-zinc-300" title={displayName}>
+      <div className="mt-1 h-6 w-full truncate rounded-sm border border-slate-400 bg-white/75 px-1 text-center font-mono text-[10px] leading-6 text-slate-700 dark:border-black dark:bg-[#1b2227] dark:text-zinc-300" title={displayName}>
         {shortStripName(displayName, channel)}
       </div>
     </div>
@@ -535,25 +535,25 @@ function MainOutputStrip({ fader, muted, onFaderChange, onMuteToggle }: MainOutp
   return (
     <div
       className={cn(
-        "mixer-console-strip flex h-full min-w-[72px] flex-col items-center border border-black bg-[linear-gradient(90deg,#252b2e,#323a3d_52%,#1b2023)] px-2 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06),inset_-1px_0_0_rgba(0,0,0,0.8)]",
+        "mixer-console-strip flex h-full min-w-[72px] flex-col items-center border border-slate-400 bg-[linear-gradient(90deg,#cbd4db,#edf1f4_52%,#bcc7cf)] px-2 py-1.5 shadow-[inset_1px_0_0_rgba(255,255,255,0.85),inset_-1px_0_0_rgba(71,85,105,0.3)] dark:border-black dark:bg-[linear-gradient(90deg,#252b2e,#323a3d_52%,#1b2023)] dark:shadow-[inset_1px_0_0_rgba(255,255,255,0.06),inset_-1px_0_0_rgba(0,0,0,0.8)]",
         muted && "opacity-70"
       )}
       data-testid="mixer-main-strip"
     >
       <div className="grid w-full gap-1">
-        <div className="h-5 rounded-sm border border-black/70 bg-[#252b2f] text-center font-mono text-[10px] leading-5 text-zinc-200">
+        <div className="h-5 rounded-sm border border-slate-400 bg-white/80 text-center font-mono text-[10px] leading-5 text-slate-700 dark:border-black/70 dark:bg-[#252b2f] dark:text-zinc-200">
           MAIN
         </div>
-        <div className="rounded-sm border border-black bg-[#16191c] text-center font-mono text-[9px] leading-4 text-zinc-500">
+        <div className="rounded-sm border border-slate-400 bg-slate-200 text-center font-mono text-[9px] leading-4 text-slate-500 dark:border-black dark:bg-[#16191c] dark:text-zinc-500">
           LR
         </div>
-        <div className="h-6 rounded-sm border border-black bg-[#121518] text-center font-mono text-[9px] leading-6 text-zinc-500">
+        <div className="h-6 rounded-sm border border-slate-400 bg-slate-100 text-center font-mono text-[9px] leading-6 text-slate-500 dark:border-black dark:bg-[#121518] dark:text-zinc-500">
           LEVEL
         </div>
       </div>
 
       <div className="mt-2 flex items-center justify-center">
-        <div className="mixer-fader-well relative flex h-[220px] w-11 items-center justify-center rounded-sm border border-black bg-[#0f1214] shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
+        <div className="mixer-fader-well relative flex h-[220px] w-11 items-center justify-center rounded-sm border border-slate-400 bg-slate-200 shadow-[inset_0_0_12px_rgba(71,85,105,0.22)] dark:border-black dark:bg-[#0f1214] dark:shadow-[inset_0_0_18px_rgba(0,0,0,0.75)]">
           <div className="absolute inset-y-3 left-2 w-px bg-zinc-500/30" />
           <div className="absolute inset-y-3 right-2 w-px bg-zinc-500/30" />
           <div className="absolute left-2 right-2 top-1/2 h-px bg-sky-300/35" />
@@ -570,7 +570,7 @@ function MainOutputStrip({ fader, muted, onFaderChange, onMuteToggle }: MainOutp
         </div>
       </div>
 
-      <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-zinc-400">{faderToDb(fader)}</span>
+      <span className="mt-1 h-4 font-mono text-[9px] leading-4 text-slate-600 dark:text-zinc-400">{faderToDb(fader)}</span>
 
       <Button
         variant="ghost"
@@ -579,7 +579,7 @@ function MainOutputStrip({ fader, muted, onFaderChange, onMuteToggle }: MainOutp
           "mt-1 h-6 min-h-0 w-full rounded-sm border px-1 font-mono text-[9px]",
           muted
             ? "border-red-500/80 bg-red-600 text-white"
-            : "border-black bg-[#2d3337] text-zinc-200"
+            : "border-slate-400 bg-slate-200 text-slate-700 hover:bg-slate-300 dark:border-black dark:bg-[#2d3337] dark:text-zinc-200 dark:hover:bg-[#394146]"
         )}
         onClick={onMuteToggle}
         data-testid="mute-main-full"
@@ -587,7 +587,7 @@ function MainOutputStrip({ fader, muted, onFaderChange, onMuteToggle }: MainOutp
         MUTE
       </Button>
 
-      <div className="mt-1 h-6 w-full rounded-sm border border-black bg-[#1b2227] text-center font-mono text-[10px] leading-6 text-zinc-300">
+      <div className="mt-1 h-6 w-full rounded-sm border border-slate-400 bg-white/75 text-center font-mono text-[10px] leading-6 text-slate-700 dark:border-black dark:bg-[#1b2227] dark:text-zinc-300">
         LR
       </div>
     </div>
@@ -597,24 +597,24 @@ function MainOutputStrip({ fader, muted, onFaderChange, onMuteToggle }: MainOutp
 function stripToneClass(section: MixerSection, channel: number): string {
   if (section === "bus" || section === "auxin") {
     return channel % 4 === 0
-      ? "bg-[linear-gradient(90deg,rgba(19,62,57,0.95),rgba(27,92,76,0.95)_52%,rgba(16,48,47,0.95))]"
-      : "bg-[linear-gradient(90deg,rgba(23,45,43,0.95),rgba(32,67,60,0.95)_52%,rgba(18,39,38,0.95))]";
+      ? "bg-[linear-gradient(90deg,#c4ddd7,#e0f0eb_52%,#b5d2cb)] dark:bg-[linear-gradient(90deg,rgba(19,62,57,0.95),rgba(27,92,76,0.95)_52%,rgba(16,48,47,0.95))]"
+      : "bg-[linear-gradient(90deg,#d0e3df,#edf5f2_52%,#c1d9d4)] dark:bg-[linear-gradient(90deg,rgba(23,45,43,0.95),rgba(32,67,60,0.95)_52%,rgba(18,39,38,0.95))]";
   }
 
   if (section === "dca" || section === "mtx") {
-    return "bg-[linear-gradient(90deg,rgba(33,39,42,0.98),rgba(48,57,60,0.98)_52%,rgba(26,31,34,0.98))]";
+    return "bg-[linear-gradient(90deg,#d2d9dd,#eef1f2_52%,#c4cdd1)] dark:bg-[linear-gradient(90deg,rgba(33,39,42,0.98),rgba(48,57,60,0.98)_52%,rgba(26,31,34,0.98))]";
   }
 
   if (section === "fxrtn") {
-    return "bg-[linear-gradient(90deg,rgba(47,39,34,0.98),rgba(62,50,41,0.98)_52%,rgba(35,30,27,0.98))]";
+    return "bg-[linear-gradient(90deg,#e2d5ca,#f5ebe2_52%,#d6c6ba)] dark:bg-[linear-gradient(90deg,rgba(47,39,34,0.98),rgba(62,50,41,0.98)_52%,rgba(35,30,27,0.98))]";
   }
 
   if (channel % 8 === 0 || channel % 8 === 7) {
-    return "bg-[linear-gradient(90deg,rgba(18,58,53,0.95),rgba(27,89,73,0.95)_52%,rgba(17,46,44,0.95))]";
+    return "bg-[linear-gradient(90deg,#c4ddd7,#e0f0eb_52%,#b5d2cb)] dark:bg-[linear-gradient(90deg,rgba(18,58,53,0.95),rgba(27,89,73,0.95)_52%,rgba(17,46,44,0.95))]";
   }
 
   if (channel % 4 === 0) {
-    return "bg-[linear-gradient(90deg,rgba(42,36,34,0.98),rgba(56,45,39,0.98)_52%,rgba(30,27,26,0.98))]";
+    return "bg-[linear-gradient(90deg,#ded5ce,#f1eae4_52%,#d2c7be)] dark:bg-[linear-gradient(90deg,rgba(42,36,34,0.98),rgba(56,45,39,0.98)_52%,rgba(30,27,26,0.98))]";
   }
 
   return "";

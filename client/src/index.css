@@ -156,6 +156,12 @@ body {
 
 .mixer-console-frame {
   box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 0 18px rgba(71, 85, 105, 0.18);
+}
+
+.dark .mixer-console-frame {
+  box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.04),
     inset 0 0 18px rgba(0, 0, 0, 0.9);
 }
@@ -165,16 +171,37 @@ body {
 }
 
 .mixer-console-frame::-webkit-scrollbar-track {
-  background: #080a0c;
+  background: #d7dee5;
 }
 
 .mixer-console-frame::-webkit-scrollbar-thumb {
-  background: #343a40;
-  border: 2px solid #080a0c;
+  background: #8996a3;
+  border: 2px solid #d7dee5;
   border-radius: 2px;
 }
 
+.dark .mixer-console-frame::-webkit-scrollbar-track {
+  background: #080a0c;
+}
+
+.dark .mixer-console-frame::-webkit-scrollbar-thumb {
+  background: #343a40;
+  border-color: #080a0c;
+}
+
 .mixer-fader-well {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(51, 65, 85, 0.25) 0,
+      rgba(51, 65, 85, 0.25) 1px,
+      transparent 1px,
+      transparent 14px
+    ),
+    linear-gradient(90deg, #c8d0d8, #edf1f4 48%, #bdc7d0);
+}
+
+.dark .mixer-fader-well {
   background-image:
     repeating-linear-gradient(
       to bottom,
@@ -196,6 +223,13 @@ body {
   width: 4px;
   height: 100%;
   border-radius: 1px;
+  background: linear-gradient(90deg, #718096, #e2e8f0 48%, #718096);
+  box-shadow:
+    inset 0 0 0 1px rgba(51, 65, 85, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+.dark .mixer-console-slider[data-orientation="vertical"] > span:first-of-type {
   background: linear-gradient(90deg, #050607, #1f2529 48%, #050607);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.75),
