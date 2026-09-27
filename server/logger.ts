@@ -204,12 +204,11 @@ class Logger {
 
 export const logger = new Logger();
 
-import { storage } from "./storage";
-
 export function setupAuditLogging(): void {
   logger.addCallback(async (entry) => {
     if (entry.level === "info" || entry.level === "warn" || entry.level === "error") {
       try {
+        const { storage } = await import("./storage");
         await storage.createAuditLog({
           timestamp: entry.timestamp,
           level: entry.level,

@@ -3,7 +3,7 @@ import { request as httpRequest } from "http";
 import { request as httpsRequest } from "https";
 import WebSocket from "ws";
 
-const SSDP_ADDR = "239.255.255.250";
+const SSDP_ADDR = process.env.SSDP_MULTICAST_ADDRESS || process.env.SAMSUNG_SSDP_ADDRESS || "239.255.255.250";
 const SSDP_PORT = 1900;
 const APP_NAME = Buffer.from("PTZCommander").toString("base64");
 

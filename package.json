@@ -1,6 +1,6 @@
 {
   "name": "ptz-commander",
-  "version": "1.7.12",
+  "version": "1.9.0",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -12,6 +12,9 @@
     "dev:client": "vite dev --port 5000",
     "predev": "npm run check:node",
     "dev": "NODE_ENV=development tsx server/index.ts",
+    "setup:local": "tsx script/setup-local.ts",
+    "cameras:configure-previews": "tsx script/configure-camera-previews.ts",
+    "secrets:rotate": "tsx script/rotate-secret-encryption-key.ts",
     "prebuild": "npm run check:node",
     "build": "tsx script/build.ts",
     "prestart": "npm run check:node",

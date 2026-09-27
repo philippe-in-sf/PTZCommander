@@ -36,6 +36,11 @@ const luscaCsrf = lusca.csrf({
 });
 
 export const csrfProtection: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
+  if (/^Bearer\s+\S+/i.test(req.headers.authorization || "")) {
+    next();
+    return;
+  }
+
   luscaCsrf(req, res, (error?: unknown) => {
     if (!error) {
       next();

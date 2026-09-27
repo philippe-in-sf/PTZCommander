@@ -2,30 +2,74 @@
 
 All notable changes to PTZ Command are documented in this file.
 
+## [1.9.0] - 2026-09-27
+
+### Added
+- **Authenticated Control Bridge** - protects control routes and live WebSocket connections with signed-in sessions or a dedicated bearer token, with request validation and rate limits at the server boundary.
+- **Shared Live State** - moves control-surface state to the server so browsers and tablets observe and update one authoritative production state.
+- **Configuration Portability** - adds administrator configuration import and export for station devices, presets, scenes, layouts, runsheets, and browser preferences.
+- **Secure Deployment Kit** - bundles loopback-only launchd hosting, trusted-proxy handling, hardened HTTP headers, origin checks, a Caddy TLS configuration, and protected secret files.
+
+### Changed
+- **Adapter Recovery** - applies verified exponential-backoff reconnect behavior to cameras, X32, ATEM, and OBS adapters and clears stale mixer state after disconnects.
+- **Environment Configuration** - replaces hardcoded device and listener addresses with documented environment-backed settings.
+- **Credential Encryption** - adds versioned AES-256-GCM encryption and transactional, repeatable key rotation with legacy credential migration.
+- **Runtime Resilience** - adds bounded process-level crash handling and orderly device, socket, stream, HTTP, and database cleanup.
+- **Request Protection** - retains browser CSRF tokens while allowing dedicated bearer-authenticated bridge clients to use protected control routes.
+- **Version Display** - interface and iOS metadata now report v1.9.0.
+
+## [1.8.2] - 2026-09-27
+
+### Fixed
+- **X32 Connection Verification** - treats the mixer as online only after the first real OSC response, allowing failed UDP connections to retain and increase their exponential-backoff delay.
+- **Version Display** - interface version labels now report v1.8.2.
+
+## [1.8.1] - 2026-09-27
+
+### Fixed
+- **X32 Error Coalescing** - suppresses duplicate UDP transport errors after the first disconnect event while the adapter enters exponential-backoff reconnect mode.
+- **Version Display** - interface version labels now report v1.8.1.
+
+## [1.8.0] - 2026-09-27
+
+### Added
+- **Secure LAN Deployment** - added loopback-only launchd hosting, trusted-proxy handling, a bundled Caddy TLS configuration, security headers, request-origin checks, and protected secret files.
+- **Shared Server State and Configuration Backup** - added server-owned live state plus configuration import/export for consistent tablet behavior and recoverable station setup.
+- **Adapter Recovery** - added exponential reconnect behavior across device adapters and stale X32 state clearing after disconnects.
+- **Credential Key Rotation** - added versioned credential encryption, transactional key rotation, and launchd rotation recovery.
+
+### Changed
+- **Environment Configuration** - moved device-address defaults to environment-backed configuration and upgraded the local setup/tooling path for Node 24.
+- **Version Display** - interface version labels now report v1.8.0.
+
+### Fixed
+- **Legacy Credential Migration** - launchd installation now recognizes credentials encrypted with the original development fallback and migrates them transactionally before startup.
+- **Process Resilience** - fatal process errors now run bounded device, WebSocket, stream, HTTP, and database cleanup before exit.
+
 ## [1.7.12] - 2026-08-16
 
 ### Added
-- **In-Place macOS Updates** — the thick client compares its bundle version with the local thin client, offers upgrades when the thin client is newer, verifies the published package, replaces itself with rollback protection, and relaunches.
-- **Dashboard Skin Parity** — Broadcast Console, Command Center, and Studio Glass now include the shared camera selector, OBS controls, and lighting panel.
+- **In-Place macOS Updates** - the thick client compares its bundle version with the local thin client, offers upgrades when the thin client is newer, verifies the published package, replaces itself with rollback protection, and relaunches.
+- **Dashboard Skin Parity** - Broadcast Console, Command Center, and Studio Glass now include the shared camera selector, OBS controls, and lighting panel.
 
 ### Changed
-- **ATEM-First Monitoring** — removed the redundant legacy camera preview pane and retained ATEM Multiview across every dashboard skin.
-- **Version Display** — interface and native bundle version labels now report v1.7.12.
+- **ATEM-First Monitoring** - removed the redundant legacy camera preview pane and retained ATEM Multiview across every dashboard skin.
+- **Version Display** - interface and native bundle version labels now report v1.7.12.
 
 ## [1.7.11] - 2026-07-16
 
 ### Added
-- **CI Release Gates** — added GitHub Actions coverage for typecheck, lint, test, and build.
-- **Hardware Edge Tests** — expanded coverage around camera preview target handling and device-host restrictions.
+- **CI Release Gates** - added GitHub Actions coverage for typecheck, lint, test, and build.
+- **Hardware Edge Tests** - expanded coverage around camera preview target handling and device-host restrictions.
 
 ### Changed
-- **Package Identity** — renamed the package from `rest-express` to `ptz-commander` and pruned Replit-specific artifacts.
-- **Credential Encryption** — separated the credential-encryption key from the session secret and documented rotation behavior.
-- **Version Display** — interface version labels now report v1.7.11.
-- **Vite Optimizer Config** — removed the deprecated `optimizeDeps.esbuildOptions` setting so builds no longer emit the Vite/Rolldown migration warning.
+- **Package Identity** - renamed the package from `rest-express` to `ptz-commander` and pruned Replit-specific artifacts.
+- **Credential Encryption** - separated the credential-encryption key from the session secret and documented rotation behavior.
+- **Version Display** - interface version labels now report v1.7.11.
+- **Vite Optimizer Config** - removed the deprecated `optimizeDeps.esbuildOptions` setting so builds no longer emit the Vite/Rolldown migration warning.
 
 ### Fixed
-- **Request Protection** — wired installed Lusca protection into the Express app so the dependency reflects active middleware coverage.
+- **Request Protection** - wired installed Lusca protection into the Express app so the dependency reflects active middleware coverage.
 
 ## [1.7.10] - 2026-06-21
 
@@ -78,25 +122,6 @@ All notable changes to PTZ Command are documented in this file.
 ### Changed
 - **Version Display** — interface version labels now report v1.7.5
 
-## [1.7.4] - 2026-06-06
-
-### Changed
-- **Launchd Runtime Self-Checks** — hardened the macOS launchd installer so it validates a fresh build, live app version, working directory, Node version, runtime PID, and launchd PID before declaring startup complete.
-- **RTSP Preview Stability** — stabilized RTSP camera previews and preview-frame capture so camera cards keep rendering configured streams more reliably.
-- **Version Display** — interface version labels now report v1.7.4
-
-## [1.7.3] - 2026-06-05
-
-### Added
-- **Live Control Schemas** — added shared schemas and tests for live WebSocket commands and automation action payloads.
-- **Operator Status Strip** — added live operator status UI around control surfaces and OBS state.
-- **Secret Helper** — added encrypted secret storage helpers with legacy plaintext compatibility.
-
-### Changed
-- **OBS Integration** — upgraded OBS routes, status handling, diagnostics, and scene-control behavior.
-- **Scene and Macro Execution** — tightened command parsing and fake control-surface coverage for live scene and macro execution.
-- **Version Display** — interface version labels now report v1.7.3
-
 ## [1.7.2] - 2026-06-05
 
 ### Added
@@ -108,26 +133,6 @@ All notable changes to PTZ Command are documented in this file.
 - **Single Device Guardrails** — mixer, switcher, and OBS setup now clearly enforce the single-device runtime model
 - **Schema Guardrails** — added SQLite/PostgreSQL indexes, uniqueness checks, and SQLite pragmas for a less hand-wavy local database bootstrap
 - **Tracked Artifact Cleanup** — removed stale generated build folders, old attachments, and a duplicate display page from source control
-
-## [1.7.1] - 2026-06-04
-
-### Fixed
-- **Camera Connectivity** — improved VISCA camera connection handling and camera save/test behavior.
-- **Display Add Flow** — fixed display add handling and dashboard/display setup feedback.
-- **Version Display** — interface version labels now report v1.7.1
-
-## [1.7.0] - 2026-04-23
-
-### Added
-- **Multi-User Backend** — added login/session authentication, server-side auth routes, user records, and a Users admin page.
-- **LAN Hosting Support** — added macOS launchd deployment support and documented local network hosting behavior.
-- **RTSP Preview Authentication** — added authentication coverage for RTSP preview access in the multi-user app.
-
-### Changed
-- **Operator Workflows** — expanded authenticated operator workflows across Dashboard, Scenes, Users, and alternate skins.
-- **Dashboard and OBS Layout** — polished dashboard chrome, branding, and OBS panel layout for the authenticated app shell.
-- **Live Control Center** — improved live-control status and admin UX.
-- **Version Display** — interface version labels now report v1.7.0
 
 ## [1.6.0] - 2026-04-22
 
@@ -154,24 +159,6 @@ All notable changes to PTZ Command are documented in this file.
 ### Changed
 - **Version Display** — interface version labels now report v1.5.0
 
-## [1.4.0] - 2026-04-17
-
-### Added
-- **Runsheet** — added a cue-by-cue Runsheet page backed by SQLite, with cues linked to existing scenes and optional operator notes.
-- **Cue Navigation** — added drag-to-reorder cue rows plus Space / Shift+Space keyboard navigation for current cue stepping.
-
-### Changed
-- **Version Display** — interface version labels now report v1.4.0
-
-## [1.3.0] - 2026-04-17
-
-### Added
-- **Hisense Canvas Support** — added local VIDAA/MQTT setup for Hisense Canvas TVs, including discovery, manual add, optional 4-digit pairing, and local remote commands.
-- **Canvas Display Commands** — Hisense Canvas displays can now use power toggle, mute, volume up/down, set volume, and HDMI input commands from Displays, scenes, and macros.
-
-### Changed
-- **Version Display** — interface version labels now report v1.3.0
-
 ## [1.2.0] - 2026-04-17
 
 ### Added
@@ -195,7 +182,7 @@ All notable changes to PTZ Command are documented in this file.
 ### Changed
 - **Version Display** — interface version labels now report v1.1.0
 
-## [1.0.0] - 2026-04-16
+## [1.0] - 2026-04-16
 
 ### Added
 - **Scene Operations** — added scene groups, dry-run previews, saved-scene test controls, and operator lock mode for safer live operation
@@ -204,7 +191,7 @@ All notable changes to PTZ Command are documented in this file.
 
 ### Changed
 - **Hue Scene Picker** — Hue scene selection now includes bridge status and room-aware scene labels
-- **Version Display** — interface version labels now report v1.0.0
+- **Version Display** — interface version labels now report v1.0
 
 ## [0.16.0] - 2026-04-09
 

@@ -157,7 +157,7 @@ export function OBSConnectionCard({
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2">
                     <Label>Host</Label>
-                    <Input value={newObs.host} onChange={(e) => onNewObsChange({ ...newObs, host: e.target.value })} placeholder="127.0.0.1" data-testid="input-obs-host" />
+                    <Input value={newObs.host} onChange={(e) => onNewObsChange({ ...newObs, host: e.target.value })} placeholder="OBS host" data-testid="input-obs-host" />
                   </div>
                   <div>
                     <Label>Port</Label>

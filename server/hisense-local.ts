@@ -2,7 +2,7 @@ import dgram from "dgram";
 import net from "net";
 import type { IClientOptions, MqttClient } from "mqtt";
 
-const SSDP_ADDR = "239.255.255.250";
+const SSDP_ADDR = process.env.SSDP_MULTICAST_ADDRESS || process.env.HISENSE_SSDP_ADDRESS || "239.255.255.250";
 const SSDP_PORT = 1900;
 const DEFAULT_PORT = 36669;
 const DEFAULT_USERNAME = "hisenseservice";

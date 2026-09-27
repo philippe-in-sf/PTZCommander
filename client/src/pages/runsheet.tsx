@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { sceneButtonApi, runsheetApi, type RunsheetCueWithScene } from "@/lib/api";
+import { useLiveState } from "@/lib/live-state";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -130,11 +131,9 @@ function CueRow({
 
 export default function RunsheetPage() {
   const queryClient = useQueryClient();
+  const { state: liveState, patch: patchLiveState } = useLiveState();
   const [selectedSceneId, setSelectedSceneId] = useState("");
-  const [activeCueId, setActiveCueId] = useState<number | null>(() => {
-    const saved = localStorage.getItem("ptzcommand:runsheet-active-cue");
-    return saved ? parseInt(saved, 10) : null;
-  });
+  const [activeCueId, setActiveCueId] = useState<number | null>(null);
   const [dragCueId, setDragCueId] = useState<number | null>(null);
 
   const { data: scenes = [] } = useQuery<SceneButton[]>({
@@ -151,12 +150,14 @@ export default function RunsheetPage() {
   const activeIndex = activeCueId ? cues.findIndex((cue) => cue.id === activeCueId) : -1;
 
   useEffect(() => {
-    if (activeCueId) localStorage.setItem("ptzcommand:runsheet-active-cue", String(activeCueId));
-    else localStorage.removeItem("ptzcommand:runsheet-active-cue");
-  }, [activeCueId]);
+    if (liveState && liveState.activeRunsheetCueId !== activeCueId) {
+      setActiveCueId(liveState.activeRunsheetCueId);
+    }
+  }, [activeCueId, liveState]);
 
   function selectCue(id: number | null) {
     setActiveCueId(id);
+    patchLiveState({ activeRunsheetCueId: id });
     if (id) setTimeout(() => document.getElementById(`runsheet-cue-${id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 0);
   }
 

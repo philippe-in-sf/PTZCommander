@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { InsertPreset, Preset } from "@shared/schema";
 import { liveWsCommandSchema, type LiveWsCommand } from "@shared/live-ws-commands";
+import type { LiveAppState } from "@shared/live-state";
 
 export type MixerChannelState = {
   channel: number;
@@ -18,6 +19,7 @@ export type WsMessageInbound =
   | { type: "command_ack"; command: string; commandId?: string }
   | { type: "command_error"; command: string; commandId?: string; message: string }
   | { type: "permission_error"; command?: string; commandId?: string; message: string }
+  | { type: "live_state"; state: LiveAppState }
   | { type: "preset_store_result"; requestId: string; ok: boolean; preset?: Preset; message?: string }
   | { type: string; [key: string]: unknown };
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, cameraApi, sceneButtonApi, macroApi } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
+import { useLiveState } from "@/lib/live-state";
 import { useTheme } from "@/components/theme-provider";
 import { useAtemControl } from "@/hooks/use-atem-control";
 import { APP_VERSION } from "@shared/version";
@@ -556,6 +557,7 @@ function LightingTab() {
 export default function MobilePage() {
   const queryClient = useQueryClient();
   const ws = useWebSocket();
+  const { state: liveState, patch: patchLiveState } = useLiveState();
   const { theme, setTheme } = useTheme();
   const { atemState, cut: atemCut, auto: atemAuto, setProgramInput: atemSetProgram, setPreviewInput: atemSetPreview } = useAtemControl();
   const [selectedCameraId, setSelectedCameraId] = useState<number | null>(null);
@@ -596,12 +598,16 @@ export default function MobilePage() {
     },
   });
 
-  // Auto-select first camera
   useEffect(() => {
-    if (cameras.length > 0 && !selectedCameraId) {
-      setSelectedCameraId(cameras[0].id);
+    if (liveState?.selectedCameraId && cameras.some((camera) => camera.id === liveState.selectedCameraId)) {
+      setSelectedCameraId(liveState.selectedCameraId);
+      return;
     }
-  }, [cameras, selectedCameraId]);
+    if (cameras.length > 0 && !selectedCameraId && liveState && liveState.selectedCameraId === null) {
+      setSelectedCameraId(cameras[0].id);
+      patchLiveState({ selectedCameraId: cameras[0].id });
+    }
+  }, [cameras, liveState, patchLiveState, selectedCameraId]);
 
   // Handle paired Hue bridge auto-select (done inside LightingTab)
 
@@ -707,7 +713,10 @@ export default function MobilePage() {
                 return (
                   <button
                     key={cam.id}
-                    onClick={() => setSelectedCameraId(cam.id)}
+                    onClick={() => {
+                      setSelectedCameraId(cam.id);
+                      patchLiveState({ selectedCameraId: cam.id });
+                    }}
                     className={cn(
                       "py-3 px-1 rounded-lg border text-center transition-all",
                       tally === "program"

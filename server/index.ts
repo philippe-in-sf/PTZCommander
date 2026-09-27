@@ -1,15 +1,20 @@
 import "./node-version";
+import { requestProcessShutdown, setProcessShutdownHandler } from "./process-bootstrap";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { attachCurrentUser, requireApiAccess, sessionMiddleware } from "./auth";
+import { attachCurrentUser, requireApiAccess, sessionMiddleware, validateAuthConfiguration } from "./auth";
 import { csrfProtection } from "./csrf";
 import { errorDetails, logger } from "./logger";
 import { reencryptStoredSecrets } from "./storage";
+import { configureExpressSecurity } from "./security";
+import { closeDatabase } from "./db";
+import { validateSecretConfiguration } from "./secrets";
 
 const app = express();
 const httpServer = createServer(app);
+configureExpressSecurity(app);
 const SECRET_LOG_KEY_PATTERN = /(password|apiKey|token|secret)/i;
 
 declare module "http" {
@@ -87,8 +92,20 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  validateAuthConfiguration();
+  validateSecretConfiguration();
   await reencryptStoredSecrets();
-  await registerRoutes(httpServer, app);
+  const runtime = await registerRoutes(httpServer, app);
+
+  setProcessShutdownHandler(async () => {
+    await runtime.shutdown();
+    await new Promise<void>((resolve) => {
+      if (!httpServer.listening) return resolve();
+      httpServer.close(() => resolve());
+      httpServer.closeAllConnections();
+    });
+    await closeDatabase();
+  });
 
   app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -126,17 +143,21 @@ app.use((req, res, next) => {
 
   const defaultPort = process.env.REPL_ID ? "5000" : "3478";
   const port = parseInt(process.env.PORT || defaultPort, 10);
+  const host = process.env.PTZ_HOST || process.env.HOST || "0.0.0.0";
   
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       log(`Port ${port} is already in use.`, "error");
       log(`Possible solutions: 1. Use a different port: PORT=4000 npm run dev  2. Kill the process using port ${port}  3. On Mac: Disable AirPlay Receiver`, "error");
-      process.exit(1);
+      void requestProcessShutdown("http_server_address_in_use", 1, err);
+      return;
     }
-    throw err;
+    void requestProcessShutdown("http_server_error", 1, err);
   });
 
-  httpServer.listen(port, "0.0.0.0", () => {
-    log(`serving on port ${port}`);
+  httpServer.listen(port, host, () => {
+    log(`serving on ${host}:${port}`);
   });
-})();
+})().catch((error) => {
+  void requestProcessShutdown("startup_failed", 1, error);
+});

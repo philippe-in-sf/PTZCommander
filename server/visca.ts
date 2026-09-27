@@ -1,5 +1,6 @@
 import net from "net";
 import { logger } from "./logger";
+import { ExponentialBackoff } from "./reconnect";
 
 const CONNECTION_TIMEOUT_MS = 5000;
 const CONNECTION_VERIFY_TIMEOUT_MS = 1500;
@@ -82,10 +83,15 @@ export class VISCAClient {
   private responseBuffer: number[] = [];
   private pendingCommand: PendingViscaCommand | null = null;
   private commandChain: Promise<void> = Promise.resolve();
+  private onDisconnect: (() => void) | null = null;
 
   constructor(host: string, port: number = 52381) {
     this.host = host;
     this.port = port;
+  }
+
+  setDisconnectCallback(callback: (() => void) | null) {
+    this.onDisconnect = callback;
   }
 
   async connect(): Promise<boolean> {
@@ -142,6 +148,7 @@ export class VISCAClient {
       });
 
       this.socket.on("close", () => {
+        const wasConnected = this.connected;
         if (!settled) {
           finish(false);
         }
@@ -152,6 +159,9 @@ export class VISCAClient {
           this.pendingCommand = null;
         }
         logger.info("camera", `VISCA disconnected from ${this.host}:${this.port}`, { action: "visca_disconnected", details: { host: this.host, port: this.port } });
+        if (wasConnected) {
+          this.onDisconnect?.();
+        }
       });
 
       this.socket.on("data", (chunk: Buffer) => {
@@ -493,24 +503,39 @@ export class VISCAClient {
 
 export class CameraConnectionManager {
   private connections: Map<number, VISCAClient> = new Map();
+  private configs: Map<number, { ip: string; port: number }> = new Map();
+  private reconnectTimers: Map<number, NodeJS.Timeout> = new Map();
+  private backoffs: Map<number, ExponentialBackoff> = new Map();
+  private disabledIds: Set<number> = new Set();
 
   async connectCamera(id: number, ip: string, port: number = 52381): Promise<boolean> {
+    this.configs.set(id, { ip, port });
+    this.disabledIds.delete(id);
+    this.clearReconnectTimer(id);
     const client = new VISCAClient(ip, port);
+    client.setDisconnectCallback(() => this.scheduleReconnect(id, "socket_closed"));
     const connected = await client.connect();
 
     if (connected) {
       this.connections.set(id, client);
+      this.backoffs.get(id)?.reset();
+    } else {
+      this.scheduleReconnect(id, "connect_failed");
     }
 
     return connected;
   }
 
   disconnectCamera(id: number): void {
+    this.disabledIds.add(id);
+    this.clearReconnectTimer(id);
     const client = this.connections.get(id);
     if (client) {
       client.disconnect();
       this.connections.delete(id);
     }
+    this.configs.delete(id);
+    this.backoffs.delete(id);
   }
 
   getClient(id: number): VISCAClient | undefined {
@@ -522,10 +547,54 @@ export class CameraConnectionManager {
   }
 
   disconnectAll(): void {
+    this.disabledIds = new Set(this.configs.keys());
+    for (const timer of this.reconnectTimers.values()) clearTimeout(timer);
+    this.reconnectTimers.clear();
     Array.from(this.connections.entries()).forEach(([_id, client]) => {
       client.disconnect();
     });
     this.connections.clear();
+    this.configs.clear();
+    this.backoffs.clear();
+  }
+
+  private getBackoff(id: number) {
+    let backoff = this.backoffs.get(id);
+    if (!backoff) {
+      backoff = new ExponentialBackoff();
+      this.backoffs.set(id, backoff);
+    }
+    return backoff;
+  }
+
+  private clearReconnectTimer(id: number) {
+    const timer = this.reconnectTimers.get(id);
+    if (timer) clearTimeout(timer);
+    this.reconnectTimers.delete(id);
+  }
+
+  private scheduleReconnect(id: number, reason: string) {
+    if (this.disabledIds.has(id) || this.reconnectTimers.has(id)) return;
+    const config = this.configs.get(id);
+    if (!config) return;
+    this.connections.delete(id);
+    const delayMs = this.getBackoff(id).nextDelayMs();
+    logger.warn("camera", `Scheduling VISCA reconnect for camera ${id} in ${delayMs}ms`, {
+      action: "visca_reconnect_scheduled",
+      details: { cameraId: id, reason, ip: config.ip, port: config.port, delayMs },
+    });
+    const timer = setTimeout(() => {
+      this.reconnectTimers.delete(id);
+      if (this.disabledIds.has(id)) return;
+      this.connectCamera(id, config.ip, config.port).catch((error) => {
+        logger.error("camera", `VISCA reconnect failed for camera ${id}: ${error instanceof Error ? error.message : String(error)}`, {
+          action: "visca_reconnect_error",
+          details: { cameraId: id },
+        });
+        this.scheduleReconnect(id, "reconnect_error");
+      });
+    }, delayMs);
+    this.reconnectTimers.set(id, timer);
   }
 }
 

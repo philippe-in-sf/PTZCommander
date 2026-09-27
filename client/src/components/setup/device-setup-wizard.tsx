@@ -40,6 +40,7 @@ import {
   type HisenseDiscoveredDisplay,
   type SamsungDiscoveredDisplay,
 } from "@/lib/api";
+import { DEFAULT_OBS_HOST } from "@/lib/env";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -151,7 +152,7 @@ function createDefaultForm(type: DeviceSetupType | null): DeviceSetupFormState {
     streamUrl: "",
     previewType: "snapshot",
     previewRefreshMs: "2000",
-    host: "127.0.0.1",
+    host: DEFAULT_OBS_HOST,
     apiKey: "",
     switcherType: "atem",
     displayBrand: "samsung_frame",
@@ -826,7 +827,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
           <Input
             value={cameraSubnet}
             onChange={(event) => setCameraSubnet(event.target.value)}
-            placeholder="Optional subnet, e.g. 192.168.0.0/24"
+            placeholder="Optional CIDR subnet"
             data-testid="input-device-setup-camera-subnet"
           />
           <Button onClick={runCameraDiscovery} disabled={discovering} data-testid="button-device-setup-discover-camera">
@@ -954,7 +955,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
         <Field label="IP Address" error={errors.ip}>
-          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="192.168.0.71" data-testid="input-device-setup-ip" />
+          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="Camera host or IP" data-testid="input-device-setup-ip" />
         </Field>
         <Field label="VISCA Port" error={errors.port}>
           <Input value={form.port} onChange={(event) => updateForm({ port: event.target.value })} inputMode="numeric" data-testid="input-device-setup-port" />
@@ -1013,7 +1014,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
         <Field label="IP Address" error={errors.ip}>
-          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="192.168.0.50" data-testid="input-device-setup-ip" />
+          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="Display host or IP" data-testid="input-device-setup-ip" />
         </Field>
         <Field label="X32 Port" error={errors.port}>
           <Input value={form.port} onChange={(event) => updateForm({ port: event.target.value })} inputMode="numeric" data-testid="input-device-setup-port" />
@@ -1038,7 +1039,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
         <Field label="IP Address" error={errors.ip}>
-          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="192.168.0.60" data-testid="input-device-setup-ip" />
+          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="Display host or IP" data-testid="input-device-setup-ip" />
         </Field>
         <Field label="Model">
           <Select value={form.switcherType} onValueChange={(value) => updateForm({ switcherType: value })}>
@@ -1059,7 +1060,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
         <Field label="Host" error={errors.host}>
-          <Input value={form.host} onChange={(event) => updateForm({ host: event.target.value })} placeholder="127.0.0.1" data-testid="input-device-setup-host" />
+          <Input value={form.host} onChange={(event) => updateForm({ host: event.target.value })} placeholder="OBS host" data-testid="input-device-setup-host" />
         </Field>
         <Field label="WebSocket Port" error={errors.port}>
           <Input value={form.port} onChange={(event) => updateForm({ port: event.target.value })} inputMode="numeric" data-testid="input-device-setup-port" />
@@ -1078,7 +1079,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
         <Field label="Bridge IP" error={errors.ip}>
-          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="192.168.0.40" data-testid="input-device-setup-ip" />
+          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="Bridge host or IP" data-testid="input-device-setup-ip" />
         </Field>
         <Field label="API Key" className="sm:col-span-2">
           <Input type="password" value={form.apiKey} onChange={(event) => updateForm({ apiKey: event.target.value })} autoComplete="new-password" placeholder="Leave blank to pair with the link button" data-testid="input-device-setup-api-key" />
@@ -1103,7 +1104,7 @@ export function DeviceSetupWizard({ open, initialType, canCreate, onOpenChange }
           <Input value={form.name} onChange={(event) => updateForm({ name: event.target.value })} data-testid="input-device-setup-name" />
         </Field>
         <Field label="IP Address" error={errors.ip}>
-          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="192.168.0.80" data-testid="input-device-setup-ip" />
+          <Input value={form.ip} onChange={(event) => updateForm({ ip: event.target.value })} placeholder="Display host or IP" data-testid="input-device-setup-ip" />
         </Field>
         <Field label="Vendor">
           <Select value={form.displayProtocol} onValueChange={(value) => updateForm({

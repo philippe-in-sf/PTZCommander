@@ -1,2 +1,6 @@
 .session-secret
+.bridge-auth-token
+.secret-encryption-key
+.secret-encryption-key-id
+.secret-encryption-previous-keys
 logs/

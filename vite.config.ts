@@ -5,6 +5,7 @@ import path from "path";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 
 const projectRoot = path.resolve(process.cwd());
+const viteDevHost = process.env.VITE_DEV_HOST || process.env.HOST || "0.0.0.0";
 
 export default defineConfig({
   plugins: [
@@ -31,10 +32,10 @@ export default defineConfig({
     emptyOutDir: true,
   },
   optimizeDeps: {
-    entries: ["client/src/**/*.{ts,tsx}"],
+    entries: ["src/**/*.{ts,tsx}"],
   },
   server: {
-    host: "0.0.0.0",
+    host: viteDevHost,
     allowedHosts: true,
     fs: {
       strict: true,

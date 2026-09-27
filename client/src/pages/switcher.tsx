@@ -145,7 +145,7 @@ export default function SwitcherPage() {
                   </div>
                   <div>
                     <Label htmlFor="sw-ip">IP Address</Label>
-                    <Input id="sw-ip" value={newSwitcher.ip} onChange={(e) => setNewSwitcher({ ...newSwitcher, ip: e.target.value })} placeholder="192.168.1.100" className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-switcher-ip-full" />
+                    <Input id="sw-ip" value={newSwitcher.ip} onChange={(e) => setNewSwitcher({ ...newSwitcher, ip: e.target.value })} placeholder="Device host or IP" className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-switcher-ip-full" />
                   </div>
                   <Button className="w-full" onClick={() => createSwitcherMutation.mutate(newSwitcher)} disabled={!newSwitcher.ip || createSwitcherMutation.isPending} data-testid="button-save-switcher-full">
                     {createSwitcherMutation.isPending ? "Adding..." : "Add Switcher"}

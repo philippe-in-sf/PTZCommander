@@ -1,4 +1,5 @@
 import type { Camera, InsertCamera, Preset, InsertPreset, Mixer, InsertMixer, Switcher, InsertSwitcher, SceneButton, InsertSceneButton, Layout, InsertLayout, Macro, InsertMacro, ObsConnection, InsertObsConnection, RunsheetCue, InsertRunsheetCue, DisplayDevice, InsertDisplayDevice, HueBridge, InsertHueBridge, UserRole } from "@shared/schema";
+import type { AppConfigExport } from "@shared/app-config";
 
 const API_BASE = "/api";
 const CSRF_COOKIE_NAME = "XSRF-TOKEN";
@@ -1188,5 +1189,26 @@ export const layoutApi = {
     });
     if (!res.ok) throw new Error("Failed to import layout");
     return res.json();
+  },
+};
+
+export const configApi = {
+  exportConfig: async (): Promise<AppConfigExport> => {
+    const res = await fetch(`${API_BASE}/config/export`, { credentials: "include" });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to export configuration");
+    return data;
+  },
+
+  importConfig: async (config: AppConfigExport): Promise<{ success: boolean; counts: Record<string, number> }> => {
+    const res = await fetch(`${API_BASE}/config/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(config),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Failed to import configuration");
+    return data;
   },
 };

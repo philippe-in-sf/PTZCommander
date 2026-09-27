@@ -13,6 +13,7 @@ import {
   getCameraAssignmentNumberFromName,
   sortCamerasByAssignmentName,
 } from "@shared/camera-import";
+import { DEFAULT_CAMERA_WHEP_URL } from "@/lib/env";
 
 const CUSTOM_CAMERA_ASSIGNMENT = "custom";
 const parseAtemInputId = (value: string) => {
@@ -453,12 +454,12 @@ export function CameraSelector({
                     onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
                     placeholder={
                       editForm.previewType === 'webrtc'
-                        ? "http://127.0.0.1:8080/camera/whep"
+                        ? DEFAULT_CAMERA_WHEP_URL
                         : editForm.previewType === 'rtsp'
-                          ? "rtsp://192.168.0.27:554/stream1"
+                          ? "rtsp://camera-host.local:554/stream1"
                           : editForm.previewType === 'rtp'
-                            ? "rtp://192.168.0.27:5004"
-                            : "http://192.168.0.27/cgi-bin/snapshot.cgi"
+                            ? "rtp://camera-host.local:5004"
+                            : "http://camera-host.local/cgi-bin/snapshot.cgi"
                     }
                     data-testid="input-camera-stream-url"
                   />

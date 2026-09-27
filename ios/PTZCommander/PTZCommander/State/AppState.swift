@@ -30,7 +30,10 @@ final class AppState: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.serverAddress = defaults.string(forKey: "ptzCommanderServerAddress") ?? "http://127.0.0.1:4101"
+        let bundledDefault = (Bundle.main.object(forInfoDictionaryKey: "PTZCommanderDefaultServerAddress") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let configuredDefault = (bundledDefault?.isEmpty == false && bundledDefault?.contains("$(") == false) ? bundledDefault : nil
+        self.serverAddress = defaults.string(forKey: "ptzCommanderServerAddress") ?? configuredDefault ?? ""
     }
 
     func bootstrap() async {

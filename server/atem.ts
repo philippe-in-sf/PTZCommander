@@ -5,6 +5,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { errorDetails, logger } from "./logger";
+import { ExponentialBackoff } from "./reconnect";
 
 export interface AtemConfig {
   ip: string;
@@ -279,6 +280,7 @@ export class AtemClient {
   private connected: boolean = false;
   private config: AtemConfig;
   private onStateChange: ((state: AtemSwitcherState) => void) | null = null;
+  private onDisconnect: (() => void) | null = null;
 
   constructor(config: AtemConfig) {
     this.config = config;
@@ -314,9 +316,11 @@ export class AtemClient {
     });
 
     atem.on("disconnected", () => {
+      const wasConnected = this.connected;
       logger.info("switcher", "ATEM disconnected", { action: "atem_disconnected" });
       this.connected = false;
       this.notifyStateChange();
+      if (wasConnected) this.onDisconnect?.();
     });
 
     atem.on("stateChanged", () => {
@@ -337,6 +341,10 @@ export class AtemClient {
 
   setStateChangeCallback(callback: (state: AtemSwitcherState) => void) {
     this.onStateChange = callback;
+  }
+
+  setDisconnectCallback(callback: (() => void) | null) {
+    this.onDisconnect = callback;
   }
 
   private notifyStateChange() {
@@ -713,6 +721,10 @@ export class AtemClient {
 class AtemManager {
   private client: AtemClient | null = null;
   private stateCallback: ((state: AtemSwitcherState) => void) | null = null;
+  private config: AtemConfig | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private backoff = new ExponentialBackoff();
+  private disabled = false;
 
   setStateChangeCallback(callback: (state: AtemSwitcherState) => void) {
     this.stateCallback = callback;
@@ -722,24 +734,35 @@ class AtemManager {
   }
 
   async connect(ip: string): Promise<boolean> {
+    this.config = { ip };
+    this.disabled = false;
+    this.clearReconnectTimer();
     if (this.client) {
+      this.client.setDisconnectCallback(null);
       this.client.disconnect();
     }
 
     this.client = new AtemClient({ ip });
+    this.client.setDisconnectCallback(() => this.scheduleReconnect("disconnected"));
 
     if (this.stateCallback) {
       this.client.setStateChangeCallback(this.stateCallback);
     }
 
-    return await this.client.connect();
+    const connected = await this.client.connect();
+    if (connected) this.backoff.reset();
+    else this.scheduleReconnect("connect_failed");
+    return connected;
   }
 
   disconnect() {
+    this.disabled = true;
+    this.clearReconnectTimer();
     if (this.client) {
       this.client.disconnect();
       this.client = null;
     }
+    this.config = null;
   }
 
   getClient(): AtemClient | null {
@@ -752,6 +775,31 @@ class AtemManager {
 
   getState(): AtemSwitcherState | null {
     return this.client?.getState() || null;
+  }
+
+  private clearReconnectTimer() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  private scheduleReconnect(reason: string) {
+    if (this.disabled || this.reconnectTimer || !this.config) return;
+    const delayMs = this.backoff.nextDelayMs();
+    logger.warn("switcher", `Scheduling ATEM reconnect in ${delayMs}ms`, {
+      action: "atem_reconnect_scheduled",
+      details: { ip: this.config.ip, reason, delayMs },
+    });
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (!this.config || this.disabled) return;
+      this.connect(this.config.ip).catch((error) => {
+        logger.error("switcher", `ATEM reconnect failed: ${error instanceof Error ? error.message : String(error)}`, {
+          action: "atem_reconnect_error",
+          details: errorDetails(error),
+        });
+        this.scheduleReconnect("reconnect_error");
+      });
+    }, delayMs);
   }
 }
 

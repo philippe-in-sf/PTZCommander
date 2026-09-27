@@ -1,0 +1,11 @@
+# Set PTZ_PUBLIC_HOST to the DNS or mDNS name used by tablets.
+{$PTZ_PUBLIC_HOST:ptzcommand.local} {
+  tls internal
+  encode zstd gzip
+
+  reverse_proxy 127.0.0.1:{$PORT:3478} {
+    header_up Host {host}
+    header_up X-Forwarded-For {remote_host}
+    header_up X-Forwarded-Proto https
+  }
+}

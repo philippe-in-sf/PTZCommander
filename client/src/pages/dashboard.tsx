@@ -24,6 +24,7 @@ import { Wifi, WifiOff, Plus, Undo2, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cameraApi, obsApi, presetApi, undoApi, type DiscoveredCamera } from "@/lib/api";
 import { useWebSocket } from "@/lib/websocket";
+import { useLiveState } from "@/lib/live-state";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -51,6 +52,7 @@ import {
   type CameraImportAssignments,
 } from "@shared/camera-import";
 import { normalizePresetName, requiresProgramRecallConfirmation } from "@shared/preset-management";
+import { DEFAULT_CAMERA_WHEP_URL, DEFAULT_OBS_HOST } from "@/lib/env";
 
 const FIRST_RUN_DISCOVERY_KEY = "ptz.discovery.firstRunPrompted";
 type PreviewType = "none" | "snapshot" | "mjpeg" | "rtsp" | "rtp" | "webrtc" | "browser";
@@ -100,6 +102,7 @@ export default function Dashboard() {
   const [pendingProgramRecall, setPendingProgramRecall] = useState<Preset | null>(null);
 
   const ws = useWebSocket();
+  const { state: liveState, patch: patchLiveState } = useLiveState();
 
   const { data: cameras = [], isLoading } = useQuery({
     queryKey: ["cameras"],
@@ -114,7 +117,7 @@ export default function Dashboard() {
 
   const [addObsOpen, setAddObsOpen] = useState(false);
   const [obsSceneName, setObsSceneName] = useState("");
-  const [newObs, setNewObs] = useState({ name: "OBS Studio", host: "127.0.0.1", port: 4455, password: "" });
+  const [newObs, setNewObs] = useState({ name: "OBS Studio", host: DEFAULT_OBS_HOST, port: 4455, password: "" });
 
   const { data: obsConnections = [] } = useQuery({
     queryKey: ["obs"],
@@ -144,10 +147,15 @@ export default function Dashboard() {
   }, [obsConnection?.currentProgramScene, obsSceneName, obsScenes, obsStatus?.currentProgramScene]);
 
   useEffect(() => {
-    if (cameras.length > 0 && !selectedId) {
-      setSelectedId(cameras[0].id);
+    if (liveState?.selectedCameraId && cameras.some((camera) => camera.id === liveState.selectedCameraId)) {
+      setSelectedId(liveState.selectedCameraId);
+      return;
     }
-  }, [cameras, selectedId]);
+    if (cameras.length > 0 && !selectedId && liveState && liveState.selectedCameraId === null) {
+      setSelectedId(cameras[0].id);
+      patchLiveState({ selectedCameraId: cameras[0].id });
+    }
+  }, [cameras, liveState, patchLiveState, selectedId]);
 
   const { data: undoStatus } = useQuery({
     queryKey: ["undo-status"],
@@ -184,7 +192,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["obs"] });
       queryClient.invalidateQueries({ queryKey: ["obs-status"] });
       setAddObsOpen(false);
-      setNewObs({ name: "OBS Studio", host: "127.0.0.1", port: 4455, password: "" });
+      setNewObs({ name: "OBS Studio", host: DEFAULT_OBS_HOST, port: 4455, password: "" });
       toast.success("OBS connection added");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -490,6 +498,7 @@ export default function Dashboard() {
 
   const handleSelect = (id: number) => {
     setSelectedId(id);
+    patchLiveState({ selectedCameraId: id });
   };
 
   const recallPreset = (preset: Preset) => {
@@ -772,7 +781,7 @@ export default function Dashboard() {
                           id="discovery-subnet"
                           value={discoverySubnet}
                           onChange={(e) => setDiscoverySubnet(e.target.value)}
-                          placeholder="Auto-detect, or 192.168.0.0/24"
+                          placeholder="Auto-detect, or CIDR subnet"
                           data-testid="input-discovery-subnet"
                         />
                       </div>
@@ -930,7 +939,7 @@ export default function Dashboard() {
                         id="ip"
                         value={newCamera.ip}
                         onChange={(e) => setNewCamera({ ...newCamera, ip: e.target.value })}
-                        placeholder="192.168.10.101"
+                        placeholder="Camera host or IP"
                         data-testid="input-new-camera-ip"
                       />
                     </div>
@@ -1000,12 +1009,12 @@ export default function Dashboard() {
                           onChange={(e) => setNewCamera({ ...newCamera, streamUrl: e.target.value })}
                           placeholder={
                             newCamera.previewType === "webrtc"
-                              ? "http://127.0.0.1:8080/camera/whep"
+                              ? DEFAULT_CAMERA_WHEP_URL
                               : newCamera.previewType === "rtsp"
-                                ? "rtsp://192.168.0.27:554/stream1"
+                                ? "rtsp://camera-host.local:554/stream1"
                                 : newCamera.previewType === "rtp"
-                                  ? "rtp://192.168.0.27:5004"
-                                  : "http://192.168.0.27/cgi-bin/snapshot.cgi"
+                                  ? "rtp://camera-host.local:5004"
+                                  : "http://camera-host.local/cgi-bin/snapshot.cgi"
                           }
                           data-testid="input-new-camera-stream-url"
                         />

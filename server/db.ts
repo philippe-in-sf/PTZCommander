@@ -296,3 +296,8 @@ if (useSqlite) {
 }
 
 export { db, pool, sqlite, useSqlite };
+
+export async function closeDatabase() {
+  if (sqlite?.open) sqlite.close();
+  if (pool) await pool.end();
+}

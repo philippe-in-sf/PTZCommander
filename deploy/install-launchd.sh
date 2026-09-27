@@ -8,13 +8,34 @@ PLIST_TEMPLATE="$SCRIPT_DIR/com.ptzcommander.multiuser.plist"
 PLIST_TARGET="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOG_DIR="${PTZCOMMAND_LOG_DIR:-$HOME/Library/Logs/PTZCommand}"
 SECRET_FILE="$SCRIPT_DIR/.session-secret"
-ENCRYPTION_SECRET_FILE="$SCRIPT_DIR/.secret-encryption-key"
-ENCRYPTION_PREVIOUS_SECRET_FILE="$SCRIPT_DIR/.secret-encryption-previous-key"
+BRIDGE_TOKEN_FILE="$SCRIPT_DIR/.bridge-auth-token"
+ENCRYPTION_KEY_FILE="$SCRIPT_DIR/.secret-encryption-key"
+ENCRYPTION_KEY_ID_FILE="$SCRIPT_DIR/.secret-encryption-key-id"
+PREVIOUS_KEYS_FILE="$SCRIPT_DIR/.secret-encryption-previous-keys"
 PORT="${PORT:-3478}"
+DEPLOYMENT_MODE="${PTZCOMMAND_DEPLOYMENT_MODE:-https-proxy}"
+SELF_CHECK_HOST="${PTZCOMMAND_SELF_CHECK_HOST:-127.0.0.1}"
 SELF_CHECK_TIMEOUT="${PTZCOMMAND_SELF_CHECK_TIMEOUT:-45}"
 SERVICE_DOMAIN="gui/$(id -u)"
 SERVICE_TARGET="$SERVICE_DOMAIN/$LABEL"
-VERSION_URL="http://127.0.0.1:$PORT/api/version"
+VERSION_URL="http://$SELF_CHECK_HOST:$PORT/api/version"
+
+case "$DEPLOYMENT_MODE" in
+  https-proxy)
+    PTZ_HOST="127.0.0.1"
+    PTZ_TRUST_PROXY="loopback"
+    SESSION_COOKIE_SECURE="true"
+    ;;
+  lan-http)
+    PTZ_HOST="0.0.0.0"
+    PTZ_TRUST_PROXY="false"
+    SESSION_COOKIE_SECURE="false"
+    ;;
+  *)
+    echo "ERROR: PTZCOMMAND_DEPLOYMENT_MODE must be https-proxy or lan-http." >&2
+    exit 1
+    ;;
+esac
 
 fail() {
   echo "ERROR: $*" >&2
@@ -223,26 +244,51 @@ if [ -n "$STALE_SOURCE" ]; then
 fi
 
 mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
+umask 077
+
+SESSION_SECRET_EXISTED=false
+if [ -f "$SECRET_FILE" ]; then
+  SESSION_SECRET_EXISTED=true
+fi
 
 if [ ! -f "$SECRET_FILE" ]; then
   umask 077
   /usr/bin/openssl rand -hex 32 > "$SECRET_FILE"
 fi
 
-if [ ! -f "$ENCRYPTION_SECRET_FILE" ]; then
+if [ ! -f "$BRIDGE_TOKEN_FILE" ]; then
   umask 077
-  /usr/bin/openssl rand -hex 32 > "$ENCRYPTION_SECRET_FILE"
-  if [ -f "$SECRET_FILE" ]; then
-    cp "$SECRET_FILE" "$ENCRYPTION_PREVIOUS_SECRET_FILE"
+  /usr/bin/openssl rand -hex 32 > "$BRIDGE_TOKEN_FILE"
+fi
+
+if [ ! -f "$ENCRYPTION_KEY_FILE" ]; then
+  umask 077
+  if [ "$SESSION_SECRET_EXISTED" = true ]; then
+    cp "$SECRET_FILE" "$ENCRYPTION_KEY_FILE"
+    echo "Preserved existing credential encryption by separating the former session key."
+  else
+    /usr/bin/openssl rand -hex 32 > "$ENCRYPTION_KEY_FILE"
   fi
 fi
 
-SESSION_SECRET=$(tr -d '\n' < "$SECRET_FILE")
-SECRET_ENCRYPTION_KEY=$(tr -d '\n' < "$ENCRYPTION_SECRET_FILE")
-SECRET_ENCRYPTION_PREVIOUS_KEY="${SECRET_ENCRYPTION_PREVIOUS_KEY:-}"
-if [ -f "$ENCRYPTION_PREVIOUS_SECRET_FILE" ]; then
-  SECRET_ENCRYPTION_PREVIOUS_KEY=$(tr -d '\n' < "$ENCRYPTION_PREVIOUS_SECRET_FILE")
+if [ ! -f "$ENCRYPTION_KEY_ID_FILE" ]; then
+  umask 077
+  printf '%s\n' "local-v1" > "$ENCRYPTION_KEY_ID_FILE"
 fi
+
+SESSION_SECRET=$(tr -d '\n' < "$SECRET_FILE")
+BRIDGE_AUTH_TOKEN=$(tr -d '\n' < "$BRIDGE_TOKEN_FILE")
+SECRET_ENCRYPTION_KEY=$(tr -d '\n' < "$ENCRYPTION_KEY_FILE")
+SECRET_ENCRYPTION_KEY_ID=$(tr -d '\n' < "$ENCRYPTION_KEY_ID_FILE")
+SECRET_ENCRYPTION_PREVIOUS_KEYS="{}"
+if [ -f "$PREVIOUS_KEYS_FILE" ]; then
+  SECRET_ENCRYPTION_PREVIOUS_KEYS=$(tr -d '\n' < "$PREVIOUS_KEYS_FILE")
+fi
+case "$SECRET_ENCRYPTION_KEY_ID" in
+  ''|*[!A-Za-z0-9._-]*)
+    fail "Credential encryption key ID is invalid: $SECRET_ENCRYPTION_KEY_ID"
+    ;;
+esac
 HOSTNAME=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
 
 ROOT_ESCAPED=$(printf '%s\n' "$ROOT_DIR" | sed 's/[\/&]/\\&/g')
@@ -250,8 +296,26 @@ NODE_ESCAPED=$(printf '%s\n' "$NODE_BIN" | sed 's/[\/&]/\\&/g')
 LOG_ESCAPED=$(printf '%s\n' "$LOG_DIR" | sed 's/[\/&]/\\&/g')
 PORT_ESCAPED=$(printf '%s\n' "$PORT" | sed 's/[\/&]/\\&/g')
 SECRET_ESCAPED=$(printf '%s\n' "$SESSION_SECRET" | sed 's/[\/&]/\\&/g')
-ENCRYPTION_SECRET_ESCAPED=$(printf '%s\n' "$SECRET_ENCRYPTION_KEY" | sed 's/[\/&]/\\&/g')
-ENCRYPTION_PREVIOUS_SECRET_ESCAPED=$(printf '%s\n' "$SECRET_ENCRYPTION_PREVIOUS_KEY" | sed 's/[\/&]/\\&/g')
+BRIDGE_TOKEN_ESCAPED=$(printf '%s\n' "$BRIDGE_AUTH_TOKEN" | sed 's/[\/&]/\\&/g')
+ENCRYPTION_KEY_ESCAPED=$(printf '%s\n' "$SECRET_ENCRYPTION_KEY" | sed 's/[\/&]/\\&/g')
+ENCRYPTION_KEY_ID_ESCAPED=$(printf '%s\n' "$SECRET_ENCRYPTION_KEY_ID" | sed 's/[\/&]/\\&/g')
+PREVIOUS_KEYS_ESCAPED=$(printf '%s\n' "$SECRET_ENCRYPTION_PREVIOUS_KEYS" | sed 's/[\/&]/\\&/g')
+PTZ_HOST_ESCAPED=$(printf '%s\n' "$PTZ_HOST" | sed 's/[\/&]/\\&/g')
+PTZ_TRUST_PROXY_ESCAPED=$(printf '%s\n' "$PTZ_TRUST_PROXY" | sed 's/[\/&]/\\&/g')
+COOKIE_SECURE_ESCAPED=$(printf '%s\n' "$SESSION_COOKIE_SECURE" | sed 's/[\/&]/\\&/g')
+
+launchctl bootout "$SERVICE_DOMAIN" "$PLIST_TARGET" >/dev/null 2>&1 || true
+
+echo "Migrating stored credentials to encryption key ID $SECRET_ENCRYPTION_KEY_ID..."
+(
+  cd "$ROOT_DIR"
+  NODE_ENV=production \
+  SESSION_SECRET="$SESSION_SECRET" \
+  SECRET_ENCRYPTION_KEY="$SECRET_ENCRYPTION_KEY" \
+  SECRET_ENCRYPTION_KEY_ID="$SECRET_ENCRYPTION_KEY_ID" \
+  SECRET_ENCRYPTION_PREVIOUS_KEYS="$SECRET_ENCRYPTION_PREVIOUS_KEYS" \
+    "$NODE_BIN" --import tsx script/rotate-secret-encryption-key.ts
+)
 
 sed \
   -e "s/__ROOT__/$ROOT_ESCAPED/g" \
@@ -259,11 +323,20 @@ sed \
   -e "s/__LOG_DIR__/$LOG_ESCAPED/g" \
   -e "s/__PORT__/$PORT_ESCAPED/g" \
   -e "s/__SESSION_SECRET__/$SECRET_ESCAPED/g" \
-  -e "s/__SECRET_ENCRYPTION_KEY__/$ENCRYPTION_SECRET_ESCAPED/g" \
-  -e "s/__SECRET_ENCRYPTION_PREVIOUS_KEY__/$ENCRYPTION_PREVIOUS_SECRET_ESCAPED/g" \
+  -e "s/__BRIDGE_AUTH_TOKEN__/$BRIDGE_TOKEN_ESCAPED/g" \
+  -e "s/__SECRET_ENCRYPTION_KEY__/$ENCRYPTION_KEY_ESCAPED/g" \
+  -e "s/__SECRET_ENCRYPTION_KEY_ID__/$ENCRYPTION_KEY_ID_ESCAPED/g" \
+  -e "s/__SECRET_ENCRYPTION_PREVIOUS_KEYS__/$PREVIOUS_KEYS_ESCAPED/g" \
+  -e "s/__PTZ_HOST__/$PTZ_HOST_ESCAPED/g" \
+  -e "s/__PTZ_TRUST_PROXY__/$PTZ_TRUST_PROXY_ESCAPED/g" \
+  -e "s/__SESSION_COOKIE_SECURE__/$COOKIE_SECURE_ESCAPED/g" \
   "$PLIST_TEMPLATE" > "$PLIST_TARGET"
 
-launchctl bootout "$SERVICE_DOMAIN" "$PLIST_TARGET" >/dev/null 2>&1 || true
+chmod 600 "$SECRET_FILE" "$BRIDGE_TOKEN_FILE" "$ENCRYPTION_KEY_FILE" "$ENCRYPTION_KEY_ID_FILE" "$PLIST_TARGET"
+if [ -f "$PREVIOUS_KEYS_FILE" ]; then
+  chmod 600 "$PREVIOUS_KEYS_FILE"
+fi
+
 launchctl bootstrap "$SERVICE_DOMAIN" "$PLIST_TARGET"
 launchctl enable "$SERVICE_TARGET" >/dev/null 2>&1 || true
 launchctl kickstart -k "$SERVICE_TARGET"
@@ -287,10 +360,24 @@ echo "  $NODE_BIN"
 echo "Logs:"
 echo "  $LOG_DIR/ptzcommander.stdout.log"
 echo "  $LOG_DIR/ptzcommander.stderr.log"
+echo "Bridge token:"
+echo "  $BRIDGE_TOKEN_FILE"
+echo "Credential encryption key:"
+echo "  $ENCRYPTION_KEY_FILE"
+echo "Credential encryption key ID:"
+echo "  $SECRET_ENCRYPTION_KEY_ID"
 echo
 echo "PTZCommander multi-user is now running in the background."
-echo "Stable LAN URL:"
-echo "  http://$HOSTNAME.local:$PORT"
+if [ "$DEPLOYMENT_MODE" = "https-proxy" ]; then
+  echo "Secure URL after Caddy is started:"
+  echo "  https://$HOSTNAME.local"
+  echo "Caddy setup:"
+  echo "  $SCRIPT_DIR/SECURE_DEPLOYMENT.md"
+else
+  echo "WARNING: LAN HTTP mode does not encrypt credentials or control traffic."
+  echo "LAN URL:"
+  echo "  http://$HOSTNAME.local:$PORT"
+fi
 echo
 echo "To stop it later:"
 echo "  launchctl bootout $SERVICE_DOMAIN $PLIST_TARGET"

@@ -1,114 +1,99 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decryptSecret, encryptSecret, isEncryptedSecret, reencryptSecret } from "../server/secrets";
+import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import {
+  SecretDecryptionError,
+  decryptSecretWithKeyring,
+  encryptSecretWithKeyring,
+  isEncryptedSecret,
+  reencryptSecretWithKeyring,
+  secretKeyringFromEnv,
+  type SecretKeyring,
+} from "../server/secrets";
 
-const ENV_KEYS = [
-  "NODE_ENV",
-  "SESSION_SECRET",
-  "SECRET_ENCRYPTION_KEY",
-  "SECRET_ENCRYPTION_PREVIOUS_KEY",
-  "SECRET_ENCRYPTION_PREVIOUS_KEYS",
-] as const;
+const keyring: SecretKeyring = {
+  activeId: "test-v2",
+  keys: new Map([["test-v2", "test-key-material-with-more-than-32-characters"]]),
+  legacyMaterials: ["legacy-session-secret"],
+};
 
-function withEnv<T>(env: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>, callback: () => T) {
-  const previous = new Map<(typeof ENV_KEYS)[number], string | undefined>();
-  for (const key of ENV_KEYS) {
-    previous.set(key, process.env[key]);
-    delete process.env[key];
-  }
-  for (const [key, value] of Object.entries(env)) {
-    if (value !== undefined) process.env[key] = value;
-  }
-
-  try {
-    return callback();
-  } finally {
-    for (const key of ENV_KEYS) {
-      const value = previous.get(key);
-      if (value === undefined) {
-        delete process.env[key];
-      } else {
-        process.env[key] = value;
-      }
-    }
-  }
+function legacyEncrypt(value: string, material: string) {
+  const iv = randomBytes(12);
+  const key = createHash("sha256").update(material).digest();
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return `enc:v1:${iv.toString("base64")}:${cipher.getAuthTag().toString("base64")}:${encrypted.toString("base64")}`;
 }
 
 test("secret helper encrypts and decrypts values", () => {
-  const encrypted = encryptSecret("camera-password");
+  const encrypted = encryptSecretWithKeyring("camera-password", keyring);
 
   assert.equal(isEncryptedSecret(encrypted), true);
+  assert.match(encrypted || "", /^enc:v2:test-v2:/);
   assert.notEqual(encrypted, "camera-password");
-  assert.equal(decryptSecret(encrypted), "camera-password");
+  assert.equal(decryptSecretWithKeyring(encrypted, keyring), "camera-password");
 });
 
 test("secret helper keeps legacy plaintext readable", () => {
-  assert.equal(decryptSecret("legacy-password"), "legacy-password");
-  assert.equal(decryptSecret(null), null);
+  assert.equal(decryptSecretWithKeyring("legacy-password", keyring), "legacy-password");
+  assert.equal(decryptSecretWithKeyring(null, keyring), null);
 });
 
-test("secret helper requires a dedicated production encryption key", () => {
-  withEnv({ NODE_ENV: "production", SESSION_SECRET: "session-only" }, () => {
-    assert.throws(() => encryptSecret("camera-password"), /SECRET_ENCRYPTION_KEY must be set in production/);
-  });
-});
-
-test("secret helper uses SECRET_ENCRYPTION_KEY separately from SESSION_SECRET", () => {
-  withEnv(
-    {
-      NODE_ENV: "production",
-      SESSION_SECRET: "session-secret",
-      SECRET_ENCRYPTION_KEY: "credential-encryption-secret",
-    },
-    () => {
-      const encrypted = encryptSecret("camera-password");
-
-      assert.equal(isEncryptedSecret(encrypted), true);
-      assert.equal(decryptSecret(encrypted), "camera-password");
-    },
-  );
-});
-
-test("secret helper decrypts previous-key values and re-encrypts them under the current key", () => {
-  const oldEncrypted = withEnv(
-    { NODE_ENV: "production", SECRET_ENCRYPTION_KEY: "old-credential-key" },
-    () => encryptSecret("obs-password"),
-  );
-
-  const rotated = withEnv(
-    {
-      NODE_ENV: "production",
-      SECRET_ENCRYPTION_KEY: "new-credential-key",
-      SECRET_ENCRYPTION_PREVIOUS_KEY: "old-credential-key",
-    },
-    () => {
-      assert.equal(decryptSecret(oldEncrypted), "obs-password");
-      return reencryptSecret(oldEncrypted);
-    },
-  );
-
+test("legacy v1 credentials remain readable during migration", () => {
+  const encrypted = legacyEncrypt("old-camera-password", "legacy-session-secret");
+  assert.equal(decryptSecretWithKeyring(encrypted, keyring), "old-camera-password");
+  const rotated = reencryptSecretWithKeyring(encrypted, keyring);
   assert.equal(rotated.changed, true);
-  assert.notEqual(rotated.value, oldEncrypted);
-
-  withEnv({ NODE_ENV: "production", SECRET_ENCRYPTION_KEY: "new-credential-key" }, () => {
-    assert.equal(decryptSecret(rotated.value), "obs-password");
-  });
-
-  withEnv({ NODE_ENV: "production", SECRET_ENCRYPTION_KEY: "old-credential-key" }, () => {
-    assert.equal(decryptSecret(rotated.value), null);
-  });
+  assert.match(rotated.value || "", /^enc:v2:test-v2:/);
+  assert.equal(decryptSecretWithKeyring(rotated.value, keyring), "old-camera-password");
 });
 
-test("secret helper preserves local dev credentials encrypted with the legacy fallback", () => {
-  const oldEncrypted = withEnv(
-    { NODE_ENV: "development", SECRET_ENCRYPTION_KEY: "ptzcommand-dev-session-secret" },
-    () => encryptSecret("dev-camera-password"),
-  );
-
-  withEnv({ NODE_ENV: "development" }, () => {
-    assert.equal(decryptSecret(oldEncrypted), "dev-camera-password");
-    const rotated = reencryptSecret(oldEncrypted);
-    assert.equal(rotated.changed, true);
-    assert.equal(decryptSecret(rotated.value), "dev-camera-password");
+test("production can migrate credentials written by the original development fallback", () => {
+  const encrypted = legacyEncrypt("old-development-password", "ptzcommand-dev-session-secret");
+  const productionKeyring = secretKeyringFromEnv({
+    NODE_ENV: "production",
+    SESSION_SECRET: "a-production-session-secret-with-32-characters",
+    SECRET_ENCRYPTION_KEY_ID: "prod-v1",
+    SECRET_ENCRYPTION_KEY: "a-production-key-with-at-least-32-characters",
   });
+  assert.equal(decryptSecretWithKeyring(encrypted, productionKeyring), "old-development-password");
+});
+
+test("unknown or wrong keys fail visibly", () => {
+  const encrypted = encryptSecretWithKeyring("camera-password", keyring);
+  const wrongKeyring: SecretKeyring = {
+    activeId: "other",
+    keys: new Map([["other", "another-long-test-key-material-value"]]),
+    legacyMaterials: [],
+  };
+  assert.throws(() => decryptSecretWithKeyring(encrypted, wrongKeyring), SecretDecryptionError);
+});
+
+test("plaintext values that resemble an envelope are encrypted normally", () => {
+  const plaintext = "enc:v2:not-a-real-envelope";
+  const encrypted = encryptSecretWithKeyring(plaintext, keyring);
+  assert.notEqual(encrypted, plaintext);
+  assert.equal(decryptSecretWithKeyring(encrypted, keyring), plaintext);
+});
+
+test("a matching duplicate migration key is tolerated during atomic key-file swaps", () => {
+  const configured = secretKeyringFromEnv({
+    NODE_ENV: "production",
+    SECRET_ENCRYPTION_KEY_ID: "prod-v2",
+    SECRET_ENCRYPTION_KEY: "a-production-key-with-at-least-32-characters",
+    SECRET_ENCRYPTION_PREVIOUS_KEYS: JSON.stringify({
+      "prod-v2": "a-production-key-with-at-least-32-characters",
+    }),
+  });
+  assert.equal(configured.keys.size, 1);
+});
+
+test("production requires independent encryption configuration", () => {
+  assert.throws(() => secretKeyringFromEnv({ NODE_ENV: "production" }), /must be set/);
+  const configured = secretKeyringFromEnv({
+    NODE_ENV: "production",
+    SECRET_ENCRYPTION_KEY_ID: "prod-v1",
+    SECRET_ENCRYPTION_KEY: "a-production-key-with-at-least-32-characters",
+  });
+  assert.equal(configured.activeId, "prod-v1");
 });

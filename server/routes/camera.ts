@@ -475,6 +475,17 @@ function stopPreviewHub(hub: FfmpegPreviewHub) {
   }
 }
 
+export function shutdownCameraPreviewStreams() {
+  for (const hub of activeFfmpegPreviewSessions.values()) {
+    for (const client of hub.clients) {
+      if (!client.destroyed) client.end();
+    }
+    hub.clients.clear();
+    stopPreviewHub(hub);
+  }
+  activeFfmpegPreviewSessions.clear();
+}
+
 function attachPreviewHeaders(res: Response) {
   if (res.headersSent || res.destroyed) return;
   res.setHeader("Content-Type", "multipart/x-mixed-replace; boundary=frame");
@@ -632,7 +643,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
           ? [parsed.data.subnet]
           : getDefaultSubnets();
       if (subnets.length === 0) {
-        return res.status(400).json({ message: "No local private IPv4 subnet found. Enter a subnet manually, for example 192.168.0.0/24." });
+        return res.status(400).json({ message: "No local private IPv4 subnet found. Enter a subnet manually, for example your LAN CIDR subnet." });
       }
 
       const ports = Array.from(new Set(parsed.data.ports?.length ? parsed.data.ports : DEFAULT_VISCA_PORTS));
