@@ -55,7 +55,7 @@ function BridgeSetup({ onAdded }: { onAdded: () => void }) {
         </div>
         <div className="space-y-1">
           <Label className="text-slate-600 dark:text-slate-300">Bridge IP Address</Label>
-          <Input data-testid="input-bridge-ip" value={ip} onChange={e => setIp(e.target.value)} placeholder="192.168.1.100" />
+          <Input data-testid="input-bridge-ip" value={ip} onChange={e => setIp(e.target.value)} placeholder="Device host or IP" />
         </div>
       </div>
       <div className="space-y-1">

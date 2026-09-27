@@ -1,5 +1,6 @@
 import osc from "osc";
 import { logger } from "./logger";
+import { ExponentialBackoff } from "./reconnect";
 
 export interface X32Config {
   ip: string;
@@ -25,14 +26,18 @@ const SECTION_CONFIG: Record<MixerSection, { count: number; oscPrefix: string; p
   dca:   { count: 8,  oscPrefix: "/dca",   padDigits: 1, faderPath: "fader",     mutePath: "on",     namePath: "" },
   main:  { count: 1,  oscPrefix: "/main/st", padDigits: 0, faderPath: "mix/fader", mutePath: "mix/on", namePath: "" },
 };
+const MIXER_SECTIONS = Object.keys(SECTION_CONFIG) as MixerSection[];
 
 export class X32Client {
   private udpPort: InstanceType<typeof osc.UDPPort> | null = null;
   private connected: boolean = false;
+  private verified: boolean = false;
   private keepAliveInterval: NodeJS.Timeout | null = null;
+  private lastMessageAt = 0;
   private config: X32Config;
   private sectionStates: Map<string, ChannelState> = new Map();
   private onStateChange: ((section: MixerSection, states: ChannelState[]) => void) | null = null;
+  private onDisconnect: (() => void) | null = null;
 
   constructor(config: X32Config) {
     this.config = config;
@@ -42,11 +47,15 @@ export class X32Client {
     this.onStateChange = callback;
   }
 
+  setDisconnectCallback(callback: (() => void) | null) {
+    this.onDisconnect = callback;
+  }
+
   async connect(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
         this.udpPort = new osc.UDPPort({
-          localAddress: "0.0.0.0",
+          localAddress: process.env.X32_LOCAL_ADDRESS || "0.0.0.0",
           localPort: 0,
           remoteAddress: this.config.ip,
           remotePort: this.config.port,
@@ -54,27 +63,36 @@ export class X32Client {
         });
 
         this.udpPort.on("ready", () => {
-          logger.info("mixer", `X32 connected to ${this.config.ip}:${this.config.port}`, { action: "x32_connected", details: { ip: this.config.ip, port: this.config.port } });
+          logger.info("mixer", `X32 UDP transport ready for ${this.config.ip}:${this.config.port}; waiting for mixer response`, { action: "x32_transport_ready", details: { ip: this.config.ip, port: this.config.port } });
           this.connected = true;
+          this.verified = false;
+          this.lastMessageAt = Date.now();
           this.startKeepAlive();
           this.queryInitialState();
-          resolve(true);
         });
 
         this.udpPort.on("error", (error: Error) => {
+          if (!this.connected) return;
           logger.error("mixer", `X32 connection error: ${error.message}`, { action: "x32_error", details: { ip: this.config.ip, port: this.config.port, error: error.message } });
-          this.connected = false;
+          this.handleTransportLoss();
           resolve(false);
         });
 
         this.udpPort.on("message", (oscMsg: { address: string; args: Array<{ value: unknown }> }) => {
+          this.lastMessageAt = Date.now();
+          if (!this.verified) {
+            this.verified = true;
+            logger.info("mixer", `X32 responded at ${this.config.ip}:${this.config.port}`, { action: "x32_connected", details: { ip: this.config.ip, port: this.config.port } });
+            resolve(true);
+          }
           this.handleMessage(oscMsg);
         });
 
         this.udpPort.open();
 
         setTimeout(() => {
-          if (!this.connected) {
+          if (!this.verified) {
+            this.handleTransportLoss();
             resolve(false);
           }
         }, X32Client.CONNECTION_TIMEOUT_MS);
@@ -94,19 +112,27 @@ export class X32Client {
       this.udpPort.close();
     }
     this.connected = false;
+    this.verified = false;
+    this.clearState();
     logger.info("mixer", "X32 disconnected", { action: "x32_disconnected" });
   }
 
   isConnected(): boolean {
-    return this.connected;
+    return this.connected && this.verified;
   }
 
   private static readonly KEEP_ALIVE_INTERVAL_MS = 9000;
   private static readonly CONNECTION_TIMEOUT_MS = 5000;
+  private static readonly SILENCE_TIMEOUT_MS = 30_000;
 
   private startKeepAlive() {
     this.keepAliveInterval = setInterval(() => {
       if (this.connected) {
+        if (Date.now() - this.lastMessageAt > X32Client.SILENCE_TIMEOUT_MS) {
+          logger.warn("mixer", "X32 stopped responding", { action: "x32_silence_timeout" });
+          this.handleTransportLoss();
+          return;
+        }
         this.send("/xremote", []);
       }
     }, X32Client.KEEP_ALIVE_INTERVAL_MS);
@@ -114,6 +140,24 @@ export class X32Client {
 
   private stateKey(section: MixerSection, channel: number): string {
     return `${section}:${channel}`;
+  }
+
+  private clearState() {
+    if (this.sectionStates.size === 0) return;
+    this.sectionStates.clear();
+    for (const section of MIXER_SECTIONS) this.onStateChange?.(section, []);
+  }
+
+  private handleTransportLoss() {
+    const wasConnected = this.connected;
+    this.connected = false;
+    this.verified = false;
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
+    this.clearState();
+    if (wasConnected) this.onDisconnect?.();
   }
 
   private queryInitialState() {
@@ -299,6 +343,11 @@ export class X32Client {
 class X32Manager {
   private client: X32Client | null = null;
   private stateCallback: ((section: MixerSection, states: ChannelState[]) => void) | null = null;
+  private config: X32Config | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private backoff = new ExponentialBackoff();
+  private disabled = false;
+  private connectionCallback: ((status: "online" | "offline" | "reconnecting") => void) | null = null;
 
   setStateChangeCallback(callback: (section: MixerSection, states: ChannelState[]) => void) {
     this.stateCallback = callback;
@@ -307,25 +356,44 @@ class X32Manager {
     }
   }
 
+  setConnectionChangeCallback(callback: ((status: "online" | "offline" | "reconnecting") => void) | null) {
+    this.connectionCallback = callback;
+  }
+
   async connect(ip: string, port: number = 10023): Promise<boolean> {
+    this.config = { ip, port };
+    this.disabled = false;
+    this.clearReconnectTimer();
     if (this.client) {
+      this.client.setDisconnectCallback(null);
       this.client.disconnect();
     }
     
     this.client = new X32Client({ ip, port });
+    this.client.setDisconnectCallback(() => this.scheduleReconnect("socket_error"));
     
     if (this.stateCallback) {
       this.client.setStateChangeCallback(this.stateCallback);
     }
     
-    return await this.client.connect();
+    const connected = await this.client.connect();
+    if (connected) {
+      this.backoff.reset();
+      this.connectionCallback?.("online");
+    }
+    else this.scheduleReconnect("connect_failed");
+    return connected;
   }
 
   disconnect() {
+    this.disabled = true;
+    this.clearReconnectTimer();
     if (this.client) {
       this.client.disconnect();
       this.client = null;
     }
+    this.config = null;
+    this.connectionCallback?.("offline");
   }
 
   getClient(): X32Client | null {
@@ -334,6 +402,31 @@ class X32Manager {
 
   isConnected(): boolean {
     return this.client?.isConnected() || false;
+  }
+
+  private clearReconnectTimer() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  private scheduleReconnect(reason: string) {
+    if (this.disabled || this.reconnectTimer || !this.config) return;
+    const delayMs = this.backoff.nextDelayMs();
+    this.connectionCallback?.("reconnecting");
+    logger.warn("mixer", `Scheduling X32 reconnect in ${delayMs}ms`, {
+      action: "x32_reconnect_scheduled",
+      details: { ...this.config, reason, delayMs },
+    });
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (!this.config || this.disabled) return;
+      this.connect(this.config.ip, this.config.port).catch((error) => {
+        logger.error("mixer", `X32 reconnect failed: ${error instanceof Error ? error.message : String(error)}`, {
+          action: "x32_reconnect_error",
+        });
+        this.scheduleReconnect("reconnect_error");
+      });
+    }, delayMs);
   }
 }
 

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { hasRequiredRole, resolveWsUser, wsCommandRequiresOperator } from "./auth";
+import { hasRequiredRole, registerApiAccessRule, resolveWsUser, sanitizeUser, wsCommandRequiresOperator } from "./auth";
 import { cameraManager } from "./visca";
 import { x32Manager } from "./x32";
 import { atemManager } from "./atem";
@@ -13,8 +13,10 @@ import { APP_VERSION } from "@shared/version";
 import { insertPresetSchema } from "@shared/schema";
 import { describeLiveWsCommandError, parseLiveWsCommand } from "@shared/live-ws-commands";
 import { isRehearsalMode } from "./rehearsal";
+import { getLiveAppState, patchLiveAppState } from "./live-state";
 import http from "http";
 import https from "https";
+import rateLimit from "express-rate-limit";
 import type { UndoAction, SessionLogEntry, RouteContext } from "./routes/types";
 import { fromError } from "zod-validation-error";
 import {
@@ -31,6 +33,7 @@ import {
   registerDisplayRoutes,
   registerSystemRoutes,
 } from "./routes/index";
+import { shutdownCameraPreviewStreams } from "./routes/camera";
 
 const undoStack: UndoAction[] = [];
 const MAX_UNDO = 50;
@@ -44,6 +47,16 @@ let sessionLogId = 0;
 const sessionLog: SessionLogEntry[] = [];
 const MAX_SESSION_LOG = 500;
 let broadcastFn: ((msg: Record<string, unknown>) => void) | null = null;
+const LIVE_WS_COMMAND_LIMIT = 240;
+const LIVE_WS_COMMAND_WINDOW_MS = 60_000;
+
+const liveStateRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many live-state updates; wait a minute and try again" },
+});
 
 async function captureSnapshot(url: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -90,7 +103,7 @@ function addSessionLog(category: SessionLogEntry["category"], action: string, de
 export async function registerRoutes(
   httpServer: Server,
   app: Express
-): Promise<Server> {
+): Promise<{ server: Server; shutdown: () => Promise<void> }> {
 
   setupAuditLogging();
   logger.info("system", `Application started — PTZ Command v${APP_VERSION}`);
@@ -150,9 +163,35 @@ export async function registerRoutes(
   registerRunsheetRoutes(ctx);
   registerLightingRoutes(ctx);
   registerDisplayRoutes(ctx);
+  registerApiAccessRule(["PATCH"], /^\/api\/live-state$/, "operator");
+
+  app.get("/api/live-state", (_req, res) => {
+    res.json(getLiveAppState());
+  });
+
+  app.patch("/api/live-state", liveStateRateLimiter, (req, res) => {
+    try {
+      const state = patchLiveAppState(req.body);
+      broadcast({ type: "live_state", state });
+      res.json(state);
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "Invalid live-state update" });
+    }
+  });
 
   x32Manager.setStateChangeCallback((section, states) => {
     broadcast({ type: "mixer_state", section, channels: states });
+  });
+  x32Manager.setConnectionChangeCallback((status) => {
+    void storage.getAllMixers().then(async ([mixer]) => {
+      if (mixer) await storage.updateMixerStatus(mixer.id, status);
+      broadcast({ type: "invalidate", keys: ["mixers", "health-devices", "mixer-status"] });
+    }).catch((error) => {
+      logger.error("mixer", `Could not persist X32 ${status} status`, {
+        action: "x32_status_update_error",
+        details: errorDetails(error),
+      });
+    });
   });
 
   let previousTallyMap: Map<number, string> = new Map();
@@ -220,6 +259,10 @@ export async function registerRoutes(
 
     ws.send(JSON.stringify({ type: "version", version: APP_VERSION }));
     ws.send(JSON.stringify({ type: "auth", user: currentUser }));
+    ws.send(JSON.stringify({ type: "live_state", state: getLiveAppState() }));
+    let commandWindowStartedAt = Date.now();
+    let commandCount = 0;
+    let authorizedUser = currentUser;
 
     const mixerClient = x32Manager.getClient();
     if (mixerClient && mixerClient.isConnected()) {
@@ -262,7 +305,31 @@ export async function registerRoutes(
         }
 
         const message = parsedMessage.data;
-        if (wsCommandRequiresOperator(message.type) && !hasRequiredRole(currentUser.role, "operator")) {
+        const now = Date.now();
+        if (now - commandWindowStartedAt > LIVE_WS_COMMAND_WINDOW_MS) {
+          commandWindowStartedAt = now;
+          commandCount = 0;
+        }
+        commandCount += 1;
+        if (commandCount > LIVE_WS_COMMAND_LIMIT) {
+          logger.warn("websocket", "Rejected live command because this client exceeded the command rate limit", {
+            action: "ws_command_rate_limited",
+            details: { userId: authorizedUser.id, command: message.type },
+          });
+          ws.send(JSON.stringify({ type: "command_error", command: message.type, commandId: message.commandId, message: "Too many live commands; slow down and try again." }));
+          return;
+        }
+
+        if (authorizedUser.id !== 0) {
+          const refreshedUser = await storage.getUserById(authorizedUser.id);
+          if (!refreshedUser || !refreshedUser.isActive) {
+            ws.close(4403, "Account access revoked");
+            return;
+          }
+          authorizedUser = sanitizeUser(refreshedUser);
+        }
+
+        if (wsCommandRequiresOperator(message.type) && !hasRequiredRole(authorizedUser.role, "operator")) {
           ws.send(JSON.stringify({ type: "permission_error", command: message.type, commandId: message.commandId, message: "Operator access required for live control." }));
           return;
         }
@@ -703,11 +770,11 @@ export async function registerRoutes(
     });
 
     ws.on("close", () => {
-      logger.info("websocket", "Client disconnected", { action: "ws_disconnect", userId: String(currentUser.id) });
+      logger.info("websocket", "Client disconnected", { action: "ws_disconnect", userId: String(authorizedUser.id) });
     });
   });
 
-  setTimeout(async () => {
+  const initializationTimer = setTimeout(async () => {
     try {
       const cameras = await storage.getAllCameras();
       for (const camera of cameras) {
@@ -775,5 +842,28 @@ export async function registerRoutes(
     }
   }, 1000);
 
-  return httpServer;
+  return {
+    server: httpServer,
+    shutdown: async () => {
+      clearTimeout(initializationTimer);
+      broadcastFn = null;
+      for (const client of wss.clients) {
+        client.close(1012, "Server restarting");
+      }
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(resolve, 1_000);
+        timeout.unref();
+        wss.close(() => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+      shutdownCameraPreviewStreams();
+      cameraManager.disconnectAll();
+      x32Manager.setConnectionChangeCallback(null);
+      x32Manager.disconnect();
+      atemManager.disconnect();
+      obsManager.disconnect();
+    },
+  };
 }

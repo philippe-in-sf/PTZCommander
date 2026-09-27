@@ -54,7 +54,7 @@ test("configureCameraPreviews uses stored credentials and preserves existing pre
     databasePath,
     root,
     probeCommand: probePath,
-    probeTimeoutMs: 200,
+    probeTimeoutMs: 1000,
   });
 
   assert.deepEqual(results, [

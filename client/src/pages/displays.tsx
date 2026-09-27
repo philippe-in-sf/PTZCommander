@@ -300,7 +300,7 @@ function LocalSamsungSetupPanel() {
         </div>
         <div className="space-y-1">
           <Label>IP Address</Label>
-          <Input value={manualIp} onChange={(event) => setManualIp(event.target.value)} placeholder="192.168.0.50" data-testid="input-display-ip" />
+          <Input value={manualIp} onChange={(event) => setManualIp(event.target.value)} placeholder="Display host or IP" data-testid="input-display-ip" />
         </div>
         <div className="space-y-1">
           <Label>Port</Label>
@@ -423,7 +423,7 @@ function LocalHisenseSetupPanel() {
         </div>
         <div className="space-y-1">
           <Label>IP Address</Label>
-          <Input value={manualIp} onChange={(event) => setManualIp(event.target.value)} placeholder="192.168.0.60" data-testid="input-hisense-display-ip" />
+          <Input value={manualIp} onChange={(event) => setManualIp(event.target.value)} placeholder="Display host or IP" data-testid="input-hisense-display-ip" />
         </div>
         <div className="space-y-1">
           <Label>Port</Label>

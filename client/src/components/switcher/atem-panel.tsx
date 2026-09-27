@@ -116,7 +116,7 @@ export function AtemPanel({ collapsed = false }: AtemPanelProps) {
                     id="switcher-ip"
                     value={newSwitcher.ip}
                     onChange={(e) => setNewSwitcher({ ...newSwitcher, ip: e.target.value })}
-                    placeholder="192.168.1.100"
+                    placeholder="Device host or IP"
                     data-testid="input-switcher-ip"
                   />
                 </div>

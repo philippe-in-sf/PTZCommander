@@ -1,6 +1,6 @@
 # PTZ Command - Camera & Audio Control System
 
-Current version: **1.7.12**
+Current version: **1.9.0**
 A professional PTZ camera, audio mixer, and video switcher controller for use with OBS, ATEM, and other broadcast software. Control up to 4 PTZ cameras via VISCA over IP, one Behringer X32 audio mixer via OSC, and one Blackmagic ATEM video switcher — all from a single interface.
 ****** THIS IS STILL IN DEVELOPMENT.  NOT PRODUCTION READY *****
 
@@ -162,7 +162,6 @@ If you prefer PostgreSQL instead of SQLite, set up a database and create a `.env
 ```env
 DATABASE_URL=postgresql://username:password@localhost:5432/ptz_command
 SESSION_SECRET=change-this-in-production
-SECRET_ENCRYPTION_KEY=change-this-too
 ```
 
 Then push the schema:
@@ -177,49 +176,53 @@ The app will automatically detect and use PostgreSQL when `DATABASE_URL` is set.
 
 - On a brand-new install, open PTZ Command once and create the first admin account.
 - After that, admins can create additional viewer, operator, or admin users from the in-app **Users** page.
-- For shared deployments, set `SESSION_SECRET` and `SECRET_ENCRYPTION_KEY` explicitly before running the app. Keep them different: session cookies and stored camera/OBS/Hue/display credentials should not share one secret.
-- To rotate stored-credential encryption, set the new `SECRET_ENCRYPTION_KEY` and put the previous key in `SECRET_ENCRYPTION_PREVIOUS_KEY` or comma-separated `SECRET_ENCRYPTION_PREVIOUS_KEYS`, then start the app once. Startup re-encrypts stored credentials under the new key; remove the previous-key setting after the app has started successfully. Older installs that encrypted credentials with `SESSION_SECRET` should use that old session secret as the previous key for the first startup. Rotating without the previous key leaves existing encrypted credentials unreadable.
+- For shared deployments, set `SESSION_SECRET` explicitly before running the app.
 
-### LAN Hosting
+### Secure LAN Hosting
 
-For a shared station on your local network, run the production build on one host machine and open it from other computers in a browser:
-
-```bash
-npm run build
-PORT=3478 SESSION_SECRET=change-this SECRET_ENCRYPTION_KEY=change-this-too npm run start
-```
-
-The server listens on `0.0.0.0`, so other machines on the same network can connect to:
-
-```text
-http://your-hostname.local:3478
-```
-
-On macOS, this repo also includes a background service installer:
+For a shared station, use the bundled launchd and Caddy setup so login credentials and control commands are encrypted in transit:
 
 ```bash
 npm run build
 ./deploy/install-launchd.sh
 ```
 
-That installs a `launchd` agent, keeps PTZ Command running after login, and writes logs to `~/Library/Logs/PTZCommand`.
+The default deployment listens only on `127.0.0.1`, trusts only the loopback proxy, and requires secure session cookies. Complete the Caddy setup in [`deploy/SECURE_DEPLOYMENT.md`](deploy/SECURE_DEPLOYMENT.md), then connect at:
 
-The installer launches the built `dist/index.cjs` file with the detected Node binary, then checks `http://127.0.0.1:$PORT/api/version` before declaring victory. It stores the session secret and credential-encryption key in separate local files under `deploy/`. On upgrade from older launchd installs, first creation of the encryption key also writes the existing session secret as the previous encryption key so startup can re-encrypt stored credentials. The self-check prints the live app version, working directory, Node version, runtime PID, and launchd PID. It exits nonzero if the build is stale, the running service is missing runtime metadata, reports a different app version, points at a different checkout, or if another process is still answering on the port. Use `PTZCOMMAND_SELF_CHECK_TIMEOUT=60 ./deploy/install-launchd.sh` if the Mac needs more startup time.
-
-The launchd installer requires a Node 24 binary. It checks `PTZCOMMAND_NODE_BIN` first, then common Homebrew Node 24 paths, then the `node` on `PATH`; anything outside Node 24 fails before the plist is installed.
-
-### Native macOS App
-
-PTZ Command can also run in its own macOS window while the browser and LAN versions remain available. The native bundle includes the production client, server, Node runtime, and required dependencies. It does not launch Chrome.
-
-```bash
-./deploy/build-macos-app.sh
-open "$HOME/Applications/PTZ Commander.app"
+```text
+https://your-hostname.local
 ```
 
-The build script installs an ad-hoc-signed app in `~/Applications`. When the existing PTZ Command background service is available, the app reuses it so both interfaces share configuration and only one process controls the hardware. If the service is not running, the app starts its bundled server automatically and stores standalone data under `~/Library/Application Support/PTZ Command`. Browsers can still connect to port 3478 or the host's `.local` LAN address.
+Browser tablets authenticate with the normal login session. Headless bridge/API clients must send
+`Authorization: Bearer <BRIDGE_AUTH_TOKEN>` when calling protected control endpoints or opening the live-control WebSocket.
 
-The build also publishes `dist/PTZ-Commander-macOS.zip`. A thick client connected to the local thin client compares its `CFBundleShortVersionString` with `/api/version`; when the thin client is newer, it reads `/api/desktop-update`, offers **Upgrade and Relaunch**, verifies the archive size and SHA-256 digest, validates the bundle identity/version and code signature, then replaces the current app with rollback protection. Use **PTZ Commander → Check for Updates…** to run the check manually. The update package can be served from another absolute path by setting `PTZCOMMAND_DESKTOP_UPDATE_PATH` on the thin-client server.
+Useful LAN/runtime address overrides:
+
+- `PTZ_HOST` or `HOST`: HTTP server bind address, default `0.0.0.0`
+- `PTZ_TRUST_PROXY`: trusted proxy CIDR/name or hop count; use `loopback` with the bundled Caddyfile and never use `true`
+- `VITE_DEV_HOST`: Vite dev-server bind address, default `0.0.0.0`
+- `X32_LOCAL_ADDRESS`: local OSC bind address for the X32 adapter, default `0.0.0.0`
+- `SSDP_MULTICAST_ADDRESS`, `SAMSUNG_SSDP_ADDRESS`, or `HISENSE_SSDP_ADDRESS`: display discovery multicast address, default `239.255.255.250`
+- `VITE_DEFAULT_OBS_HOST`: default OBS host shown in setup forms, default `127.0.0.1`
+- `VITE_DEFAULT_CAMERA_WHEP_URL`: default WHEP preview URL hint, default `http://127.0.0.1:8080/camera/whep`
+- `PTZCOMMAND_SELF_CHECK_HOST`: launchd installer self-check host, default `127.0.0.1`
+
+### Configuration Backup
+
+Admins can use the header **Config** menu to export or import station configuration. The backup includes cameras, presets, mixers, switchers, OBS, Hue bridges, displays, scenes, macros, layouts, runsheet cues, plus browser preferences such as theme and skin. User accounts are not overwritten by imports.
+
+On macOS, this repo includes a background service installer:
+
+```bash
+npm run build
+./deploy/install-launchd.sh
+```
+
+That installs a loopback-only `launchd` agent, keeps PTZ Command running after login, creates independent session, bridge, and credential-encryption secrets, and writes logs to `~/Library/Logs/PTZCommand`. Direct LAN HTTP is still available for isolated networks with `PTZCOMMAND_DEPLOYMENT_MODE=lan-http ./deploy/install-launchd.sh`, but it is intentionally not the default.
+
+The installer launches the built `dist/index.cjs` file with the detected Node binary, then checks `http://$PTZCOMMAND_SELF_CHECK_HOST:$PORT/api/version` before declaring victory. The self-check host defaults to `127.0.0.1`. The self-check prints the live app version, working directory, Node version, runtime PID, and launchd PID. It exits nonzero if the build is stale, the running service is missing runtime metadata, reports a different app version, points at a different checkout, or if another process is still answering on the port. Use `PTZCOMMAND_SELF_CHECK_TIMEOUT=60 ./deploy/install-launchd.sh` if the Mac needs more startup time.
+
+The launchd installer requires a Node 24 binary. It checks `PTZCOMMAND_NODE_BIN` first, then common Homebrew Node 24 paths, then the `node` on `PATH`; anything outside Node 24 fails before the plist is installed.
 
 ## Camera Setup
 

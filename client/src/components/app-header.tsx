@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { ChevronDown, Video, Radio, Lock, LogOut, Plus } from "lucide-react";
+import { useRef } from "react";
+import { ChevronDown, Video, Radio, Lock, LogOut, Plus, Download, Upload } from "lucide-react";
 import { ChangelogDialog } from "@/components/changelog-dialog";
 import { BrandLogo } from "@/components/branding/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -12,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { useSkin } from "@/lib/skin-context";
 import { useAuth } from "@/lib/auth";
 import { useDeviceSetup } from "@/hooks/use-device-setup";
+import { configApi } from "@/lib/api";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -162,6 +165,92 @@ function UserMenu() {
   );
 }
 
+const BROWSER_SETTING_KEYS = [
+  "ptzcommand-theme",
+  "ptzcommand-skin",
+  "ptz.discovery.firstRunPrompted",
+];
+
+function ConfigMenu() {
+  const { isAdmin } = useAuth();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  if (!isAdmin) return null;
+
+  async function exportConfig() {
+    try {
+      const config = await configApi.exportConfig();
+      config.browserSettings = Object.fromEntries(
+        BROWSER_SETTING_KEYS
+          .map((key) => [key, localStorage.getItem(key)])
+          .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      );
+      const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ptz-command-config-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("Configuration exported");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Configuration export failed");
+    }
+  }
+
+  async function importConfig(file: File) {
+    try {
+      const parsed = JSON.parse(await file.text());
+      await configApi.importConfig(parsed);
+      if (parsed.browserSettings && typeof parsed.browserSettings === "object") {
+        for (const key of BROWSER_SETTING_KEYS) {
+          const value = parsed.browserSettings[key];
+          if (typeof value === "string") localStorage.setItem(key, value);
+        }
+      }
+      toast.success("Configuration imported");
+      window.setTimeout(() => window.location.reload(), 500);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Configuration import failed");
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          if (file) void importConfig(file);
+        }}
+      />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2" data-testid="button-config-menu">
+            <Download className="h-4 w-4" />
+            Config
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => void exportConfig()} className="cursor-pointer" data-testid="button-export-config">
+            <Download className="mr-2 h-4 w-4" />
+            Export configuration
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => inputRef.current?.click()} className="cursor-pointer" data-testid="button-import-config">
+            <Upload className="mr-2 h-4 w-4" />
+            Import configuration
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
+
 function AddDeviceAction({ compact = false }: { compact?: boolean }) {
   const { isAdmin } = useAuth();
   const { openDeviceSetup } = useDeviceSetup();
@@ -218,6 +307,7 @@ function ClassicHeader({ activePage, rightContent }: AppHeaderProps) {
         {rightContent}
         <SkinSelector />
         <ThemeToggle />
+        <ConfigMenu />
         <LayoutSelector />
         <LogViewer />
         <UserMenu />

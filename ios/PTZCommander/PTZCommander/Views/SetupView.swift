@@ -17,7 +17,7 @@ struct SetupView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Server")
                         .font(.headline)
-                    TextField("http://192.168.0.96:4101", text: $appState.serverAddress)
+                    TextField("http://ptzcommand.local:3478", text: $appState.serverAddress)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                         .autocorrectionDisabled()

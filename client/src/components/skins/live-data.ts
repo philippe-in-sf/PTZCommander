@@ -4,6 +4,7 @@ import { mixerApi, sceneButtonApi } from "@/lib/api";
 import type { PTZWebSocket } from "@/lib/websocket";
 import type { SceneButton } from "@shared/schema";
 import { toast } from "sonner";
+import { replaceMixerSection } from "@/lib/mixer-state";
 
 export type MixerLiveChannel = {
   channel: number;
@@ -55,18 +56,14 @@ export function useSkinMixerData(ws: PTZWebSocket, queryKeyPrefix: string) {
     if (!mixerStatus) return;
 
     setMixerChannelsByKey((prev) => {
-      const next = new Map(prev);
+      let next = new Map(prev);
 
       if (mixerStatus.sections) {
         for (const [section, channels] of Object.entries(mixerStatus.sections)) {
-          channels.forEach((channel) => {
-            next.set(mixerChannelKey(section, channel.channel), { ...channel, section });
-          });
+          next = replaceMixerSection(next, section, channels);
         }
       } else {
-        mixerStatus.channels.forEach((channel) => {
-          next.set(mixerChannelKey("ch", channel.channel), { ...channel, section: "ch" });
-        });
+        next = replaceMixerSection(next, "ch", mixerStatus.channels);
       }
 
       return next;
@@ -80,13 +77,7 @@ export function useSkinMixerData(ws: PTZWebSocket, queryKeyPrefix: string) {
         Array.isArray(message.channels)
       ) {
         const section = typeof message.section === "string" ? message.section : "ch";
-        setMixerChannelsByKey((prev) => {
-          const next = new Map(prev);
-          (message.channels as MixerLiveChannel[]).forEach((channel) => {
-            next.set(mixerChannelKey(section, channel.channel), { ...channel, section });
-          });
-          return next;
-        });
+        setMixerChannelsByKey((prev) => replaceMixerSection(prev, section, message.channels as MixerLiveChannel[]));
       }
     };
 

@@ -16,6 +16,7 @@ import {
   buildDesktopUpdateManifest,
   inspectDesktopUpdateArtifact,
 } from "../desktop-update";
+import { appConfigExportSchema } from "@shared/app-config";
 
 const execFileAsync = promisify(execFile);
 const desktopUpdateRateLimiter = rateLimit({
@@ -32,6 +33,126 @@ function getVersionMetadata() {
     workingDirectory: process.cwd(),
     nodeVersion: process.version,
     pid: process.pid,
+  };
+}
+
+function omitKeys<T extends Record<string, any>>(value: T, keys: string[]) {
+  const next = { ...value };
+  for (const key of keys) delete next[key];
+  return next;
+}
+
+function normalizeNullable<T extends Record<string, any>>(value: T, keys: string[]) {
+  const next: Record<string, any> = { ...value };
+  for (const key of keys) {
+    if (next[key] === undefined) next[key] = null;
+  }
+  return next;
+}
+
+async function buildAppConfigExport(storage: RouteContext["storage"]) {
+  const cameras = await storage.getAllCameras();
+  const presets = (await Promise.all(cameras.map((camera) => storage.getPresetsForCamera(camera.id)))).flat();
+
+  return {
+    type: "ptz-command-config" as const,
+    version: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: {
+      cameras,
+      presets,
+      mixers: await storage.getAllMixers(),
+      switchers: await storage.getAllSwitchers(),
+      sceneButtons: await storage.getAllSceneButtons(),
+      layouts: await storage.getAllLayouts(),
+      macros: await storage.getAllMacros(),
+      obsConnections: await storage.getAllObsConnections(),
+      runsheetCues: await storage.getAllRunsheetCues(),
+      hueBridges: await storage.getAllHueBridges(),
+      displayDevices: await storage.getAllDisplayDevices(),
+    },
+  };
+}
+
+async function clearConfig(storage: RouteContext["storage"]) {
+  for (const cue of await storage.getAllRunsheetCues()) await storage.deleteRunsheetCue(cue.id);
+  for (const layout of await storage.getAllLayouts()) await storage.deleteLayout(layout.id);
+  for (const scene of await storage.getAllSceneButtons()) await storage.deleteSceneButton(scene.id);
+  for (const macro of await storage.getAllMacros()) await storage.deleteMacro(macro.id);
+  for (const camera of await storage.getAllCameras()) await storage.deleteCamera(camera.id);
+  for (const mixer of await storage.getAllMixers()) await storage.deleteMixer(mixer.id);
+  for (const switcher of await storage.getAllSwitchers()) await storage.deleteSwitcher(switcher.id);
+  for (const obs of await storage.getAllObsConnections()) await storage.deleteObsConnection(obs.id);
+  for (const bridge of await storage.getAllHueBridges()) await storage.deleteHueBridge(bridge.id);
+  for (const display of await storage.getAllDisplayDevices()) await storage.deleteDisplayDevice(display.id);
+}
+
+async function importAppConfig(ctx: RouteContext, rawConfig: unknown) {
+  const parsed = appConfigExportSchema.parse(rawConfig);
+  const { storage, cameraManager, x32Manager, atemManager, obsManager } = ctx;
+
+  cameraManager.disconnectAll();
+  x32Manager.disconnect();
+  atemManager.disconnect();
+  obsManager.disconnect();
+  await clearConfig(storage);
+
+  const cameraIdMap = new Map<number, number>();
+  const sceneButtonIdMap = new Map<number, number>();
+  let activeLayoutId: number | null = null;
+
+  for (const item of parsed.data.cameras) {
+    const originalId = Number(item.id);
+    const created = await storage.createCamera(normalizeNullable(omitKeys(item, ["id", "createdAt", "status", "tallyState", "isProgramOutput", "isPreviewOutput"]), ["username", "password", "streamUrl", "atemInputId"]) as any);
+    if (Number.isFinite(originalId)) cameraIdMap.set(originalId, created.id);
+    if (item.isProgramOutput) await storage.setProgramCamera(created.id);
+    if (item.isPreviewOutput) await storage.setPreviewCamera(created.id);
+  }
+
+  for (const item of parsed.data.presets) {
+    const cameraId = cameraIdMap.get(Number(item.cameraId));
+    if (!cameraId) continue;
+    await storage.savePreset({ ...omitKeys(item, ["id", "createdAt", "updatedAt"]), cameraId } as any);
+  }
+
+  for (const item of parsed.data.mixers) await storage.createMixer(omitKeys(item, ["id", "createdAt", "status"]) as any);
+  for (const item of parsed.data.switchers) await storage.createSwitcher(omitKeys(item, ["id", "createdAt", "status"]) as any);
+  for (const item of parsed.data.macros) await storage.createMacro(omitKeys(item, ["id", "createdAt", "updatedAt"]) as any);
+  for (const item of parsed.data.obsConnections) await storage.createObsConnection(omitKeys(item, ["id", "createdAt", "status", "currentProgramScene", "studioMode"]) as any);
+  for (const item of parsed.data.hueBridges) await storage.createHueBridge(omitKeys(item, ["id", "createdAt", "status"]) as any);
+  for (const item of parsed.data.displayDevices) await storage.createDisplayDevice(omitKeys(item, ["id", "createdAt", "status", "powerState", "volume", "muted", "inputSource", "artModeStatus"]) as any);
+
+  for (const item of parsed.data.sceneButtons) {
+    const originalId = Number(item.id);
+    const cameraId = item.cameraId === null || item.cameraId === undefined ? null : cameraIdMap.get(Number(item.cameraId)) ?? null;
+    const created = await storage.createSceneButton({ ...omitKeys(item, ["id"]), cameraId } as any);
+    if (Number.isFinite(originalId)) sceneButtonIdMap.set(originalId, created.id);
+  }
+
+  for (const item of parsed.data.runsheetCues) {
+    const sceneButtonId = sceneButtonIdMap.get(Number(item.sceneButtonId));
+    if (!sceneButtonId) continue;
+    await storage.createRunsheetCue({ ...omitKeys(item, ["id", "createdAt", "updatedAt"]), sceneButtonId } as any);
+  }
+
+  for (const item of parsed.data.layouts) {
+    const created = await storage.createLayout(omitKeys(item, ["id", "createdAt", "updatedAt", "isActive"]) as any);
+    if (item.isActive) activeLayoutId = created.id;
+  }
+  if (activeLayoutId) await storage.setActiveLayout(activeLayoutId);
+
+  return {
+    cameras: parsed.data.cameras.length,
+    presets: parsed.data.presets.length,
+    mixers: parsed.data.mixers.length,
+    switchers: parsed.data.switchers.length,
+    sceneButtons: parsed.data.sceneButtons.length,
+    layouts: parsed.data.layouts.length,
+    macros: parsed.data.macros.length,
+    obsConnections: parsed.data.obsConnections.length,
+    runsheetCues: parsed.data.runsheetCues.length,
+    hueBridges: parsed.data.hueBridges.length,
+    displayDevices: parsed.data.displayDevices.length,
   };
 }
 
@@ -246,6 +367,8 @@ export function registerSystemRoutes(ctx: RouteContext) {
   registerApiAccessRule(["POST"], /^\/api\/rehearsal$/, "admin");
   registerApiAccessRule(["POST"], /^\/api\/undo$/, "operator");
   registerApiAccessRule(["GET"], /^\/api\/diagnostics\/bundle$/, "operator");
+  registerApiAccessRule(["GET"], /^\/api\/config\/export$/, "admin");
+  registerApiAccessRule(["POST"], /^\/api\/config\/import$/, "admin");
 
   app.get("/api/version", (_req, res) => {
     res.json(getVersionMetadata());
@@ -340,6 +463,55 @@ export function registerSystemRoutes(ctx: RouteContext) {
       res.json({ changelog: content });
     } catch {
       res.status(404).json({ message: "Changelog not found" });
+    }
+  });
+
+  app.get("/api/config/export", async (_req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json(await buildAppConfigExport(storage));
+    } catch (error: any) {
+      logger.error("system", "Failed to export configuration", {
+        action: "config_export_error",
+        details: { message: error?.message || String(error) },
+      });
+      res.status(500).json({ message: "Failed to export configuration" });
+    }
+  });
+
+  app.post("/api/config/import", async (req, res) => {
+    try {
+      const counts = await importAppConfig(ctx, req.body);
+      addSessionLog("system", "Configuration Imported", "Station configuration restored from backup");
+      logger.warn("system", "Configuration imported from backup", {
+        action: "config_import",
+        details: counts,
+      });
+      broadcast({
+        type: "invalidate",
+        keys: [
+          "cameras",
+          "presets",
+          "mixers",
+          "switchers",
+          "obs",
+          "scene-buttons",
+          "layouts",
+          "macros",
+          "runsheet-cues",
+          "hue-bridges",
+          "displays",
+          "health-devices",
+          "live-state",
+        ],
+      });
+      res.json({ success: true, counts });
+    } catch (error: any) {
+      logger.error("system", "Failed to import configuration", {
+        action: "config_import_error",
+        details: { message: error?.message || String(error) },
+      });
+      res.status(400).json({ message: error?.message || "Failed to import configuration" });
     }
   });
 

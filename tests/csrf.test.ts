@@ -80,3 +80,15 @@ test("CSRF middleware issues an XSRF cookie and requires it for unsafe API reque
     assert.deepEqual(await okResponse.json(), { ok: true });
   });
 });
+
+test("CSRF middleware allows bearer-authenticated bridge requests", async () => {
+  await withCsrfServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/action`, {
+      method: "POST",
+      headers: { Authorization: "Bearer bridge-test-token" },
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true });
+  });
+});

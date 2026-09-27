@@ -133,6 +133,7 @@ async function main() {
     }
   }
 
+  let installedLaunchd = false;
   if (process.platform === "darwin" && existsSync(join(root, "deploy", "install-launchd.sh"))) {
     if (await confirm("Install or update the macOS launchd service?")) {
       const launchd = await runCommand("sh", ["deploy/install-launchd.sh"], { cwd: root });
@@ -144,11 +145,17 @@ async function main() {
         process.exitCode = launchd.code || 1;
         return;
       }
+      installedLaunchd = true;
     }
   }
 
   console.log("");
-  console.log(`Setup check complete. Open http://127.0.0.1:${port}/`);
+  if (installedLaunchd && (process.env.PTZCOMMAND_DEPLOYMENT_MODE || "https-proxy") === "https-proxy") {
+    console.log("Setup check complete. Finish the Caddy steps in deploy/SECURE_DEPLOYMENT.md, then open the HTTPS address shown by the installer.");
+  } else {
+    const setupHost = process.env.PTZ_SETUP_URL_HOST || "127.0.0.1";
+    console.log(`Setup check complete. Open http://${setupHost}:${port}/`);
+  }
   if (!ffmpegAvailable || !ffprobeAvailable) {
     console.log("RTSP/RTP preview auto-configuration requires FFmpeg/FFprobe before it can verify streams.");
   } else {

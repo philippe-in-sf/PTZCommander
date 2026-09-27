@@ -3,6 +3,11 @@ import { patchSwitcherSchema, insertSwitcherSchema } from "@shared/schema";
 import { fromError } from "zod-validation-error";
 import { errorDetails, logger } from "../logger";
 import { registerApiAccessRule } from "../auth";
+import { z } from "zod";
+
+const switcherInputSchema = z.object({
+  inputId: z.number().int().min(0).max(100000),
+}).strict();
 
 const ATEM_CONTROL_TIMEOUT_STATUS = "control-timeout";
 const ATEM_CONTROL_TIMEOUT_MESSAGE =
@@ -155,7 +160,11 @@ export function registerSwitcherRoutes(ctx: RouteContext) {
 
   app.post("/api/switchers/:id/program", async (req, res) => {
     try {
-      const { inputId } = req.body;
+      const parsed = switcherInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: fromError(parsed.error).toString() });
+      }
+      const { inputId } = parsed.data;
       const client = atemManager.getClient();
       if (client && client.isConnected()) {
         await client.setProgramInput(inputId);
@@ -170,7 +179,11 @@ export function registerSwitcherRoutes(ctx: RouteContext) {
 
   app.post("/api/switchers/:id/preview", async (req, res) => {
     try {
-      const { inputId } = req.body;
+      const parsed = switcherInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: fromError(parsed.error).toString() });
+      }
+      const { inputId } = parsed.data;
       const client = atemManager.getClient();
       if (client && client.isConnected()) {
         await client.setPreviewInput(inputId);

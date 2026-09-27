@@ -13,6 +13,7 @@ import { Plus, Wifi, WifiOff, SlidersHorizontal, Settings, Trash2, AlertTriangle
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Mixer } from "@shared/schema";
+import { replaceMixerSection } from "@/lib/mixer-state";
 
 type MixerSection = "ch" | "bus" | "dca";
 
@@ -65,19 +66,13 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
   const handleMixerState = useCallback((message: Record<string, unknown>) => {
     if (message.type === "mixer_state" && Array.isArray(message.channels)) {
       const section = (message.section as string) || "ch";
-      setSectionStates(prev => {
-        const newMap = new Map(prev);
-        (message.channels as SectionChannelState[]).forEach((ch) => {
-          const key = `${section}:${ch.channel}`;
-          newMap.set(key, { ...ch, section });
-
-          if (section === "main" && ch.channel === 1) {
-            setMainFader(ch.fader);
-            setMainMuted(ch.muted);
-          }
-        });
-        return newMap;
-      });
+      const channels = message.channels as SectionChannelState[];
+      setSectionStates(prev => replaceMixerSection(prev, section, channels));
+      if (section === "main") {
+        const main = channels.find((channel) => channel.channel === 1);
+        setMainFader(main?.fader ?? 0);
+        setMainMuted(main?.muted ?? false);
+      }
     }
   }, []);
 
@@ -94,30 +89,20 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
     if (mixer && mixer.status === "online") {
       mixerApi.getStatus(mixer.id).then((status) => {
         if (status.sections) {
+          const main = status.sections.main?.[0];
+          setMainFader(main?.fader ?? 0);
+          setMainMuted(main?.muted ?? false);
           setSectionStates(prev => {
-            const newMap = new Map(prev);
+            let newMap = new Map(prev);
             const sections = status.sections!;
             for (const [section, channels] of Object.entries(sections)) {
-              (channels as SectionChannelState[]).forEach((ch) => {
-                const key = `${section}:${ch.channel}`;
-                newMap.set(key, { ...ch, section });
-              });
-            }
-            if (sections.main?.[0]) {
-              setMainFader(sections.main[0].fader);
-              setMainMuted(sections.main[0].muted);
+              newMap = replaceMixerSection(newMap, section, channels as SectionChannelState[]);
             }
             return newMap;
           });
         } else if (status.channels && status.channels.length > 0) {
-          setSectionStates(prev => {
-            const newMap = new Map(prev);
-            status.channels.forEach((ch: MixerChannelState) => {
-              const key = `ch:${ch.channel}`;
-              newMap.set(key, { ...ch, section: "ch" });
-            });
-            return newMap;
-          });
+          const channels = status.channels.map((channel: MixerChannelState) => ({ ...channel, section: "ch" }));
+          setSectionStates(prev => replaceMixerSection(prev, "ch", channels));
         }
       }).catch(() => {});
 
@@ -346,7 +331,7 @@ export function MixerPanel({ collapsed = false }: MixerPanelProps) {
                     id="mixer-ip"
                     value={newMixer.ip}
                     onChange={(e) => setNewMixer({ ...newMixer, ip: e.target.value })}
-                    placeholder="192.168.0.64"
+                    placeholder="Mixer host or IP"
                     data-testid="input-mixer-ip"
                   />
                 </div>

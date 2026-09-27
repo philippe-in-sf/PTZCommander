@@ -1,6 +1,7 @@
 import { createHash, pbkdf2Sync, randomUUID } from "crypto";
 import { WebSocket } from "ws";
 import { logger } from "./logger";
+import { ExponentialBackoff } from "./reconnect";
 
 const OBS_OP_HELLO = 0;
 const OBS_OP_IDENTIFY = 1;
@@ -130,6 +131,7 @@ export class ObsClient {
   private pending = new Map<string, PendingRequest>();
   private identified = false;
   private state: ObsState;
+  private onDisconnect: (() => void) | null = null;
 
   constructor(private config: ObsConfig, private onState?: StateCallback) {
     this.state = {
@@ -150,6 +152,10 @@ export class ObsClient {
 
   getState() {
     return this.state;
+  }
+
+  setDisconnectCallback(callback: (() => void) | null) {
+    this.onDisconnect = callback;
   }
 
   private setState(patch: Partial<ObsState>) {
@@ -211,6 +217,7 @@ export class ObsClient {
         });
 
         ws.on("close", (code, reason) => {
+          const wasIdentified = this.identified;
           const reasonText = reason.toString();
           const message = reasonText
             ? `OBS WebSocket closed ${code}: ${reasonText}`
@@ -220,6 +227,7 @@ export class ObsClient {
           this.setState({ connected: false, error: message });
           logger.info("switcher", message, { action: "obs_disconnected", details: { code, reason: reasonText } });
           settle(false, message);
+          if (wasIdentified) this.onDisconnect?.();
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -422,24 +430,42 @@ export class ObsClient {
 export class ObsManager {
   private client: ObsClient | null = null;
   private onState?: StateCallback;
+  private config: ObsConfig | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private backoff = new ExponentialBackoff();
+  private disabled = false;
 
   setStateChangeCallback(callback: StateCallback) {
     this.onState = callback;
   }
 
   async connect(config: ObsConfig) {
+    this.config = config;
+    this.disabled = false;
+    this.clearReconnectTimer();
     this.disconnect();
+    this.disabled = false;
+    this.config = config;
     this.client = new ObsClient(config, this.onState);
+    this.client.setDisconnectCallback(() => this.scheduleReconnect("disconnected"));
     const connected = await this.client.connect();
-    if (!connected) return false;
+    if (!connected) {
+      this.scheduleReconnect("connect_failed");
+      return false;
+    }
+    this.backoff.reset();
     return true;
   }
 
   disconnect() {
+    this.disabled = true;
+    this.clearReconnectTimer();
     if (this.client) {
+      this.client.setDisconnectCallback(null);
       this.client.disconnect();
       this.client = null;
     }
+    this.config = null;
   }
 
   getClient() {
@@ -448,6 +474,30 @@ export class ObsManager {
 
   getState() {
     return this.client?.getState() || null;
+  }
+
+  private clearReconnectTimer() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  private scheduleReconnect(reason: string) {
+    if (this.disabled || this.reconnectTimer || !this.config) return;
+    const delayMs = this.backoff.nextDelayMs();
+    logger.warn("switcher", `Scheduling OBS reconnect in ${delayMs}ms`, {
+      action: "obs_reconnect_scheduled",
+      details: { id: this.config.id, host: this.config.host, port: this.config.port, reason, delayMs },
+    });
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (!this.config || this.disabled) return;
+      this.connect(this.config).catch((error) => {
+        logger.error("switcher", `OBS reconnect failed: ${error instanceof Error ? error.message : String(error)}`, {
+          action: "obs_reconnect_error",
+        });
+        this.scheduleReconnect("reconnect_error");
+      });
+    }, delayMs);
   }
 
 }

@@ -29,11 +29,14 @@ declare global {
   }
 }
 
-if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
-  throw new Error("SESSION_SECRET must be set in production.");
+export function validateAuthConfiguration(env: NodeJS.ProcessEnv = process.env) {
+  if (env.NODE_ENV === "production" && !env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET must be set in production.");
+  }
 }
 
 const sessionSecret = process.env.SESSION_SECRET || "ptzcommand-dev-session-secret";
+const bridgeAuthToken = process.env.BRIDGE_AUTH_TOKEN || process.env.PTZ_BRIDGE_AUTH_TOKEN || "";
 const sessionCookieSecure =
   process.env.SESSION_COOKIE_SECURE === "true"
     ? true
@@ -112,6 +115,17 @@ const OPERATOR_WS_COMMANDS = new Set([
   "store_preset",
 ]);
 
+const bridgeUser: SafeUser = {
+  id: 0,
+  username: "bridge",
+  displayName: "Bridge Token",
+  role: "operator",
+  isActive: true,
+  lastLoginAt: null,
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+};
+
 export function normalizeUsername(username: string) {
   return username.trim().toLowerCase();
 }
@@ -123,6 +137,39 @@ export function sanitizeUser(user: User): SafeUser {
 
 export function hasRequiredRole(role: UserRole, requiredRole: UserRole) {
   return roleRank[role] >= roleRank[requiredRole];
+}
+
+function safeEqualString(a: string, b: string) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function bearerTokenFromHeader(header: unknown) {
+  if (typeof header !== "string") return null;
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+function resolveBridgeTokenUser(authorizationHeader: unknown) {
+  const token = bearerTokenFromHeader(authorizationHeader);
+  if (!token || !bridgeAuthToken) return null;
+  return safeEqualString(token, bridgeAuthToken) ? bridgeUser : null;
+}
+
+export function hasAllowedRequestOrigin(headers: IncomingMessage["headers"], protocol?: string) {
+  const origin = headers.origin;
+  if (!origin) return true;
+  const host = headers.host;
+  if (!host) return false;
+  try {
+    const parsed = new URL(origin);
+    const expectedProtocol = protocol?.replace(/:$/, "").toLowerCase();
+    return parsed.host.toLowerCase() === host.toLowerCase()
+      && (!expectedProtocol || parsed.protocol === `${expectedProtocol}:`);
+  } catch {
+    return false;
+  }
 }
 
 function matchesRule(path: string, method: string, rule: RouteRule) {
@@ -210,7 +257,7 @@ export async function attachCurrentUser(req: Request, _res: Response, next: Next
     if (!user && req.session.userId) {
       req.session.userId = undefined;
     }
-    req.currentUser = user ? sanitizeUser(user) : null;
+    req.currentUser = user ? sanitizeUser(user) : resolveBridgeTokenUser(req.headers.authorization);
     next();
   } catch (error) {
     next(error);
@@ -224,6 +271,10 @@ export async function requireApiAccess(req: Request, res: Response, next: NextFu
 
     if (!path.startsWith("/api")) {
       return next();
+    }
+
+    if (!["GET", "HEAD", "OPTIONS"].includes(method) && !resolveBridgeTokenUser(req.headers.authorization) && !hasAllowedRequestOrigin(req.headers, req.protocol)) {
+      return res.status(403).json({ message: "Request origin is not allowed" });
     }
 
     if (isPublicApiRoute(path, method)) {
@@ -262,6 +313,13 @@ export async function resolveWsUser(request: IncomingMessage) {
   await runSessionMiddleware(request);
   const sessionUserId = (request as Request).session?.userId;
   const user = await loadUserFromSession(sessionUserId);
+  const bridgeUser = resolveBridgeTokenUser(request.headers.authorization);
+  if (bridgeUser) return bridgeUser;
+  const forwardedProtocol = request.headers["x-forwarded-proto"];
+  const protocol = typeof forwardedProtocol === "string"
+    ? forwardedProtocol.split(",", 1)[0].trim()
+    : "encrypted" in request.socket && request.socket.encrypted ? "https" : "http";
+  if (!hasAllowedRequestOrigin(request.headers, protocol)) return null;
   return user ? sanitizeUser(user) : null;
 }
 

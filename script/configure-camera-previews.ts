@@ -37,9 +37,7 @@ async function ask(question: string, yes: boolean, fallback = "") {
 
 function storedCameraPassword(camera: CameraPreviewRow) {
   if (!camera.password) return "";
-  const decrypted = decryptSetupSecret(camera.password);
-  if (decrypted !== null) return decrypted;
-  return camera.password.startsWith("enc:v1:") ? "" : camera.password;
+  return decryptSetupSecret(camera.password) || "";
 }
 
 async function ffprobe(

@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/app-layout";
 import type { Mixer } from "@shared/schema";
+import { replaceMixerSection } from "@/lib/mixer-state";
 
 type MixerSection = "ch" | "bus" | "auxin" | "fxrtn" | "mtx" | "dca";
 
@@ -76,19 +77,13 @@ export default function MixerPage() {
   const handleMixerState = useCallback((message: Record<string, unknown>) => {
     if (message.type === "mixer_state" && Array.isArray(message.channels)) {
       const section = typeof message.section === "string" ? message.section : "ch";
-      setSectionStates(prev => {
-        const newMap = new Map(prev);
-        (message.channels as SectionChannelState[]).forEach((ch) => {
-          const key = `${section}:${ch.channel}`;
-          newMap.set(key, { ...ch, section });
-
-          if (section === "main" && ch.channel === 1) {
-            setMainFader(ch.fader);
-            setMainMuted(ch.muted);
-          }
-        });
-        return newMap;
-      });
+      const channels = message.channels as SectionChannelState[];
+      setSectionStates(prev => replaceMixerSection(prev, section, channels));
+      if (section === "main") {
+        const main = channels.find((channel) => channel.channel === 1);
+        setMainFader(main?.fader ?? 0);
+        setMainMuted(main?.muted ?? false);
+      }
     }
   }, []);
 
@@ -105,30 +100,19 @@ export default function MixerPage() {
     if (mixer && mixer.status === "online") {
       mixerApi.getStatus(mixer.id).then((status) => {
         if (status.sections) {
+          const main = status.sections.main?.[0];
+          setMainFader(main?.fader ?? 0);
+          setMainMuted(main?.muted ?? false);
           setSectionStates(prev => {
-            const newMap = new Map(prev);
+            let newMap = new Map(prev);
             const sections = status.sections!;
             for (const [section, channels] of Object.entries(sections)) {
-              (channels as SectionChannelState[]).forEach((ch) => {
-                const key = `${section}:${ch.channel}`;
-                newMap.set(key, { ...ch, section });
-              });
-            }
-            if (sections.main?.[0]) {
-              setMainFader(sections.main[0].fader);
-              setMainMuted(sections.main[0].muted);
+              newMap = replaceMixerSection(newMap, section, channels as SectionChannelState[]);
             }
             return newMap;
           });
         } else if (status.channels?.length > 0) {
-          setSectionStates(prev => {
-            const newMap = new Map(prev);
-            status.channels.forEach((ch: SectionChannelState) => {
-              const key = `ch:${ch.channel}`;
-              newMap.set(key, { ...ch, section: "ch" });
-            });
-            return newMap;
-          });
+          setSectionStates(prev => replaceMixerSection(prev, "ch", status.channels as SectionChannelState[]));
         }
       }).catch(console.error);
 
@@ -274,7 +258,7 @@ export default function MixerPage() {
                   </div>
                   <div>
                     <Label htmlFor="mixer-ip-full">IP Address</Label>
-                    <Input id="mixer-ip-full" value={newMixer.ip} onChange={(e) => setNewMixer({ ...newMixer, ip: e.target.value })} placeholder="192.168.0.64" className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-mixer-ip-full" />
+                    <Input id="mixer-ip-full" value={newMixer.ip} onChange={(e) => setNewMixer({ ...newMixer, ip: e.target.value })} placeholder="Mixer host or IP" className="bg-slate-300 dark:bg-slate-800 border-slate-300 dark:border-slate-600" data-testid="input-mixer-ip-full" />
                   </div>
                   <div>
                     <Label htmlFor="mixer-port-full">Port</Label>
