@@ -118,12 +118,12 @@ export interface DisplayCommandPayload {
 }
 
 export interface SmartThingsOAuthSession {
-  accessToken: string;
-  refreshToken?: string;
+  state: string;
+  ready: true;
+  clientId: string;
   expiresAt: string;
   scope?: string;
-  clientId: string;
-  clientSecret: string;
+  hasRefreshToken: boolean;
 }
 
 export interface ObsScene {
@@ -857,11 +857,11 @@ export const displayApi = {
     return res.json();
   },
 
-  discoverSmartThings: async (token: string): Promise<{ devices: SmartThingsDiscoveredDevice[] }> => {
+  discoverSmartThings: async (input: { token?: string; oauthState?: string }): Promise<{ devices: SmartThingsDiscoveredDevice[] }> => {
     const res = await apiFetch(`${API_BASE}/displays/smartthings/discover`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify(input),
     });
     if (!res.ok) {
       const payload = await res.json().catch(() => null);
@@ -892,7 +892,7 @@ export const displayApi = {
     return res.json();
   },
 
-  create: async (display: InsertDisplayDevice): Promise<DisplayDevice> => {
+  create: async (display: InsertDisplayDevice & { smartthingsOAuthState?: string }): Promise<DisplayDevice> => {
     const res = await apiFetch(`${API_BASE}/displays`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -6,8 +6,11 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import createMemoryStore from "memorystore";
 import type { User, UserRole } from "@shared/schema";
+import { isValidBridgeAuthorization } from "./bridge-auth";
 import { pool, useSqlite } from "./db";
 import { storage } from "./storage";
+
+export { isValidBridgeAuthorization } from "./bridge-auth";
 
 const scrypt = promisify(scryptCallback);
 const MemoryStore = createMemoryStore(session);
@@ -36,7 +39,6 @@ export function validateAuthConfiguration(env: NodeJS.ProcessEnv = process.env) 
 }
 
 const sessionSecret = process.env.SESSION_SECRET || "ptzcommand-dev-session-secret";
-const bridgeAuthToken = process.env.BRIDGE_AUTH_TOKEN || process.env.PTZ_BRIDGE_AUTH_TOKEN || "";
 const sessionCookieSecure =
   process.env.SESSION_COOKIE_SECURE === "true"
     ? true
@@ -145,16 +147,8 @@ function safeEqualString(a: string, b: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function bearerTokenFromHeader(header: unknown) {
-  if (typeof header !== "string") return null;
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
-}
-
-function resolveBridgeTokenUser(authorizationHeader: unknown) {
-  const token = bearerTokenFromHeader(authorizationHeader);
-  if (!token || !bridgeAuthToken) return null;
-  return safeEqualString(token, bridgeAuthToken) ? bridgeUser : null;
+function resolveBridgeTokenUser(authorizationHeader: unknown, env: NodeJS.ProcessEnv = process.env) {
+  return isValidBridgeAuthorization(authorizationHeader, env) ? bridgeUser : null;
 }
 
 export function hasAllowedRequestOrigin(headers: IncomingMessage["headers"], protocol?: string) {

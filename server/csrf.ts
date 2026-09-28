@@ -1,5 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import luscaImport from "lusca";
+import { isValidBridgeAuthorization } from "./bridge-auth";
 
 type Lusca = {
   csrf(options?: {
@@ -36,7 +37,9 @@ const luscaCsrf = lusca.csrf({
 });
 
 export const csrfProtection: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
-  if (/^Bearer\s+\S+/i.test(req.headers.authorization || "")) {
+  // Only genuine bridge tokens may skip CSRF. A forged Bearer header must not
+  // disable protection for cookie-authenticated browser sessions.
+  if (isValidBridgeAuthorization(req.headers.authorization)) {
     next();
     return;
   }

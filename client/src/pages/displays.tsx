@@ -481,7 +481,6 @@ function AdvancedSmartThingsSetup() {
       .then((session) => {
         setOauthSession(session);
         setClientId(session.clientId);
-        setClientSecret(session.clientSecret);
         toast.success("SmartThings authorization complete");
         window.history.replaceState({}, "", "/displays");
       })
@@ -497,7 +496,7 @@ function AdvancedSmartThingsSetup() {
   });
 
   const discoveryMutation = useMutation({
-    mutationFn: () => displayApi.discoverSmartThings(oauthSession?.accessToken || ""),
+    mutationFn: () => displayApi.discoverSmartThings({ oauthState: oauthSession?.state }),
     onSuccess: (result) => {
       setDiscovered(result.devices);
       toast.success(`Found ${result.devices.length} SmartThings device${result.devices.length === 1 ? "" : "s"}`);
@@ -512,11 +511,7 @@ function AdvancedSmartThingsSetup() {
       ip: ip.trim() || null,
       protocol: "smartthings",
       smartthingsDeviceId: selectedDeviceId || null,
-      smartthingsToken: oauthSession?.accessToken || null,
-      smartthingsRefreshToken: oauthSession?.refreshToken || null,
-      smartthingsTokenExpiresAt: oauthSession?.expiresAt ? new Date(oauthSession.expiresAt) : null,
-      smartthingsClientId: oauthSession?.clientId || clientId || null,
-      smartthingsClientSecret: oauthSession?.clientSecret || clientSecret || null,
+      smartthingsOAuthState: oauthSession?.state,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["displays"] });
@@ -524,6 +519,7 @@ function AdvancedSmartThingsSetup() {
       setIp("");
       setSelectedDeviceId("");
       setDiscovered([]);
+      setOauthSession(null);
       toast.success("Display added");
     },
     onError: (error: Error) => toast.error("Display add failed", { description: error.message }),
@@ -572,7 +568,7 @@ function AdvancedSmartThingsSetup() {
           <Button onClick={() => oauthMutation.mutate()} disabled={oauthMutation.isPending || !clientId.trim() || !clientSecret.trim() || !redirectUriIsHttps} data-testid="button-authorize-smartthings">
             {oauthMutation.isPending ? "Opening..." : oauthSession ? "Reconnect SmartThings" : "Connect SmartThings"}
           </Button>
-          <Button variant="outline" onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending || !oauthSession?.accessToken} data-testid="button-discover-displays">
+          <Button variant="outline" onClick={() => discoveryMutation.mutate()} disabled={discoveryMutation.isPending || !oauthSession?.state} data-testid="button-discover-displays">
             <Search className="w-4 h-4 mr-2" /> {discoveryMutation.isPending ? "Finding..." : "Find TVs"}
           </Button>
           {oauthSession && (
@@ -625,7 +621,7 @@ function AdvancedSmartThingsSetup() {
           </div>
         )}
 
-        <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !oauthSession?.accessToken || !selectedDeviceId.trim()} data-testid="button-add-smartthings-display">
+        <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !selectedDeviceId.trim() || !oauthSession?.state} data-testid="button-add-smartthings-display">
           <Plus className="w-4 h-4 mr-2" /> {createMutation.isPending ? "Adding..." : "Add SmartThings Display"}
         </Button>
       </div>

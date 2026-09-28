@@ -14,9 +14,8 @@ import { insertPresetSchema } from "@shared/schema";
 import { describeLiveWsCommandError, parseLiveWsCommand } from "@shared/live-ws-commands";
 import { isRehearsalMode } from "./rehearsal";
 import { getLiveAppState, patchLiveAppState } from "./live-state";
-import http from "http";
-import https from "https";
 import rateLimit from "express-rate-limit";
+import { fetchCameraHttp, readResponseBytes, UnsafeCameraHttpUrlError } from "./safe-camera-http";
 import type { UndoAction, SessionLogEntry, RouteContext } from "./routes/types";
 import { fromError } from "zod-validation-error";
 import {
@@ -58,31 +57,27 @@ const liveStateRateLimiter = rateLimit({
   message: { message: "Too many live-state updates; wait a minute and try again" },
 });
 
-async function captureSnapshot(url: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    try {
-      if (!/^https?:\/\//i.test(url)) {
-        resolve(null);
-        return;
-      }
-      const mod = url.startsWith("https") ? https : http;
-      const req = mod.get(url, { timeout: 3000 }, (res) => {
-        if (res.statusCode !== 200) { resolve(null); return; }
-        const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
-        res.on("end", () => {
-          const buffer = Buffer.concat(chunks);
-          const base64 = `data:image/jpeg;base64,${buffer.toString("base64")}`;
-          resolve(base64);
-        });
-        res.on("error", () => resolve(null));
-      });
-      req.on("error", () => resolve(null));
-      req.on("timeout", () => { req.destroy(); resolve(null); });
-    } catch {
-      resolve(null);
-    }
-  });
+async function captureSnapshot(camera: { name: string; ip: string; streamUrl?: string | null }): Promise<string | null> {
+  if (!camera.streamUrl || !/^https?:\/\//i.test(camera.streamUrl)) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetchCameraHttp(camera.streamUrl, camera, {
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const buffer = await readResponseBytes(response);
+    if (!buffer.length) return null;
+    return `data:image/jpeg;base64,${buffer.toString("base64")}`;
+  } catch (error) {
+    if (error instanceof UnsafeCameraHttpUrlError) return null;
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function addSessionLog(category: SessionLogEntry["category"], action: string, details: string) {
@@ -444,7 +439,7 @@ export async function registerRoutes(
             let thumbnailData = presetData.thumbnail || null;
             if (!thumbnailData && camera.streamUrl) {
               try {
-                thumbnailData = await captureSnapshot(camera.streamUrl);
+                thumbnailData = await captureSnapshot(camera);
               } catch (thumbnailError) {
                 logger.warn("preset", `Preset thumbnail capture failed for ${camera.name}: ${thumbnailError instanceof Error ? thumbnailError.message : String(thumbnailError)}`, {
                   action: "preset_thumbnail_failed",

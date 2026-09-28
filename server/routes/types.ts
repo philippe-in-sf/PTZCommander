@@ -30,7 +30,7 @@ export interface RouteContext {
   broadcast: (msg: Record<string, unknown>) => void;
   pushUndo: (action: UndoAction) => void;
   addSessionLog: (category: SessionLogEntry["category"], action: string, details: string) => void;
-  captureSnapshot: (url: string) => Promise<string | null>;
+  captureSnapshot: (camera: { name: string; ip: string; streamUrl?: string | null }) => Promise<string | null>;
   undoStack: UndoAction[];
   sessionLog: SessionLogEntry[];
 }

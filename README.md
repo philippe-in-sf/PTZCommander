@@ -198,7 +198,8 @@ Browser tablets authenticate with the normal login session. Headless bridge/API 
 
 Useful LAN/runtime address overrides:
 
-- `PTZ_HOST` or `HOST`: HTTP server bind address, default `0.0.0.0`
+- `PTZ_HOST` or `HOST`: HTTP server bind address, default `127.0.0.1` (loopback). Set to `0.0.0.0` or use `PTZ_BIND_ALL=true` to listen on all interfaces for trusted LAN use.
+- `PTZ_BIND_ALL`: when `true`/`1` and no explicit `PTZ_HOST`/`HOST` is set, bind to `0.0.0.0`
 - `PTZ_TRUST_PROXY`: trusted proxy CIDR/name or hop count; use `loopback` with the bundled Caddyfile and never use `true`
 - `VITE_DEV_HOST`: Vite dev-server bind address, default `0.0.0.0`
 - `X32_LOCAL_ADDRESS`: local OSC bind address for the X32 adapter, default `0.0.0.0`
