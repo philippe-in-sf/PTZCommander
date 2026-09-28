@@ -20,7 +20,11 @@ async function withServer(
   try {
     await run(`http://127.0.0.1:${address.port}`);
   } finally {
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) => {
+      const httpServer = server as typeof server & { closeAllConnections?: () => void };
+      httpServer.closeAllConnections?.();
+      httpServer.close((error) => error ? reject(error) : resolve());
+    });
   }
 }
 

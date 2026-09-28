@@ -11,6 +11,7 @@ import { reencryptStoredSecrets } from "./storage";
 import { configureExpressSecurity } from "./security";
 import { closeDatabase } from "./db";
 import { validateSecretConfiguration } from "./secrets";
+import { resolveListenHost } from "./listen-host";
 
 const app = express();
 const httpServer = createServer(app);
@@ -143,7 +144,7 @@ app.use((req, res, next) => {
 
   const defaultPort = process.env.REPL_ID ? "5000" : "3478";
   const port = parseInt(process.env.PORT || defaultPort, 10);
-  const host = process.env.PTZ_HOST || process.env.HOST || "0.0.0.0";
+  const host = resolveListenHost();
   
   httpServer.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {

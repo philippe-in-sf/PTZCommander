@@ -15,6 +15,11 @@ import { z } from "zod";
 import { isRedactedSecret, publicCamera } from "./public-dtos";
 import { registerApiAccessRule } from "../auth";
 import { refreshPresetThumbnail } from "../preset-thumbnails";
+import {
+  fetchCameraHttp,
+  readResponseBytes,
+  UnsafeCameraHttpUrlError,
+} from "../safe-camera-http";
 
 const DEFAULT_VISCA_PORTS = [52381, 1259, 5678];
 const VISCA_VERSION_INQUIRY = Buffer.from([0x81, 0x09, 0x00, 0x02, 0xff]);
@@ -367,9 +372,10 @@ async function captureSnapshotPreviewFrame(
   const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
-    const response = await fetchImpl(camera.streamUrl, {
+    const response = await fetchCameraHttp(camera.streamUrl, camera, {
       signal: controller.signal,
       headers: cameraAuthHeaders(camera) as Record<string, string>,
+      fetchImpl,
     });
 
     if (!response.ok) {
@@ -377,12 +383,15 @@ async function captureSnapshotPreviewFrame(
     }
 
     return {
-      buffer: Buffer.from(await response.arrayBuffer()),
+      buffer: await readResponseBytes(response, FFMPEG_FRAME_MAX_BYTES),
       contentType: response.headers.get("content-type") || "image/jpeg",
     };
   } catch (error) {
     if (error instanceof CameraPreviewCaptureError) {
       throw error;
+    }
+    if (error instanceof UnsafeCameraHttpUrlError) {
+      throw new CameraPreviewCaptureError(error.message, error.statusCode);
     }
 
     const errorName = error instanceof Error ? error.name : "";
@@ -937,7 +946,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
       req.on("aborted", abortPreviewStream);
       res.on("close", abortPreviewStream);
 
-      const response = await fetch(camera.streamUrl, {
+      const response = await fetchCameraHttp(camera.streamUrl, camera, {
         signal: controller.signal,
         headers: cameraAuthHeaders(camera) as Record<string, string>,
       });
@@ -955,6 +964,9 @@ export function registerCameraRoutes(ctx: RouteContext) {
       Readable.fromWeb(response.body as any).on("error", () => res.end()).pipe(res);
     } catch (error: any) {
       clearTimeout(timeout);
+      if (error instanceof UnsafeCameraHttpUrlError && !res.headersSent) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       if (error.name === "AbortError" && !res.headersSent) {
         return res.status(504).json({ message: "Camera preview stream timed out" });
       }
@@ -1214,7 +1226,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch(camera.streamUrl, {
+        const response = await fetchCameraHttp(camera.streamUrl, camera, {
           method: "POST",
           signal: controller.signal,
           headers: {
@@ -1230,10 +1242,14 @@ export function registerCameraRoutes(ctx: RouteContext) {
           return res.status(502).json({ message: `WebRTC bridge returned ${response.status}` });
         }
 
+        const answer = await readResponseBytes(response, FFMPEG_FRAME_MAX_BYTES);
         res.setHeader("Content-Type", "application/sdp");
-        res.send(await response.text());
+        res.send(answer.toString("utf8"));
       } catch (offerError: any) {
         clearTimeout(timeout);
+        if (offerError instanceof UnsafeCameraHttpUrlError) {
+          return res.status(offerError.statusCode).json({ message: offerError.message });
+        }
         if (offerError.name === "AbortError") {
           return res.status(504).json({ message: "WebRTC bridge offer timed out" });
         }
@@ -1279,7 +1295,7 @@ export function registerCameraRoutes(ctx: RouteContext) {
       if (!thumbnailData) {
         try {
           if (camera?.streamUrl) {
-            thumbnailData = await captureSnapshot(camera.streamUrl);
+            thumbnailData = await captureSnapshot(camera);
           }
         } catch (thumbnailError) {
           logger.warn("preset", `Preset thumbnail capture failed for ${camera.name}: ${thumbnailError instanceof Error ? thumbnailError.message : String(thumbnailError)}`, {

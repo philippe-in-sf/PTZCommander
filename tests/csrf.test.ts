@@ -48,7 +48,9 @@ async function withCsrfServer(callback: (baseUrl: string) => Promise<void>) {
     await callback(`http://127.0.0.1:${address.port}`);
   } finally {
     await new Promise<void>((resolve, reject) => {
-      (server as Server).close((error) => (error ? reject(error) : resolve()));
+      const httpServer = server as Server & { closeAllConnections?: () => void };
+      httpServer.closeAllConnections?.();
+      httpServer.close((error) => (error ? reject(error) : resolve()));
     });
   }
 }
@@ -81,14 +83,36 @@ test("CSRF middleware issues an XSRF cookie and requires it for unsafe API reque
   });
 });
 
-test("CSRF middleware allows bearer-authenticated bridge requests", async () => {
-  await withCsrfServer(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/action`, {
-      method: "POST",
-      headers: { Authorization: "Bearer bridge-test-token" },
-    });
+test("CSRF middleware allows only valid bridge bearer tokens to skip CSRF", async () => {
+  const previousToken = process.env.BRIDGE_AUTH_TOKEN;
+  process.env.BRIDGE_AUTH_TOKEN = "bridge-test-token";
 
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { ok: true });
-  });
+  try {
+    await withCsrfServer(async (baseUrl) => {
+      const tokenResponse = await fetch(`${baseUrl}/api/token`);
+      assert.equal(tokenResponse.status, 200);
+      const cookies = setCookieHeaders(tokenResponse.headers);
+      const cookieHeader = cookieHeaderFromSetCookie(cookies);
+
+      const forgedBearer = await fetch(`${baseUrl}/api/action`, {
+        method: "POST",
+        headers: {
+          Cookie: cookieHeader,
+          Authorization: "Bearer not-the-bridge-token",
+        },
+      });
+      assert.equal(forgedBearer.status, 403);
+      assert.deepEqual(await forgedBearer.json(), { message: "CSRF token missing" });
+
+      const validBridge = await fetch(`${baseUrl}/api/action`, {
+        method: "POST",
+        headers: { Authorization: "Bearer bridge-test-token" },
+      });
+      assert.equal(validBridge.status, 200);
+      assert.deepEqual(await validBridge.json(), { ok: true });
+    });
+  } finally {
+    if (previousToken === undefined) delete process.env.BRIDGE_AUTH_TOKEN;
+    else process.env.BRIDGE_AUTH_TOKEN = previousToken;
+  }
 });

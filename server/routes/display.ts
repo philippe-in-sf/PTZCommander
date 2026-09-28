@@ -8,9 +8,17 @@ import { discoverSamsungDisplays, keyForSamsungAction, SamsungLocalDisplayClient
 import { errorDetails, logger } from "../logger";
 import type { DisplayDevice } from "@shared/schema";
 import { registerApiAccessRule } from "../auth";
+import { smartThingsOAuthStore } from "../smartthings-oauth-store";
 
 const smartThingsDiscoverSchema = z.object({
-  token: z.string().min(10),
+  token: z.string().min(10).optional(),
+  oauthState: z.string().uuid().optional(),
+}).refine((value) => Boolean(value.token || value.oauthState), {
+  message: "Provide a SmartThings token or oauthState",
+});
+
+const createDisplayBodySchema = insertDisplayDeviceSchema.extend({
+  smartthingsOAuthState: z.string().uuid().optional(),
 });
 
 const samsungDiscoverSchema = z.object({
@@ -41,16 +49,6 @@ const displayCommandSchema = z.object({
   smartthingsCommand: z.string().optional(),
   arguments: z.array(z.unknown()).optional(),
 });
-
-const oauthStates = new Map<string, z.infer<typeof smartThingsOAuthStartSchema> & { createdAt: number }>();
-const oauthSessions = new Map<string, {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt: string;
-  scope?: string;
-  clientId: string;
-  clientSecret: string;
-}>();
 
 function redactDisplay(display: DisplayDevice) {
   return {
@@ -279,7 +277,14 @@ export function registerDisplayRoutes(ctx: RouteContext) {
       const parsed = smartThingsDiscoverSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
 
-      const devices = await new SmartThingsClient(parsed.data.token).listDevices();
+      let token = parsed.data.token || "";
+      if (!token && parsed.data.oauthState) {
+        if (!req.currentUser) return res.status(401).json({ message: "Authentication required" });
+        token = smartThingsOAuthStore.getAccessToken(parsed.data.oauthState, req.currentUser.id) || "";
+        if (!token) return res.status(404).json({ message: "SmartThings authorization session not found" });
+      }
+
+      const devices = await new SmartThingsClient(token).listDevices();
       const likelyDisplays = devices.filter((device) =>
         device.capabilities.includes("switch") &&
         (device.capabilities.includes("audioVolume") ||
@@ -330,10 +335,14 @@ export function registerDisplayRoutes(ctx: RouteContext) {
 
   app.post("/api/displays/smartthings/oauth/start", async (req, res) => {
     try {
+      if (!req.currentUser) return res.status(401).json({ message: "Authentication required" });
       const parsed = smartThingsOAuthStartSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
       const state = crypto.randomUUID();
-      oauthStates.set(state, { ...parsed.data, createdAt: Date.now() });
+      smartThingsOAuthStore.start(state, {
+        ...parsed.data,
+        userId: req.currentUser.id,
+      });
       const authorizeUrl = SmartThingsClient.getAuthorizeUrl({ ...parsed.data, state });
       res.json({ authorizeUrl, state, redirectUri: parsed.data.redirectUri, scope: parsed.data.scope });
     } catch (error: any) {
@@ -344,7 +353,7 @@ export function registerDisplayRoutes(ctx: RouteContext) {
   app.get("/api/displays/smartthings/oauth/callback", async (req, res) => {
     const code = typeof req.query.code === "string" ? req.query.code : "";
     const state = typeof req.query.state === "string" ? req.query.state : "";
-    const pending = oauthStates.get(state);
+    const pending = state ? smartThingsOAuthStore.takePending(state) : null;
     if (!code || !state || !pending) {
       return res.status(400).send("SmartThings authorization could not be completed. Return to PTZ Command and try again.");
     }
@@ -356,11 +365,11 @@ export function registerDisplayRoutes(ctx: RouteContext) {
         redirectUri: pending.redirectUri,
         code,
       });
-      oauthStates.delete(state);
-      oauthSessions.set(state, {
+      smartThingsOAuthStore.complete(state, {
         ...token,
         clientId: pending.clientId,
         clientSecret: pending.clientSecret,
+        userId: pending.userId,
       });
       res.redirect(`/displays?smartthingsAuth=${encodeURIComponent(state)}`);
     } catch (error: any) {
@@ -373,17 +382,37 @@ export function registerDisplayRoutes(ctx: RouteContext) {
   });
 
   app.get("/api/displays/smartthings/oauth/session/:state", (req, res) => {
-    const session = oauthSessions.get(req.params.state);
+    if (!req.currentUser) return res.status(401).json({ message: "Authentication required" });
+    const session = smartThingsOAuthStore.getPublicSession(req.params.state, req.currentUser.id);
     if (!session) return res.status(404).json({ message: "SmartThings authorization session not found" });
+    // Never return access tokens, refresh tokens, or client secrets to the browser.
     res.json(session);
   });
 
   app.post("/api/displays", async (req, res) => {
     try {
-      const parsed = insertDisplayDeviceSchema.safeParse(req.body);
+      const parsed = createDisplayBodySchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: fromError(parsed.error).toString() });
 
-      const display = await storage.createDisplayDevice(parsed.data);
+      const { smartthingsOAuthState, ...displayInput } = parsed.data;
+      let createInput = displayInput;
+      if (smartthingsOAuthState) {
+        if (!req.currentUser) return res.status(401).json({ message: "Authentication required" });
+        const credentials = smartThingsOAuthStore.consume(smartthingsOAuthState, req.currentUser.id);
+        if (!credentials) {
+          return res.status(404).json({ message: "SmartThings authorization session not found or already used" });
+        }
+        createInput = {
+          ...displayInput,
+          smartthingsToken: credentials.accessToken,
+          smartthingsRefreshToken: credentials.refreshToken || displayInput.smartthingsRefreshToken || null,
+          smartthingsTokenExpiresAt: new Date(credentials.expiresAt),
+          smartthingsClientId: credentials.clientId,
+          smartthingsClientSecret: credentials.clientSecret,
+        };
+      }
+
+      const display = await storage.createDisplayDevice(createInput);
       let refreshed = display;
       if (display.smartthingsToken && display.smartthingsDeviceId) {
         try {
